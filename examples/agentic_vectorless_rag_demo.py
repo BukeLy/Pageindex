@@ -23,7 +23,7 @@ import json
 import asyncio
 import concurrent.futures
 from pathlib import Path
-from typing import Any
+import requests
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -32,6 +32,8 @@ from agents.model_settings import ModelSettings
 from agents.stream_events import RawResponsesStreamEvent, RunItemStreamEvent
 from openai.types.responses import ResponseTextDeltaEvent, ResponseReasoningSummaryTextDeltaEvent
 
+from pageindex import PageIndexClient
+import pageindex.utils as utils
 
 PDF_URL = "https://arxiv.org/pdf/2603.15031"
 
@@ -50,7 +52,7 @@ Answer based only on tool output. Be concise.
 """
 
 
-def query_agent(client: Any, doc_id: str, prompt: str, verbose: bool = False) -> str:
+def query_agent(client: PageIndexClient, doc_id: str, prompt: str, verbose: bool = False) -> str:
     """Run a document QA agent using the OpenAI Agents SDK.
 
     Streams text output token-by-token and returns the full answer string.
@@ -135,9 +137,6 @@ def query_agent(client: Any, doc_id: str, prompt: str, verbose: bool = False) ->
 
 
 if __name__ == "__main__":
-    import requests
-    from pageindex import PageIndexClient
-    import pageindex.utils as utils
 
     set_tracing_disabled(True)
 
