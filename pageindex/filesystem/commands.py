@@ -215,7 +215,8 @@ class PIFSCommandExecutor:
                 i += 1
                 content = Path(args[i]).read_text(encoding="utf-8")
             elif arg == "--metadata-auto":
-                metadata["_metadata_auto_requested"] = True
+                # Reserved for future LLM-assisted metadata extraction.
+                pass
             elif arg.startswith("-"):
                 raise PIFSCommandError(f"Unsupported cp option: {arg}")
             else:

@@ -93,6 +93,14 @@ class PageIndexFileSystem:
                     folder_path=row["folder_path"],
                     metadata=row["metadata"],
                     source_path=row["source_path"],
+                    id=row["id"],
+                    document_id=row["document_id"],
+                    name=row["name"],
+                    description=row["description"],
+                    status=row["status"],
+                    pageNum=row["pageNum"],
+                    createdAt=row["createdAt"],
+                    folderId=row["folderId"],
                 )
             )
         return results

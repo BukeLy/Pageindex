@@ -17,12 +17,15 @@ Allowed commands:
 - ls <path>
 - ls -R <path>
 - tree <path>
-- find <path> --where '<metadata DSL>' --name '<pattern>'
+- find <path> --where '<metadata JSON DSL>' --name '<pattern>'
 - grep -R '<query>' <path>
 - cat <doc|ref|path> --range <start-end>
 - cat <doc|ref|path> --all
 - stat <doc|ref|path>
 - stat --schema <path>
+
+Metadata filters use JSON DSL, for example:
+{"$and":[{"repo":"redwood"},{"year":{"$gte":2024}}]}.
 
 Start by inspecting the top-level folders and metadata schema. Use find/grep to
 narrow candidate documents, then use stat/cat to verify evidence. Answer only

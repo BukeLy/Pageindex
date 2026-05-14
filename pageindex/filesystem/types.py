@@ -14,6 +14,14 @@ class SearchResult:
     folder_path: str
     metadata: dict[str, Any]
     source_path: str = ""
+    id: Optional[str] = None
+    document_id: Optional[str] = None
+    name: str = ""
+    description: str = ""
+    status: str = ""
+    pageNum: Optional[int] = None
+    createdAt: Optional[str] = None
+    folderId: Optional[str] = None
 
 
 @dataclass(frozen=True)

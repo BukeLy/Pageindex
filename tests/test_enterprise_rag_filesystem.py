@@ -140,8 +140,10 @@ class EnterpriseRAGFileSystemTest(unittest.TestCase):
                 "audit logging",
                 scope={"folder_path": "/github", "recursive": True},
                 metadata_filter={
-                    "repo": {"$eq": "redwood"},
-                    "labels": {"$contains": "audit-logging"},
+                    "$and": [
+                        {"repo": "redwood"},
+                        {"labels": {"$eq": "audit-logging"}},
+                    ],
                 },
                 limit=10,
             )
@@ -346,7 +348,7 @@ class EnterpriseRAGFileSystemTest(unittest.TestCase):
             filtered = filesystem.search(
                 "audit logging",
                 scope={"folder_path": "/github", "recursive": True},
-                metadata_filter='repo = "redwood" AND labels CONTAINS "audit-logging"',
+                metadata_filter='{"$and":[{"repo":"redwood"},{"labels":"audit-logging"}]}',
                 limit=5,
             )
 
@@ -376,7 +378,7 @@ class EnterpriseRAGFileSystemTest(unittest.TestCase):
             listing = json.loads(executor.execute("ls /"))
             found = json.loads(
                 executor.execute(
-                    'find /github --where \'repo = "redwood" AND labels CONTAINS "audit-logging"\''
+                    'find /github --where \'{"$and":[{"repo":"redwood"},{"labels":"audit-logging"}]}\''
                 )
             )
             grepped = json.loads(executor.execute('grep -R "bundle verification" /github'))
@@ -406,11 +408,120 @@ class EnterpriseRAGFileSystemTest(unittest.TestCase):
 
             payload = json.loads(
                 PIFSCommandExecutor(filesystem, json_output=True).execute(
-                    'find /finance --where "year >= 2024"'
+                    'find /finance --where \'{"year":{"$gte":2024}}\''
                 )
             )
 
             self.assertEqual(payload["data"][0]["external_id"], "dsid_year_2024")
+
+    def test_metadata_filter_uses_compute_json_dsl_semantics(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            from pageindex.filesystem import PageIndexFileSystem
+
+            filesystem = PageIndexFileSystem(workspace=Path(tmp) / "workspace")
+            filesystem.register_files(
+                [
+                    {
+                        "storage_uri": "file:///tmp/a.json",
+                        "source_path": "github/redwood/a.json",
+                        "folder_path": "/github/redwood",
+                        "external_id": "dsid_redwood_2024",
+                        "title": "Redwood 2024",
+                        "metadata": {"repo": "redwood", "year": 2024, "private": True},
+                        "content": "metadata json dsl document",
+                    },
+                    {
+                        "storage_uri": "file:///tmp/b.json",
+                        "source_path": "github/redwood/b.json",
+                        "folder_path": "/github/redwood",
+                        "external_id": "dsid_redwood_2020",
+                        "title": "Redwood 2020",
+                        "metadata": {"repo": "redwood", "year": 2020, "private": False},
+                        "content": "metadata json dsl document",
+                    },
+                    {
+                        "storage_uri": "file:///tmp/c.json",
+                        "source_path": "slack/eng/c.json",
+                        "folder_path": "/slack/eng",
+                        "external_id": "dsid_missing_repo",
+                        "title": "No repo",
+                        "metadata": {"channel": "eng", "year": 2025},
+                        "content": "metadata json dsl document",
+                    },
+                ]
+            )
+
+            filtered = filesystem.search(
+                None,
+                metadata_filter={"$and": [{"repo": "redwood"}, {"year": {"$gte": 2024}}]},
+                limit=10,
+            )
+            not_redwood = filesystem.search(None, metadata_filter={"repo": {"$ne": "redwood"}}, limit=10)
+            either = filesystem.search(
+                None,
+                metadata_filter={"$or": [{"repo": "redwood"}, {"channel": "eng"}]},
+                limit=10,
+            )
+
+            self.assertEqual([result.external_id for result in filtered], ["dsid_redwood_2024"])
+            self.assertEqual([result.external_id for result in not_redwood], ["dsid_missing_repo"])
+            self.assertEqual(
+                {result.external_id for result in either},
+                {"dsid_redwood_2024", "dsid_redwood_2020", "dsid_missing_repo"},
+            )
+
+    def test_metadata_filter_rejects_old_sql_like_dsl_and_unknown_operators(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            from pageindex.filesystem import PageIndexFileSystem
+            from pageindex.filesystem.metadata import MetadataQueryError
+
+            filesystem = PageIndexFileSystem(workspace=Path(tmp) / "workspace")
+            filesystem.register_file(
+                storage_uri="file:///tmp/doc.json",
+                source_path="github/redwood/doc.json",
+                folder_path="/github/redwood",
+                external_id="dsid_redwood",
+                title="Redwood doc",
+                metadata={"repo": "redwood"},
+                content="metadata dsl",
+            )
+
+            with self.assertRaises(MetadataQueryError):
+                filesystem.search(None, metadata_filter='repo = "redwood"')
+            with self.assertRaises(MetadataQueryError):
+                filesystem.search(None, metadata_filter={"repo": {"$contains": "red"}})
+            with self.assertRaises(MetadataQueryError):
+                filesystem.search(None, metadata_filter={"_repo": "redwood"})
+
+    def test_browse_returns_chat_compatible_folder_and_document_fields(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            from pageindex.filesystem import PageIndexFileSystem
+
+            filesystem = PageIndexFileSystem(workspace=Path(tmp) / "workspace")
+            filesystem.register_file(
+                storage_uri="file:///tmp/doc.json",
+                source_path="github/redwood/doc.json",
+                folder_path="/github/redwood",
+                external_id="dsid_browse",
+                title="Browse doc",
+                metadata={"repo": "redwood"},
+                content="browse shape",
+            )
+
+            root = filesystem.browse("/")
+            recursive = filesystem.browse("/github", recursive=True)
+            leaf = filesystem.browse("/github/redwood")
+
+            folder = root["folders"][0]
+            redwood_folder = next(item for item in recursive["folders"] if item["path"] == "/github/redwood")
+            doc = leaf["files"][0]
+            self.assertIn("id", folder)
+            self.assertIn("parent_folder_id", folder)
+            self.assertIn("file_count", folder)
+            self.assertIn("children_count", folder)
+            self.assertEqual(doc["id"], "dsid_browse")
+            self.assertEqual(doc["name"], "Browse doc")
+            self.assertEqual(doc["folderId"], redwood_folder["id"])
 
     def test_pifs_command_executor_rejects_real_shell_syntax(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -484,7 +595,7 @@ class EnterpriseRAGFileSystemTest(unittest.TestCase):
             )
 
             second = PageIndexFileSystem(workspace=workspace)
-            results = second.search("catalog", metadata_filter='repo = "redwood"')
+            results = second.search("catalog", metadata_filter='{"repo":"redwood"}')
             from pageindex.filesystem import PIFSCommandExecutor
 
             schema = json.loads(
@@ -492,7 +603,8 @@ class EnterpriseRAGFileSystemTest(unittest.TestCase):
             )["data"]
 
             self.assertEqual([result.external_id for result in results], ["dsid_reopen"])
-            self.assertIn("repo", [field["name"] for field in schema["fields"]])
+            self.assertIn("repo", schema["fields"])
+            self.assertEqual(schema["fields"]["repo"]["type"], "string")
 
     def test_legacy_workspace_with_folder_path_column_can_still_register(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -548,7 +660,7 @@ class EnterpriseRAGFileSystemTest(unittest.TestCase):
                 content="legacy schema insert works",
             )
 
-            results = filesystem.search("legacy", metadata_filter='repo = "redwood"')
+            results = filesystem.search("legacy", metadata_filter='{"repo":"redwood"}')
             self.assertEqual([result.external_id for result in results], ["dsid_legacy_insert"])
 
 

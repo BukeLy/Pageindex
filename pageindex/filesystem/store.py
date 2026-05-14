@@ -9,7 +9,7 @@ from typing import Any, Iterable, Optional
 
 from .types import FileEntry, MetadataField
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 
 class SQLiteFileSystemStore:
@@ -35,6 +35,10 @@ class SQLiteFileSystemStore:
             version = conn.execute("PRAGMA user_version").fetchone()[0]
             if version < 1:
                 self._migrate_to_v1(conn)
+                conn.execute("PRAGMA user_version = 1")
+                version = 1
+            if version < 2:
+                self._migrate_to_v2(conn)
                 conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
 
     def _migrate_to_v1(self, conn: sqlite3.Connection) -> None:
@@ -66,8 +70,10 @@ class SQLiteFileSystemStore:
                 parent_id TEXT,
                 name TEXT NOT NULL,
                 path TEXT NOT NULL UNIQUE,
+                description TEXT NOT NULL DEFAULT '',
                 kind TEXT NOT NULL DEFAULT 'physical',
                 source TEXT NOT NULL DEFAULT 'source',
+                sort_order INTEGER NOT NULL DEFAULT 0,
                 created_at TEXT DEFAULT CURRENT_TIMESTAMP,
                 updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY(parent_id) REFERENCES folders(folder_id)
@@ -147,6 +153,22 @@ class SQLiteFileSystemStore:
         self._backfill_legacy_memberships(conn)
         self._backfill_metadata_values(conn)
 
+    def _migrate_to_v2(self, conn: sqlite3.Connection) -> None:
+        if "folders" in self._tables(conn):
+            columns = self._columns(conn, "folders")
+            if "description" not in columns:
+                conn.execute("ALTER TABLE folders ADD COLUMN description TEXT NOT NULL DEFAULT ''")
+            if "sort_order" not in columns:
+                conn.execute("ALTER TABLE folders ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0")
+        if "metadata_fields" in self._tables(conn):
+            conn.execute(
+                """
+                UPDATE metadata_fields
+                SET type = 'string'
+                WHERE type NOT IN ('string', 'number', 'boolean')
+                """
+            )
+
     def _migrate_legacy_tables(self, conn: sqlite3.Connection) -> None:
         tables = self._tables(conn)
         if "folders" in tables and "folder_id" not in self._columns(conn, "folders"):
@@ -193,11 +215,11 @@ class SQLiteFileSystemStore:
                 metadata = json.loads(row["metadata_json"] or "{}")
             except json.JSONDecodeError:
                 metadata = {}
-            fields = [
-                MetadataField(name=name, field_type=self._infer_metadata_type(value))
-                for name, value in metadata.items()
-                if self._valid_field_name(name)
-            ]
+            fields = []
+            for name, value in metadata.items():
+                field_type = self._infer_metadata_type(value)
+                if self._valid_field_name(name) and field_type is not None:
+                    fields.append(MetadataField(name=name, field_type=field_type))
             self.upsert_metadata_fields(fields, conn=conn)
             self.replace_metadata_values(conn, row["file_ref"], metadata)
 
@@ -404,10 +426,34 @@ class SQLiteFileSystemStore:
             if recursive:
                 folder_rows = conn.execute(
                     """
-                    SELECT folder_id, parent_id, name, path, kind, source
-                    FROM folders
-                    WHERE path != ? AND (path LIKE ?)
-                    ORDER BY path
+                    SELECT
+                        fo.folder_id,
+                        fo.parent_id,
+                        fo.name,
+                        fo.path,
+                        fo.description,
+                        fo.kind,
+                        fo.source,
+                        fo.sort_order,
+                        fo.created_at,
+                        fo.updated_at,
+                        (
+                            SELECT COUNT(*)
+                            FROM file_folders child_ff
+                            JOIN files child_file
+                              ON child_file.file_ref = child_ff.file_ref
+                             AND child_file.deleted_at IS NULL
+                            WHERE child_ff.folder_id = fo.folder_id
+                              AND child_ff.membership_kind = 'primary'
+                        ) AS file_count,
+                        (
+                            SELECT COUNT(*)
+                            FROM folders child_folder
+                            WHERE child_folder.parent_id = fo.folder_id
+                        ) AS children_count
+                    FROM folders fo
+                    WHERE fo.path != ? AND (fo.path LIKE ?)
+                    ORDER BY fo.path
                     LIMIT ?
                     """,
                     (path, self._descendant_like(path), limit),
@@ -416,10 +462,34 @@ class SQLiteFileSystemStore:
             else:
                 folder_rows = conn.execute(
                     """
-                    SELECT folder_id, parent_id, name, path, kind, source
-                    FROM folders
-                    WHERE parent_id = ?
-                    ORDER BY kind, name
+                    SELECT
+                        fo.folder_id,
+                        fo.parent_id,
+                        fo.name,
+                        fo.path,
+                        fo.description,
+                        fo.kind,
+                        fo.source,
+                        fo.sort_order,
+                        fo.created_at,
+                        fo.updated_at,
+                        (
+                            SELECT COUNT(*)
+                            FROM file_folders child_ff
+                            JOIN files child_file
+                              ON child_file.file_ref = child_ff.file_ref
+                             AND child_file.deleted_at IS NULL
+                            WHERE child_ff.folder_id = fo.folder_id
+                              AND child_ff.membership_kind = 'primary'
+                        ) AS file_count,
+                        (
+                            SELECT COUNT(*)
+                            FROM folders child_folder
+                            WHERE child_folder.parent_id = fo.folder_id
+                        ) AS children_count
+                    FROM folders fo
+                    WHERE fo.parent_id = ?
+                    ORDER BY fo.sort_order, fo.kind, fo.name
                     LIMIT ?
                     """,
                     (folder["folder_id"], limit),
@@ -471,7 +541,11 @@ class SQLiteFileSystemStore:
             "f.external_id",
             "f.source_path",
             "f.title",
+            "f.descriptor",
+            "f.pageindex_tree_status",
             "f.metadata_json",
+            "f.created_at",
+            "pf.folder_id",
             "pf.path AS folder_path",
         ]
         where = ["f.deleted_at IS NULL"]
@@ -486,7 +560,7 @@ class SQLiteFileSystemStore:
         else:
             selects.append("f.descriptor AS snippet")
             selects.append("0 AS rank")
-            order_by = "f.title"
+            order_by = "f.created_at DESC, f.title"
         scope_sql, scope_params = self._scope_sql(scope)
         if scope_sql:
             where.append(scope_sql)
@@ -509,82 +583,108 @@ class SQLiteFileSystemStore:
     def _metadata_filter_sql(self, metadata_filter: Optional[dict[str, Any]]) -> tuple[list[str], list[Any]]:
         if not metadata_filter:
             return [], []
+        clause, params = self._compile_metadata_filter(metadata_filter)
+        return [clause] if clause else [], params
+
+    def _compile_metadata_filter(self, metadata_filter: dict[str, Any]) -> tuple[str, list[Any]]:
         clauses = []
         params: list[Any] = []
-        for field, condition in metadata_filter.items():
-            if not isinstance(condition, dict):
-                condition = {"$eq": condition}
-            for operator, expected in condition.items():
-                field_id = self.field_id(field)
-                if operator == "$eq":
-                    clauses.append(
-                        """
-                        EXISTS (
-                            SELECT 1 FROM metadata_values mv
-                            WHERE mv.file_ref = f.file_ref
-                              AND mv.field_id = ?
-                              AND mv.value_text = ?
-                        )
-                        """
+        for key, condition in metadata_filter.items():
+            if key in {"$and", "$or"}:
+                child_clauses = []
+                child_params: list[Any] = []
+                for item in condition:
+                    child_clause, item_params = self._compile_metadata_filter(item)
+                    if child_clause:
+                        child_clauses.append(f"({child_clause})")
+                        child_params.extend(item_params)
+                if child_clauses:
+                    joiner = " AND " if key == "$and" else " OR "
+                    clauses.append(joiner.join(child_clauses))
+                    params.extend(child_params)
+                continue
+            field_clause, field_params = self._compile_metadata_field_filter(key, condition)
+            clauses.append(field_clause)
+            params.extend(field_params)
+        return " AND ".join(f"({clause})" for clause in clauses), params
+
+    def _compile_metadata_field_filter(self, field: str, condition: Any) -> tuple[str, list[Any]]:
+        if not isinstance(condition, dict) or not any(str(key).startswith("$") for key in condition):
+            condition = {"$eq": condition}
+        operator, expected = next(iter(condition.items()))
+        field_id = self.field_id(field)
+        if operator == "$eq":
+            return (
+                """
+                EXISTS (
+                    SELECT 1 FROM metadata_values mv
+                    WHERE mv.file_ref = f.file_ref
+                      AND mv.field_id = ?
+                      AND mv.value_text = ?
+                )
+                """,
+                [field_id, self._metadata_compare_text(expected)],
+            )
+        if operator == "$ne":
+            return (
+                """
+                NOT EXISTS (
+                    SELECT 1 FROM metadata_values mv
+                    WHERE mv.file_ref = f.file_ref
+                      AND mv.field_id = ?
+                      AND mv.value_text = ?
+                )
+                """,
+                [field_id, self._metadata_compare_text(expected)],
+            )
+        if operator == "$in":
+            values = [self._metadata_compare_text(item) for item in expected]
+            if not values:
+                return "0", []
+            placeholders = ", ".join("?" for _ in values)
+            return (
+                f"""
+                EXISTS (
+                    SELECT 1 FROM metadata_values mv
+                    WHERE mv.file_ref = f.file_ref
+                      AND mv.field_id = ?
+                      AND mv.value_text IN ({placeholders})
+                )
+                """,
+                [field_id, *values],
+            )
+        if operator in {"$gt", "$gte", "$lt", "$lte"}:
+            comparator = {
+                "$gt": ">",
+                "$gte": ">=",
+                "$lt": "<",
+                "$lte": "<=",
+            }[operator]
+            if isinstance(expected, (int, float)) and not isinstance(expected, bool):
+                return (
+                    f"""
+                    EXISTS (
+                        SELECT 1 FROM metadata_values mv
+                        WHERE mv.file_ref = f.file_ref
+                          AND mv.field_id = ?
+                          AND mv.value_number IS NOT NULL
+                          AND mv.value_number {comparator} ?
                     )
-                    params.extend([field_id, self._metadata_compare_text(expected)])
-                elif operator == "$ne":
-                    clauses.append(
-                        """
-                        NOT EXISTS (
-                            SELECT 1 FROM metadata_values mv
-                            WHERE mv.file_ref = f.file_ref
-                              AND mv.field_id = ?
-                              AND mv.value_text = ?
-                        )
-                        """
-                    )
-                    params.extend([field_id, self._metadata_compare_text(expected)])
-                elif operator == "$contains":
-                    clauses.append(
-                        """
-                        EXISTS (
-                            SELECT 1 FROM metadata_values mv
-                            WHERE mv.file_ref = f.file_ref
-                              AND mv.field_id = ?
-                              AND (mv.value_text = ? OR mv.value_text LIKE ?)
-                        )
-                        """
-                    )
-                    text = self._metadata_compare_text(expected)
-                    params.extend([field_id, text, f"%{text}%"])
-                elif operator == "$in":
-                    values = [self._metadata_compare_text(item) for item in expected]
-                    if not values:
-                        clauses.append("0")
-                    else:
-                        placeholders = ", ".join("?" for _ in values)
-                        clauses.append(
-                            f"""
-                            EXISTS (
-                                SELECT 1 FROM metadata_values mv
-                                WHERE mv.file_ref = f.file_ref
-                                  AND mv.field_id = ?
-                                  AND mv.value_text IN ({placeholders})
-                            )
-                            """
-                        )
-                        params.extend([field_id, *values])
-                elif operator in {"$>", "$>=", "$<", "$<="}:
-                    comparator = operator[1:]
-                    clauses.append(
-                        f"""
-                        EXISTS (
-                            SELECT 1 FROM metadata_values mv
-                            WHERE mv.file_ref = f.file_ref
-                              AND mv.field_id = ?
-                              AND mv.value_number IS NOT NULL
-                              AND mv.value_number {comparator} ?
-                        )
-                        """
-                    )
-                    params.extend([field_id, float(expected)])
-        return clauses, params
+                    """,
+                    [field_id, float(expected)],
+                )
+            return (
+                f"""
+                EXISTS (
+                    SELECT 1 FROM metadata_values mv
+                    WHERE mv.file_ref = f.file_ref
+                      AND mv.field_id = ?
+                      AND mv.value_text {comparator} ?
+                )
+                """,
+                [field_id, self._metadata_compare_text(expected)],
+            )
+        raise ValueError(f"Unsupported metadata operator: {operator}")
 
     def get_file(self, file_ref: str) -> FileEntry:
         with self.connect() as conn:
@@ -650,8 +750,10 @@ class SQLiteFileSystemStore:
                 folder_id = self.folder_id("/")
                 conn.execute(
                     """
-                    INSERT OR IGNORE INTO folders(folder_id, parent_id, name, path, kind, source)
-                    VALUES (?, NULL, '/', '/', ?, ?)
+                    INSERT OR IGNORE INTO folders(
+                        folder_id, parent_id, name, path, description, kind, source, sort_order
+                    )
+                    VALUES (?, NULL, '/', '/', '', ?, ?, 0)
                     """,
                     (folder_id, kind, source),
                 )
@@ -663,8 +765,10 @@ class SQLiteFileSystemStore:
             folder_id = self.folder_id(normalized)
             conn.execute(
                 """
-                INSERT OR IGNORE INTO folders(folder_id, parent_id, name, path, kind, source)
-                VALUES (?, ?, ?, ?, ?, ?)
+                INSERT OR IGNORE INTO folders(
+                    folder_id, parent_id, name, path, description, kind, source, sort_order
+                )
+                VALUES (?, ?, ?, ?, '', ?, ?, 0)
                 """,
                 (folder_id, parent_id, name, normalized, kind, source),
             )
@@ -727,7 +831,17 @@ class SQLiteFileSystemStore:
         limit: int,
     ) -> list[sqlite3.Row]:
         sql = """
-            SELECT f.file_ref, f.external_id, f.title, f.source_path, f.metadata_json, pf.path AS folder_path
+            SELECT
+                f.file_ref,
+                f.external_id,
+                f.title,
+                f.descriptor,
+                f.source_path,
+                f.pageindex_tree_status,
+                f.metadata_json,
+                f.created_at,
+                pf.folder_id,
+                pf.path AS folder_path
             FROM files f
             JOIN file_folders ff ON ff.file_ref = f.file_ref AND ff.membership_kind = 'primary'
             JOIN folders pf ON pf.folder_id = ff.folder_id
@@ -740,22 +854,59 @@ class SQLiteFileSystemStore:
         else:
             sql += " AND pf.path = ?"
             params = [path]
-        sql += " ORDER BY f.title LIMIT ?"
+        sql += " ORDER BY f.created_at DESC, f.title LIMIT ?"
         params.append(limit)
         return conn.execute(sql, params).fetchall()
 
     def _scope_sql(self, scope: Optional[dict[str, Any]]) -> tuple[str, list[Any]]:
-        if not scope or not scope.get("folder_path"):
+        if not scope:
             return "", []
-        folder_path = normalize_path(scope["folder_path"])
-        if scope.get("recursive", True):
+        recursive = scope.get("recursive", True)
+        folder_id = scope.get("folder_id")
+        if folder_id:
+            if folder_id == "root":
+                folder_path = "/"
+            elif recursive:
+                return (
+                    """
+                    (
+                        pf.folder_id = ?
+                        OR pf.path LIKE (
+                            SELECT CASE
+                                WHEN base.path = '/' THEN '/%'
+                                ELSE base.path || '/%'
+                            END
+                            FROM folders base
+                            WHERE base.folder_id = ?
+                        )
+                    )
+                    """,
+                    [folder_id, folder_id],
+                )
+            else:
+                return "pf.folder_id = ?", [folder_id]
+        elif scope.get("folder_path") or scope.get("path"):
+            folder_path = normalize_path(scope.get("folder_path") or scope.get("path"))
+        else:
+            return "", []
+        if recursive:
             return "(pf.path = ? OR pf.path LIKE ?)", [folder_path, self._descendant_like(folder_path)]
         return "pf.path = ?", [folder_path]
 
     def _folder_by_path(self, conn: sqlite3.Connection, path: str) -> sqlite3.Row | None:
         return conn.execute(
             """
-            SELECT folder_id, parent_id, name, path, kind, source
+            SELECT
+                folder_id,
+                parent_id,
+                name,
+                path,
+                description,
+                kind,
+                source,
+                sort_order,
+                created_at,
+                updated_at
             FROM folders
             WHERE path = ?
             """,
@@ -766,39 +917,69 @@ class SQLiteFileSystemStore:
     def _descendant_like(path: str) -> str:
         return "/%" if path == "/" else f"{path}/%"
 
-    @staticmethod
-    def _folder_row_to_dict(row: sqlite3.Row) -> dict[str, Any]:
+    @classmethod
+    def _folder_row_to_dict(cls, row: sqlite3.Row) -> dict[str, Any]:
         return {
             "folder_id": row["folder_id"],
+            "id": row["folder_id"],
             "parent_id": row["parent_id"],
+            "parent_folder_id": row["parent_id"],
             "name": row["name"],
+            "description": cls._row_value(row, "description", ""),
             "path": row["path"],
             "kind": row["kind"],
             "source": row["source"],
+            "sort_order": cls._row_value(row, "sort_order", 0),
+            "created_at": cls._row_value(row, "created_at"),
+            "updated_at": cls._row_value(row, "updated_at"),
+            "file_count": cls._row_value(row, "file_count", 0),
+            "children_count": cls._row_value(row, "children_count", 0),
         }
 
-    @staticmethod
-    def _file_summary(row: sqlite3.Row) -> dict[str, Any]:
+    @classmethod
+    def _file_summary(cls, row: sqlite3.Row) -> dict[str, Any]:
+        external_id = row["external_id"]
         return {
             "file_ref": row["file_ref"],
-            "external_id": row["external_id"],
+            "id": external_id or row["file_ref"],
+            "document_id": external_id,
+            "external_id": external_id,
+            "name": row["title"],
             "title": row["title"],
+            "description": cls._row_value(row, "descriptor", row["title"]),
+            "status": cls._row_value(row, "pageindex_tree_status", "not_built"),
+            "pageNum": None,
+            "createdAt": cls._row_value(row, "created_at"),
+            "folderId": cls._row_value(row, "folder_id"),
             "source_path": row["source_path"],
             "folder_path": row["folder_path"],
             "metadata": json.loads(row["metadata_json"] or "{}"),
         }
 
-    @staticmethod
-    def _search_row_to_dict(row: sqlite3.Row) -> dict[str, Any]:
+    @classmethod
+    def _search_row_to_dict(cls, row: sqlite3.Row) -> dict[str, Any]:
+        external_id = row["external_id"]
         return {
             "file_ref": row["file_ref"],
-            "external_id": row["external_id"],
+            "id": external_id or row["file_ref"],
+            "document_id": external_id,
+            "external_id": external_id,
+            "name": row["title"],
             "title": row["title"],
+            "description": cls._row_value(row, "descriptor", row["title"]),
+            "status": cls._row_value(row, "pageindex_tree_status", "not_built"),
+            "pageNum": None,
+            "createdAt": cls._row_value(row, "created_at"),
+            "folderId": cls._row_value(row, "folder_id"),
             "source_path": row["source_path"],
             "snippet": row["snippet"] or row["title"],
             "folder_path": row["folder_path"],
             "metadata": json.loads(row["metadata_json"] or "{}"),
         }
+
+    @staticmethod
+    def _row_value(row: sqlite3.Row, key: str, default: Any = None) -> Any:
+        return row[key] if key in row.keys() else default
 
     @staticmethod
     def _file_entry(row: sqlite3.Row) -> FileEntry:
@@ -824,10 +1005,16 @@ class SQLiteFileSystemStore:
     def _file_entry_to_dict(cls, entry: FileEntry) -> dict[str, Any]:
         return {
             "file_ref": entry.file_ref,
+            "id": entry.external_id or entry.file_ref,
+            "document_id": entry.external_id,
             "external_id": entry.external_id,
+            "name": entry.title,
             "storage_uri": entry.storage_uri,
             "source_path": entry.source_path,
             "title": entry.title,
+            "description": entry.descriptor,
+            "status": entry.pageindex_tree_status,
+            "pageNum": None,
             "descriptor": entry.descriptor,
             "content_type": entry.content_type,
             "source_type": entry.source_type,
@@ -906,6 +1093,8 @@ class SQLiteFileSystemStore:
 
     @staticmethod
     def _metadata_value_items(value: Any) -> list[dict[str, Any]]:
+        if value is None:
+            return []
         if isinstance(value, list):
             items = []
             for item in value:
@@ -931,18 +1120,24 @@ class SQLiteFileSystemStore:
         return "" if value is None else str(value)
 
     @staticmethod
-    def _infer_metadata_type(value: Any) -> str:
+    def _infer_metadata_type(value: Any) -> str | None:
+        if isinstance(value, list):
+            for item in value:
+                inferred = SQLiteFileSystemStore._infer_metadata_type(item)
+                if inferred is not None:
+                    return inferred
+            return None
         if isinstance(value, bool):
             return "boolean"
         if isinstance(value, (int, float)) and not isinstance(value, bool):
             return "number"
-        if isinstance(value, list):
-            return "array"
+        if value is None:
+            return None
         return "string"
 
     @staticmethod
     def _valid_field_name(name: str) -> bool:
-        return re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", str(name)) is not None
+        return re.match(r"^[A-Za-z][A-Za-z0-9_]*$", str(name)) is not None
 
     @staticmethod
     def folder_id(path: str) -> str:
@@ -960,6 +1155,8 @@ class SQLiteFileSystemStore:
 
 def normalize_path(path: str | Path | None) -> str:
     if path is None:
+        return "/"
+    if str(path).strip().lower() == "root":
         return "/"
     parts = [part for part in str(path).replace("\\", "/").split("/") if part and part != "."]
     return "/" + "/".join(parts) if parts else "/"
