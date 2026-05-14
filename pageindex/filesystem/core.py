@@ -1,56 +1,26 @@
-import hashlib
+from __future__ import annotations
+
 import json
-import re
-import sqlite3
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Optional, Union
 
-
-@dataclass(frozen=True)
-class SearchResult:
-    reference_id: str
-    file_ref: str
-    external_id: Optional[str]
-    title: str
-    snippet: str
-    folder_path: str
-    metadata: dict[str, Any]
-
-
-@dataclass(frozen=True)
-class OpenResult:
-    reference_id: str
-    file_ref: str
-    start_line: int
-    end_line: int
-    text: str
-
-
-@dataclass(frozen=True)
-class TreeNodeResult:
-    path: str
-    kind: str
-    score: int
-    reason: str
-
-
-@dataclass(frozen=True)
-class TreeSearchResult:
-    query: str
-    nodes: list[TreeNodeResult]
-    candidates: list[SearchResult]
+from .metadata import MetadataQueryEngine
+from .store import (
+    SQLiteFileSystemStore,
+    fingerprint,
+    make_file_ref,
+    metadata_text,
+    normalize_path,
+)
+from .types import OpenResult, SearchResult
 
 
 class PageIndexFileSystem:
     def __init__(self, workspace: Union[str, Path]):
         self.workspace = Path(workspace).expanduser()
-        self.workspace.mkdir(parents=True, exist_ok=True)
-        self.artifacts_dir = self.workspace / "artifacts" / "text"
-        self.artifacts_dir.mkdir(parents=True, exist_ok=True)
-        self.db_path = self.workspace / "filesystem.sqlite"
+        self.store = SQLiteFileSystemStore(self.workspace)
+        self.metadata = MetadataQueryEngine(self.store)
         self._references: dict[str, str] = {}
-        self._init_db()
 
     def register_file(
         self,
@@ -83,29 +53,114 @@ class PageIndexFileSystem:
 
     def register_files(self, files: list[dict[str, Any]]) -> list[str]:
         records = [self._prepare_file_record(file) for file in files]
-        with self._connect() as conn:
-            for record in records:
-                self._insert_file_record(conn, record)
+        for record in records:
+            self.metadata.ensure_fields(record["metadata"])
+            self.store.insert_file(record)
         return [record["file_ref"] for record in records]
+
+    def browse(
+        self,
+        path: str = "/",
+        recursive: bool = False,
+        limit: int = 100,
+    ) -> dict[str, list[dict[str, Any]]]:
+        return self.store.list_folder(path, recursive=recursive, limit=limit)
+
+    def search(
+        self,
+        query: Union[str, list[str], None] = None,
+        scope: Optional[dict[str, Any]] = None,
+        metadata_filter: Optional[dict[str, Any] | str] = None,
+        limit: int = 10,
+    ) -> list[SearchResult]:
+        parsed_filter = self.metadata.parse_filter(metadata_filter)
+        rows = self.store.search_files(
+            query,
+            scope=scope,
+            metadata_filter=parsed_filter,
+            limit=limit,
+        )
+        results = []
+        for row in rows:
+            reference_id = self._reference_for(row["file_ref"])
+            results.append(
+                SearchResult(
+                    reference_id=reference_id,
+                    file_ref=row["file_ref"],
+                    external_id=row["external_id"],
+                    title=row["title"],
+                    snippet=row["snippet"],
+                    folder_path=row["folder_path"],
+                    metadata=row["metadata"],
+                    source_path=row["source_path"],
+                )
+            )
+        return results
+
+    def find(
+        self,
+        reference_id: str,
+        patterns: Union[str, list[str]],
+        limit: int = 20,
+    ) -> list[OpenResult]:
+        file_ref = self._resolve_reference(reference_id)
+        patterns = [patterns] if isinstance(patterns, str) else list(patterns)
+        lowered_patterns = [pattern.lower() for pattern in patterns if pattern]
+        if not lowered_patterns:
+            return []
+        text = self.store.read_text(file_ref)
+        lines = text.splitlines()
+        matches = []
+        for i, line in enumerate(lines, 1):
+            haystack = line.lower()
+            if any(pattern in haystack for pattern in lowered_patterns):
+                start = max(1, i - 1)
+                end = min(len(lines), i + 1)
+                matches.append(self._open_lines(reference_id, file_ref, start, end))
+                if len(matches) >= limit:
+                    break
+        return matches
+
+    def open(self, reference_id: str, location: str = "all") -> OpenResult:
+        file_ref = self._resolve_reference(reference_id)
+        if str(location).strip().lower() in {"all", "full", "*"}:
+            return self._open_all(reference_id, file_ref)
+        start, end = self._parse_line_range(location)
+        return self._open_lines(reference_id, file_ref, start, end)
+
+    def _stat(self, target: str) -> dict[str, Any]:
+        file_ref = self._resolve_reference(target)
+        return self.store.file_info(file_ref)
+
+    def _metadata_schema(self) -> dict[str, Any]:
+        return self.metadata.export_schema()
+
+    def _create_folder(self, path: str) -> str:
+        return self.store.ensure_folder(None, path, kind="physical", source="user")
 
     def _prepare_file_record(self, file: dict[str, Any]) -> dict[str, Any]:
         storage_uri = file["storage_uri"]
-        source_path = file["source_path"]
-        folder_path = file.get("folder_path")
-        metadata = file.get("metadata")
+        source_path = str(file["source_path"]).strip("/")
+        metadata = file.get("metadata") or {}
         external_id = file.get("external_id")
-        title = file.get("title")
         content = file.get("content") or ""
         content_type = file.get("content_type") or "text/plain"
-        source_type = file.get("source_type")
-
-        metadata = metadata or {}
-        source_path = source_path.strip("/")
-        folder_path = self._normalize_path(folder_path or "/" + str(Path(source_path).parent))
-        source_type = source_type or self._infer_source_type(source_path)
-        title = title or metadata.get("title") or Path(source_path).stem
-        file_ref = self._make_file_ref(external_id or source_path)
-        text_artifact_path = self._write_text_artifact(file_ref, content)
+        source_type = file.get("source_type") or self._infer_source_type(source_path)
+        folder_path = normalize_path(
+            file.get("folder_path") or "/" + str(Path(source_path).parent)
+        )
+        title = file.get("title") or metadata.get("title") or Path(source_path).stem
+        file_ref = make_file_ref(external_id or source_path)
+        text_artifact_path = self.store.write_text_artifact(file_ref, content)
+        raw_artifact_path = self.store.write_raw_artifact(
+            file_ref,
+            {
+                "storage_uri": storage_uri,
+                "source_path": source_path,
+                "folder_path": folder_path,
+                "metadata": metadata,
+            },
+        )
         descriptor = self._build_descriptor(title, metadata)
         return {
             "file_ref": file_ref,
@@ -116,277 +171,21 @@ class PageIndexFileSystem:
             "descriptor": descriptor,
             "content_type": content_type,
             "source_type": source_type,
-            "fingerprint": self._fingerprint(content),
+            "fingerprint": fingerprint(content),
             "text_artifact_path": str(text_artifact_path),
+            "raw_artifact_path": str(raw_artifact_path),
+            "pageindex_doc_id": None,
+            "pageindex_tree_status": "not_built",
             "metadata": metadata,
             "metadata_json": json.dumps(metadata, ensure_ascii=False),
-            "metadata_text": self._metadata_text(metadata),
+            "metadata_text": metadata_text(metadata),
             "folder_path": folder_path,
             "content": content,
         }
 
-    def _insert_file_record(self, conn: sqlite3.Connection, record: dict[str, Any]):
-        self._ensure_folder(conn, record["folder_path"])
-        self._ensure_virtual_nodes(conn, record["file_ref"], record["metadata"])
-        conn.execute(
-            """
-            INSERT OR REPLACE INTO files (
-                file_ref, external_id, storage_uri, source_path, title,
-                descriptor, content_type, source_type, fingerprint,
-                text_artifact_path, metadata_json, folder_path
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                record["file_ref"],
-                record["external_id"],
-                record["storage_uri"],
-                record["source_path"],
-                record["title"],
-                record["descriptor"],
-                record["content_type"],
-                record["source_type"],
-                record["fingerprint"],
-                record["text_artifact_path"],
-                record["metadata_json"],
-                record["folder_path"],
-            ),
-        )
-        conn.execute("DELETE FROM file_fts WHERE file_ref = ?", (record["file_ref"],))
-        conn.execute(
-            """
-            INSERT INTO file_fts(file_ref, title, body, metadata_text)
-            VALUES (?, ?, ?, ?)
-            """,
-            (
-                record["file_ref"],
-                record["title"],
-                record["content"],
-                record["metadata_text"],
-            ),
-        )
-
-    def browse(self, path: str = "/", limit: int = 100) -> dict[str, list[dict[str, Any]]]:
-        path = self._normalize_path(path)
-        with self._connect() as conn:
-            folders = [
-                dict(row)
-                for row in conn.execute(
-                    "SELECT path, kind, source FROM folders WHERE path LIKE ? ORDER BY path LIMIT ?",
-                    (self._child_like(path), limit),
-                )
-            ]
-            files = [
-                self._row_to_file_summary(row)
-                for row in conn.execute(
-                    """
-                    SELECT file_ref, external_id, title, folder_path, metadata_json
-                    FROM files
-                    WHERE folder_path = ?
-                    ORDER BY title
-                    LIMIT ?
-                    """,
-                    (path, limit),
-                )
-            ]
-        return {"folders": folders, "files": files}
-
-    def search(
-        self,
-        query: Union[str, list[str]],
-        scope: Optional[dict[str, Any]] = None,
-        metadata_filter: Optional[dict[str, Any]] = None,
-        limit: int = 10,
-    ) -> list[SearchResult]:
-        queries = [query] if isinstance(query, str) else list(query)
-        match_queries = self._fts_match_queries(" ".join(queries))
-        if not match_queries:
-            return []
-
-        seen = set()
-        for match_query in match_queries:
-            with self._connect() as conn:
-                rows = conn.execute(
-                    """
-                    SELECT
-                        f.file_ref,
-                        f.external_id,
-                        f.title,
-                        f.folder_path,
-                        f.metadata_json,
-                        snippet(file_fts, 2, '', '', '...', 16) AS snippet,
-                        bm25(file_fts) AS rank
-                    FROM file_fts
-                    JOIN files f ON f.file_ref = file_fts.file_ref
-                    WHERE file_fts MATCH ?
-                    ORDER BY rank
-                    LIMIT ?
-                    """,
-                    (match_query, max(limit * 25, limit)),
-                ).fetchall()
-            results = []
-            for row in rows:
-                if row["file_ref"] in seen:
-                    continue
-                metadata = json.loads(row["metadata_json"] or "{}")
-                if not self._matches_scope(row["folder_path"], scope):
-                    continue
-                if not self._matches_filter(metadata, metadata_filter):
-                    continue
-                seen.add(row["file_ref"])
-                reference_id = self._reference_for(row["file_ref"])
-                results.append(
-                    SearchResult(
-                        reference_id=reference_id,
-                        file_ref=row["file_ref"],
-                        external_id=row["external_id"],
-                        title=row["title"],
-                        snippet=row["snippet"] or row["title"],
-                        folder_path=row["folder_path"],
-                        metadata=metadata,
-                    )
-                )
-                if len(results) >= limit:
-                    break
-            if results:
-                return results
-        return []
-
-    def tree_search(self, query: str, limit: int = 10) -> TreeSearchResult:
-        nodes = self._rank_nodes(query)
-        scope = self._scope_from_nodes(nodes)
-        metadata_filter = self._metadata_filter_from_nodes(nodes)
-        candidates = self.search(
-            query,
-            scope=scope,
-            metadata_filter=metadata_filter,
-            limit=limit,
-        )
-        return TreeSearchResult(query=query, nodes=nodes[:limit], candidates=candidates)
-
-    def find(self, reference_id: str, patterns: Union[str, list[str]]) -> list[OpenResult]:
-        file_ref = self._resolve_reference(reference_id)
-        patterns = [patterns] if isinstance(patterns, str) else patterns
-        text = self._read_text(file_ref)
-        lines = text.splitlines()
-        matches = []
-        for i, line in enumerate(lines, 1):
-            haystack = line.lower()
-            if any(pattern.lower() in haystack for pattern in patterns):
-                start = max(1, i - 1)
-                end = min(len(lines), i + 1)
-                matches.append(self._open_lines(reference_id, file_ref, start, end))
-        return matches
-
-    def open(self, reference_id: str, location: str) -> OpenResult:
-        file_ref = self._resolve_reference(reference_id)
-        if str(location).strip().lower() in {"all", "full", "*"}:
-            return self._open_all(reference_id, file_ref)
-        start, end = self._parse_line_range(location)
-        return self._open_lines(reference_id, file_ref, start, end)
-
-    def _init_db(self):
-        with self._connect() as conn:
-            conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS files (
-                    file_ref TEXT PRIMARY KEY,
-                    external_id TEXT,
-                    storage_uri TEXT NOT NULL,
-                    source_path TEXT NOT NULL,
-                    title TEXT NOT NULL,
-                    descriptor TEXT NOT NULL,
-                    content_type TEXT NOT NULL,
-                    source_type TEXT,
-                    fingerprint TEXT NOT NULL,
-                    text_artifact_path TEXT NOT NULL,
-                    metadata_json TEXT NOT NULL,
-                    folder_path TEXT NOT NULL,
-                    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TEXT DEFAULT CURRENT_TIMESTAMP
-                )
-                """
-            )
-            conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS folders (
-                    path TEXT PRIMARY KEY,
-                    kind TEXT NOT NULL DEFAULT 'physical',
-                    source TEXT NOT NULL DEFAULT 'source'
-                )
-                """
-            )
-            conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS virtual_memberships (
-                    path TEXT NOT NULL,
-                    file_ref TEXT NOT NULL,
-                    metadata_key TEXT NOT NULL,
-                    metadata_value TEXT NOT NULL,
-                    PRIMARY KEY (path, file_ref)
-                )
-                """
-            )
-            conn.execute(
-                """
-                CREATE VIRTUAL TABLE IF NOT EXISTS file_fts
-                USING fts5(file_ref UNINDEXED, title, body, metadata_text)
-                """
-            )
-
-    def _connect(self):
-        conn = sqlite3.connect(self.db_path)
-        conn.row_factory = sqlite3.Row
-        return conn
-
-    def _ensure_folder(self, conn: sqlite3.Connection, folder_path: str):
-        parts = [part for part in folder_path.strip("/").split("/") if part]
-        current = ""
-        conn.execute("INSERT OR IGNORE INTO folders(path) VALUES ('/')")
-        for part in parts:
-            current = f"{current}/{part}"
-            conn.execute("INSERT OR IGNORE INTO folders(path) VALUES (?)", (current,))
-
-    def _ensure_virtual_nodes(
-        self,
-        conn: sqlite3.Connection,
-        file_ref: str,
-        metadata: dict[str, Any],
-    ):
-        for key, value in metadata.items():
-            for item in self._metadata_items(value):
-                path = self._virtual_path(key, item)
-                if not path:
-                    continue
-                conn.execute(
-                    "INSERT OR IGNORE INTO folders(path, kind, source) VALUES (?, 'virtual', 'metadata')",
-                    (path,),
-                )
-                conn.execute(
-                    """
-                    INSERT OR REPLACE INTO virtual_memberships(
-                        path, file_ref, metadata_key, metadata_value
-                    ) VALUES (?, ?, ?, ?)
-                    """,
-                    (path, file_ref, key, str(item)),
-                )
-
-    def _write_text_artifact(self, file_ref: str, content: str) -> Path:
-        path = self.artifacts_dir / f"{file_ref}.txt"
-        path.write_text(content, encoding="utf-8")
-        return path
-
-    def _read_text(self, file_ref: str) -> str:
-        with self._connect() as conn:
-            row = conn.execute(
-                "SELECT text_artifact_path FROM files WHERE file_ref = ?",
-                (file_ref,),
-            ).fetchone()
-        if not row:
-            raise KeyError(f"Unknown file_ref: {file_ref}")
-        return Path(row["text_artifact_path"]).read_text(encoding="utf-8")
-
     def _open_lines(self, reference_id: str, file_ref: str, start: int, end: int) -> OpenResult:
-        lines = self._read_text(file_ref).splitlines()
+        entry = self.store.get_file(file_ref)
+        lines = self.store.read_text(file_ref).splitlines()
         start = max(1, start)
         end = min(max(start, end), len(lines))
         text = "\n".join(lines[start - 1:end])
@@ -396,10 +195,14 @@ class PageIndexFileSystem:
             start_line=start,
             end_line=end,
             text=text,
+            external_id=entry.external_id,
+            folder_path=entry.folder_path,
+            source_path=entry.source_path,
         )
 
     def _open_all(self, reference_id: str, file_ref: str) -> OpenResult:
-        text = self._read_text(file_ref)
+        entry = self.store.get_file(file_ref)
+        text = self.store.read_text(file_ref)
         line_count = len(text.splitlines())
         return OpenResult(
             reference_id=reference_id,
@@ -407,70 +210,15 @@ class PageIndexFileSystem:
             start_line=1,
             end_line=line_count,
             text=text,
+            external_id=entry.external_id,
+            folder_path=entry.folder_path,
+            source_path=entry.source_path,
         )
 
     def _resolve_reference(self, reference_id: str) -> str:
-        if reference_id.startswith("file_"):
-            return reference_id
-        try:
+        if reference_id in self._references:
             return self._references[reference_id]
-        except KeyError as exc:
-            raise KeyError(f"Unknown reference_id: {reference_id}") from exc
-
-    def _rank_nodes(self, query: str) -> list[TreeNodeResult]:
-        query_terms = set(self._fts_query(query).lower().split())
-        if not query_terms:
-            return []
-        with self._connect() as conn:
-            rows = conn.execute(
-                """
-                SELECT path, kind
-                FROM folders
-                WHERE path != '/'
-                ORDER BY kind DESC, path
-                """
-            ).fetchall()
-        scored = []
-        for row in rows:
-            path_terms = set(self._fts_query(row["path"]).lower().split())
-            score = len(query_terms & path_terms)
-            if score:
-                scored.append(
-                    TreeNodeResult(
-                        path=row["path"],
-                        kind=row["kind"],
-                        score=score,
-                        reason=f"matched {score} query term(s) in node path",
-                    )
-                )
-        scored.sort(key=lambda node: (-node.score, self._node_kind_rank(node.kind), node.path))
-        return scored
-
-    @staticmethod
-    def _node_kind_rank(kind: str) -> int:
-        return 0 if kind == "physical" else 1
-
-    @staticmethod
-    def _scope_from_nodes(nodes: list[TreeNodeResult]) -> Optional[dict[str, Any]]:
-        physical = [node for node in nodes if node.kind == "physical"]
-        if not physical:
-            return None
-        best = physical[0]
-        return {"folder_path": best.path, "recursive": True}
-
-    @classmethod
-    def _metadata_filter_from_nodes(
-        cls,
-        nodes: list[TreeNodeResult],
-    ) -> Optional[dict[str, Any]]:
-        filters = {}
-        for node in nodes:
-            parsed = cls._parse_virtual_path(node.path)
-            if not parsed:
-                continue
-            key, value = parsed
-            filters[key] = {"$contains": value}
-        return filters or None
+        return self.store.resolve_file_ref(reference_id)
 
     def _reference_for(self, file_ref: str) -> str:
         for reference_id, existing in self._references.items():
@@ -486,183 +234,9 @@ class PageIndexFileSystem:
         return f"{title} ({source})" if source else title
 
     @staticmethod
-    def _child_like(path: str) -> str:
-        return "/%" if path == "/" else f"{path}/%"
-
-    @staticmethod
-    def _fingerprint(content: str) -> str:
-        return hashlib.sha256(content.encode("utf-8")).hexdigest()
-
-    @staticmethod
-    def _fts_query(query: str) -> str:
-        terms = PageIndexFileSystem._fts_terms(query)
-        return " ".join(terms)
-
-    @classmethod
-    def _fts_match_queries(cls, query: str) -> list[str]:
-        terms = cls._fts_terms(query)
-        if not terms:
-            return []
-        queries = [" ".join(terms)]
-        if len(terms) > 1:
-            queries.append(" OR ".join(terms))
-        return queries
-
-    @staticmethod
-    def _fts_terms(query: str) -> list[str]:
-        stopwords = {
-            "a",
-            "an",
-            "and",
-            "are",
-            "as",
-            "at",
-            "be",
-            "by",
-            "did",
-            "do",
-            "does",
-            "for",
-            "from",
-            "how",
-            "in",
-            "is",
-            "it",
-            "of",
-            "on",
-            "or",
-            "that",
-            "the",
-            "to",
-            "was",
-            "were",
-            "what",
-            "when",
-            "where",
-            "which",
-            "who",
-            "why",
-            "with",
-        }
-        terms = re.findall(r"[A-Za-z0-9_]+", query.lower())
-        unique_terms = []
-        seen = set()
-        for term in terms:
-            if term in stopwords or term in seen:
-                continue
-            seen.add(term)
-            unique_terms.append(term)
-        return unique_terms
-
-    @staticmethod
     def _infer_source_type(source_path: str) -> Optional[str]:
         parts = [part for part in Path(source_path).parts if part not in ("", ".")]
         return parts[0] if parts else None
-
-    @staticmethod
-    def _make_file_ref(seed: str) -> str:
-        digest = hashlib.sha1(seed.encode("utf-8")).hexdigest()[:16]
-        return f"file_{digest}"
-
-    @staticmethod
-    def _metadata_text(metadata: dict[str, Any]) -> str:
-        values = []
-        for value in metadata.values():
-            if isinstance(value, list):
-                values.extend(str(item) for item in value)
-            elif isinstance(value, dict):
-                values.append(json.dumps(value, ensure_ascii=False, sort_keys=True))
-            elif value is not None:
-                values.append(str(value))
-        return " ".join(values)
-
-    @staticmethod
-    def _metadata_items(value: Any) -> list[str]:
-        if isinstance(value, list):
-            return [str(item) for item in value if item is not None]
-        if isinstance(value, (str, int, float, bool)):
-            return [str(value)]
-        return []
-
-    @classmethod
-    def _parse_virtual_path(cls, path: str) -> Optional[tuple[str, str]]:
-        parts = [part for part in path.split("/") if part]
-        if len(parts) < 3 or parts[0] != "metadata":
-            return None
-        return parts[1], cls._unslug(parts[2])
-
-    @classmethod
-    def _virtual_path(cls, key: str, value: str) -> Optional[str]:
-        if key in {
-            "dataset_doc_uuid",
-            "title",
-            "title_field_name",
-            "content_field_names",
-            "source_type",
-        }:
-            return None
-        slug = cls._slug(value)
-        if not slug:
-            return None
-        return f"/metadata/{cls._slug(key)}/{slug}"
-
-    @staticmethod
-    def _slug(value: str) -> str:
-        return "-".join(re.findall(r"[A-Za-z0-9_]+", str(value).lower()))
-
-    @staticmethod
-    def _unslug(value: str) -> str:
-        return value
-
-    @classmethod
-    def _matches_filter(
-        cls,
-        metadata: dict[str, Any],
-        metadata_filter: Optional[dict[str, Any]],
-    ) -> bool:
-        if not metadata_filter:
-            return True
-        for key, condition in metadata_filter.items():
-            value = metadata.get(key)
-            if isinstance(condition, dict):
-                if not cls._matches_condition(value, condition):
-                    return False
-            elif value != condition:
-                return False
-        return True
-
-    @staticmethod
-    def _matches_condition(value: Any, condition: dict[str, Any]) -> bool:
-        for operator, expected in condition.items():
-            if operator == "$eq" and value != expected:
-                return False
-            if operator == "$contains":
-                if isinstance(value, list):
-                    if expected not in value:
-                        return False
-                elif expected not in str(value):
-                    return False
-            if operator == "$in" and value not in expected:
-                return False
-        return True
-
-    @classmethod
-    def _matches_scope(cls, folder_path: str, scope: Optional[dict[str, Any]]) -> bool:
-        if not scope:
-            return True
-        requested = scope.get("folder_path")
-        if not requested:
-            return True
-        requested = cls._normalize_path(requested)
-        folder_path = cls._normalize_path(folder_path)
-        if scope.get("recursive", True):
-            return folder_path == requested or folder_path.startswith(f"{requested}/")
-        return folder_path == requested
-
-    @staticmethod
-    def _normalize_path(path: str) -> str:
-        parts = [part for part in str(path).split("/") if part and part != "."]
-        return "/" + "/".join(parts) if parts else "/"
 
     @staticmethod
     def _parse_line_range(location: str) -> tuple[int, int]:
@@ -675,13 +249,3 @@ class PageIndexFileSystem:
         if start < 1 or end < start:
             raise ValueError(f"Invalid line range: {location}")
         return start, end
-
-    @staticmethod
-    def _row_to_file_summary(row: sqlite3.Row) -> dict[str, Any]:
-        return {
-            "file_ref": row["file_ref"],
-            "external_id": row["external_id"],
-            "title": row["title"],
-            "folder_path": row["folder_path"],
-            "metadata": json.loads(row["metadata_json"] or "{}"),
-        }

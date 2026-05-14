@@ -1,0 +1,75 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Any, Optional
+
+
+@dataclass(frozen=True)
+class SearchResult:
+    reference_id: str
+    file_ref: str
+    external_id: Optional[str]
+    title: str
+    snippet: str
+    folder_path: str
+    metadata: dict[str, Any]
+    source_path: str = ""
+
+
+@dataclass(frozen=True)
+class OpenResult:
+    reference_id: str
+    file_ref: str
+    start_line: int
+    end_line: int
+    text: str
+    external_id: Optional[str] = None
+    folder_path: str = ""
+    source_path: str = ""
+
+
+@dataclass(frozen=True)
+class FolderEntry:
+    folder_id: str
+    parent_id: Optional[str]
+    name: str
+    path: str
+    kind: str
+    source: str
+
+
+@dataclass(frozen=True)
+class FileEntry:
+    file_ref: str
+    external_id: Optional[str]
+    storage_uri: str
+    source_path: str
+    title: str
+    descriptor: str
+    content_type: str
+    source_type: Optional[str]
+    fingerprint: str
+    text_artifact_path: str
+    raw_artifact_path: Optional[str]
+    pageindex_doc_id: Optional[str]
+    pageindex_tree_status: str
+    metadata: dict[str, Any]
+    folder_path: str
+
+
+@dataclass(frozen=True)
+class MetadataField:
+    name: str
+    field_type: str
+    description: str = ""
+    indexed: bool = True
+    faceted: bool = False
+    sortable: bool = False
+    source: str = "inferred"
+
+
+@dataclass(frozen=True)
+class CommandResult:
+    command: str
+    data: Any
+    text: str

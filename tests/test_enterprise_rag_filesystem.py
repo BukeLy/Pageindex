@@ -1,4 +1,5 @@
 import json
+import sqlite3
 import subprocess
 import sys
 import tempfile
@@ -276,10 +277,9 @@ class EnterpriseRAGFileSystemTest(unittest.TestCase):
             self.assertIn("line 1", opened.text)
             self.assertIn("line 120", opened.text)
 
-    def test_enterprise_rag_context_uses_full_leaf_documents(self):
+    def test_pifs_cat_uses_full_leaf_documents(self):
         with tempfile.TemporaryDirectory() as tmp:
-            from examples.Benchmark.enterprise_rag_benchmark.run_smoke import build_context
-            from pageindex.filesystem import PageIndexFileSystem
+            from pageindex.filesystem import PIFSCommandExecutor, PageIndexFileSystem
 
             filesystem = PageIndexFileSystem(workspace=Path(tmp) / "workspace")
             long_prefix = "prefix " * 1200
@@ -292,12 +292,12 @@ class EnterpriseRAGFileSystemTest(unittest.TestCase):
                 content=long_prefix + "\n" + answer_tail,
             )
 
-            candidate = filesystem.search("prefix", limit=1)[0]
-            context = build_context(filesystem, [candidate], max_docs=1)
+            output = PIFSCommandExecutor(filesystem, json_output=True).execute("cat dsid_full_context --all")
+            payload = json.loads(output)
 
-            self.assertIn(answer_tail, context)
+            self.assertIn(answer_tail, payload["data"]["text"])
 
-    def test_tree_search_uses_folder_and_virtual_nodes_before_leaf_files(self):
+    def test_browse_and_search_drive_multifile_exploration(self):
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
             source_root = tmp_path / "generated_data" / "sources"
@@ -341,15 +341,215 @@ class EnterpriseRAGFileSystemTest(unittest.TestCase):
             filesystem = PageIndexFileSystem(workspace=tmp_path / "workspace")
             EnterpriseRAGBenchmark(filesystem).ingest_sources(source_root)
 
-            traversal = filesystem.tree_search("redwood audit logging", limit=5)
+            root = filesystem.browse("/")
+            recursive = filesystem.browse("/github", recursive=True)
+            filtered = filesystem.search(
+                "audit logging",
+                scope={"folder_path": "/github", "recursive": True},
+                metadata_filter='repo = "redwood" AND labels CONTAINS "audit-logging"',
+                limit=5,
+            )
 
-            self.assertIn("/github/redwood", [node.path for node in traversal.nodes])
-            self.assertIn("/metadata/repo/redwood", [node.path for node in traversal.nodes])
-            self.assertIn("/metadata/labels/audit-logging", [node.path for node in traversal.nodes])
+            self.assertIn("/github", [folder["path"] for folder in root["folders"]])
+            self.assertIn("/github/redwood", [folder["path"] for folder in recursive["folders"]])
             self.assertEqual(
-                [candidate.external_id for candidate in traversal.candidates],
+                [candidate.external_id for candidate in filtered],
                 ["dsid_github_tree"],
             )
+
+    def test_pifs_command_executor_maps_bash_names_to_filesystem_api(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            from pageindex.filesystem import PIFSCommandExecutor, PageIndexFileSystem
+
+            filesystem = PageIndexFileSystem(workspace=Path(tmp) / "workspace")
+            filesystem.register_file(
+                storage_uri="file:///tmp/pr.json",
+                source_path="github/redwood/pr-audit.json",
+                folder_path="/github/redwood",
+                external_id="dsid_cli_audit",
+                title="Audit logging PR",
+                metadata={"repo": "redwood", "labels": ["audit-logging"], "source_type": "github"},
+                content="The PR adds audit logging for bundle verification.",
+            )
+            executor = PIFSCommandExecutor(filesystem, json_output=True)
+
+            listing = json.loads(executor.execute("ls /"))
+            found = json.loads(
+                executor.execute(
+                    'find /github --where \'repo = "redwood" AND labels CONTAINS "audit-logging"\''
+                )
+            )
+            grepped = json.loads(executor.execute('grep -R "bundle verification" /github'))
+            stat = json.loads(executor.execute("stat dsid_cli_audit"))
+            opened = json.loads(executor.execute("cat dsid_cli_audit --all"))
+
+            self.assertIn("/github", [folder["path"] for folder in listing["data"]["folders"]])
+            self.assertEqual(found["data"][0]["external_id"], "dsid_cli_audit")
+            self.assertEqual(grepped["data"][0]["external_id"], "dsid_cli_audit")
+            self.assertEqual(stat["data"]["external_id"], "dsid_cli_audit")
+            self.assertIn("audit logging", opened["data"]["text"])
+
+    def test_pifs_command_executor_allows_metadata_comparison_dsl(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            from pageindex.filesystem import PIFSCommandExecutor, PageIndexFileSystem
+
+            filesystem = PageIndexFileSystem(workspace=Path(tmp) / "workspace")
+            filesystem.register_file(
+                storage_uri="file:///tmp/report.json",
+                source_path="finance/apple/report.json",
+                folder_path="/finance/apple",
+                external_id="dsid_year_2024",
+                title="Apple 2024 report",
+                metadata={"company": "Apple", "year": 2024},
+                content="Apple 2024 report text.",
+            )
+
+            payload = json.loads(
+                PIFSCommandExecutor(filesystem, json_output=True).execute(
+                    'find /finance --where "year >= 2024"'
+                )
+            )
+
+            self.assertEqual(payload["data"][0]["external_id"], "dsid_year_2024")
+
+    def test_pifs_command_executor_rejects_real_shell_syntax(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            from pageindex.filesystem import PIFSCommandExecutor, PageIndexFileSystem
+            from pageindex.filesystem.commands import PIFSCommandError
+
+            executor = PIFSCommandExecutor(PageIndexFileSystem(workspace=Path(tmp) / "workspace"))
+
+            with self.assertRaises(PIFSCommandError):
+                executor.execute("rm -rf /")
+            with self.assertRaises(PIFSCommandError):
+                executor.execute("ls / | cat")
+
+    def test_pifs_cli_module_outputs_json(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            from pageindex.filesystem import PageIndexFileSystem
+
+            repo_root = Path(__file__).resolve().parents[1]
+            workspace = Path(tmp) / "workspace"
+            filesystem = PageIndexFileSystem(workspace=workspace)
+            filesystem.register_file(
+                storage_uri="file:///tmp/doc.json",
+                source_path="github/redwood/doc.json",
+                folder_path="/github/redwood",
+                external_id="dsid_cli_module",
+                title="CLI module doc",
+                metadata={"repo": "redwood"},
+                content="CLI module smoke content",
+            )
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "pageindex.filesystem.cli",
+                    "--workspace",
+                    str(workspace),
+                    "--json",
+                    "grep",
+                    "-R",
+                    "smoke content",
+                    "/github",
+                ],
+                cwd=repo_root,
+                text=True,
+                capture_output=True,
+            )
+
+            self.assertEqual(
+                result.returncode,
+                0,
+                msg=f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}",
+            )
+            payload = json.loads(result.stdout)
+            self.assertEqual(payload["data"][0]["external_id"], "dsid_cli_module")
+
+    def test_reopen_workspace_keeps_migrated_catalog(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            from pageindex.filesystem import PageIndexFileSystem
+
+            workspace = Path(tmp) / "workspace"
+            first = PageIndexFileSystem(workspace=workspace)
+            first.register_file(
+                storage_uri="file:///tmp/doc.json",
+                source_path="github/redwood/doc.json",
+                folder_path="/github/redwood",
+                external_id="dsid_reopen",
+                title="Reopen doc",
+                metadata={"repo": "redwood"},
+                content="catalog survives reopen",
+            )
+
+            second = PageIndexFileSystem(workspace=workspace)
+            results = second.search("catalog", metadata_filter='repo = "redwood"')
+            from pageindex.filesystem import PIFSCommandExecutor
+
+            schema = json.loads(
+                PIFSCommandExecutor(second, json_output=True).execute("stat --schema /")
+            )["data"]
+
+            self.assertEqual([result.external_id for result in results], ["dsid_reopen"])
+            self.assertIn("repo", [field["name"] for field in schema["fields"]])
+
+    def test_legacy_workspace_with_folder_path_column_can_still_register(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            from pageindex.filesystem import PageIndexFileSystem
+
+            workspace = Path(tmp) / "workspace"
+            workspace.mkdir()
+            with sqlite3.connect(workspace / "filesystem.sqlite") as conn:
+                conn.execute(
+                    """
+                    CREATE TABLE files (
+                        file_ref TEXT PRIMARY KEY,
+                        external_id TEXT,
+                        storage_uri TEXT NOT NULL,
+                        source_path TEXT NOT NULL,
+                        title TEXT NOT NULL,
+                        descriptor TEXT NOT NULL,
+                        content_type TEXT NOT NULL,
+                        source_type TEXT,
+                        fingerprint TEXT NOT NULL,
+                        text_artifact_path TEXT NOT NULL,
+                        metadata_json TEXT NOT NULL,
+                        folder_path TEXT NOT NULL,
+                        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+                    )
+                    """
+                )
+                conn.execute(
+                    """
+                    CREATE TABLE folders (
+                        path TEXT PRIMARY KEY,
+                        kind TEXT NOT NULL DEFAULT 'physical',
+                        source TEXT NOT NULL DEFAULT 'source'
+                    )
+                    """
+                )
+                conn.execute(
+                    """
+                    CREATE VIRTUAL TABLE file_fts
+                    USING fts5(file_ref UNINDEXED, title, body, metadata_text)
+                    """
+                )
+
+            filesystem = PageIndexFileSystem(workspace=workspace)
+            filesystem.register_file(
+                storage_uri="file:///tmp/new.json",
+                source_path="github/redwood/new.json",
+                folder_path="/github/redwood",
+                external_id="dsid_legacy_insert",
+                title="Legacy insert",
+                metadata={"repo": "redwood"},
+                content="legacy schema insert works",
+            )
+
+            results = filesystem.search("legacy", metadata_filter='repo = "redwood"')
+            self.assertEqual([result.external_id for result in results], ["dsid_legacy_insert"])
 
 
 if __name__ == "__main__":
