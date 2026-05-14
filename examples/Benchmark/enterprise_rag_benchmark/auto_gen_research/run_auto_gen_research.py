@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import math
 import os
@@ -8,8 +9,10 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 from collections import Counter
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any
 
@@ -100,18 +103,22 @@ def main() -> int:
         target_docs=args.target_docs,
     )
     docs = load_selected_documents(source_root, questions)
+    selection_id = selection_cache_id(docs)
     profiles = load_or_generate_profiles(
         docs,
         generated_dir / "doc_profiles.json",
         model=args.generation_model,
         max_doc_chars=args.max_doc_chars,
+        workers=args.profile_workers,
         reuse_only=args.reuse_generated_only,
     )
+    cluster_cache_path = generated_dir / f"topic_clusters_{selection_id}.json"
     clusters = load_or_generate_clusters(
         docs,
         profiles,
-        generated_dir / "topic_clusters.json",
+        cluster_cache_path,
         model=args.generation_model,
+        batch_size=args.cluster_batch_size,
         reuse_only=args.reuse_generated_only,
     )
     plans = build_folder_plans(docs, profiles, clusters)
@@ -161,11 +168,13 @@ def main() -> int:
 
     summary = {
         "run_name": args.run_name,
+        "selection_id": selection_id,
         "question_ids": [question.question_id for question in questions],
         "document_count": len(docs),
         "model": args.agent_model,
         "generation_model": args.generation_model,
         "base_url": os.environ.get("OPENAI_BASE_URL"),
+        "cluster_cache": str(cluster_cache_path),
         "results": sorted(
             all_results,
             key=lambda item: (
@@ -182,7 +191,7 @@ def main() -> int:
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Run PIFS auto-generation research on a 10-doc EnterpriseRAG subset")
+    parser = argparse.ArgumentParser(description="Run PIFS auto-generation research on an EnterpriseRAG subset")
     parser.add_argument("--dataset", default="dataset")
     parser.add_argument("--question-ids", default="")
     parser.add_argument("--target-docs", type=int, default=10)
@@ -191,6 +200,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--generation-model", default=os.environ.get("PIFS_GENERATION_MODEL", os.environ.get("PIFS_AGENT_MODEL", "gpt-4.1-mini")))
     parser.add_argument("--max-doc-chars", type=int, default=8000)
     parser.add_argument("--max-turns", type=int, default=20)
+    parser.add_argument("--profile-workers", type=int, default=int(os.environ.get("PIFS_PROFILE_WORKERS", "4")))
+    parser.add_argument("--cluster-batch-size", type=int, default=int(os.environ.get("PIFS_CLUSTER_BATCH_SIZE", "25")))
     parser.add_argument("--reuse-generated-only", action="store_true")
     parser.add_argument("--skip-agent", action="store_true")
     parser.add_argument("--verbose", action="store_true")
@@ -235,58 +246,94 @@ def select_questions(
 def load_selected_documents(source_root: Path, questions: list[EnterpriseRAGQuestion]) -> list[dict[str, Any]]:
     docs = []
     seen = set()
+    requests: list[tuple[str, list[str]]] = []
     for question in questions:
         for doc_id in question.expected_doc_ids:
             if doc_id in seen:
                 continue
-            path = locate_document(source_root, question.source_types, doc_id)
-            data = read_json(path)
-            source_path = path.relative_to(source_root).as_posix()
-            source_type = source_path.split("/", 1)[0]
-            title = doc_title(data)
-            text = doc_text(data, title)
-            metadata = raw_metadata(data, source_type)
-            docs.append(
-                {
-                    "dataset_doc_uuid": doc_id,
-                    "path": str(path),
-                    "source_path": source_path,
-                    "source_type": source_type,
-                    "title": title,
-                    "text": text,
-                    "raw_metadata": metadata,
-                }
-            )
+            requests.append((doc_id, question.source_types))
             seen.add(doc_id)
+    paths = locate_documents(source_root, requests)
+    for doc_id, _source_types in requests:
+        path = paths[doc_id]
+        data = read_json(path)
+        source_path = path.relative_to(source_root).as_posix()
+        source_type = source_path.split("/", 1)[0]
+        title = doc_title(data)
+        text = doc_text(data, title)
+        metadata = raw_metadata(data, source_type)
+        docs.append(
+            {
+                "dataset_doc_uuid": doc_id,
+                "path": str(path),
+                "source_path": source_path,
+                "source_type": source_type,
+                "title": title,
+                "text": text,
+                "raw_metadata": metadata,
+            }
+        )
     return docs
 
 
-def locate_document(source_root: Path, source_types: list[str], doc_id: str) -> Path:
-    search_dirs = [source_root / source_type for source_type in source_types]
-    search_dirs.append(source_root)
-    checked = set()
-    for directory in search_dirs:
-        if directory in checked or not directory.exists():
-            continue
-        checked.add(directory)
-        try:
+def selection_cache_id(docs: list[dict[str, Any]]) -> str:
+    doc_ids = [doc["dataset_doc_uuid"] for doc in docs]
+    digest = hashlib.sha1("\n".join(doc_ids).encode("utf-8")).hexdigest()[:10]
+    return f"{len(doc_ids)}docs-{digest}"
+
+
+def locate_documents(source_root: Path, requests: list[tuple[str, list[str]]]) -> dict[str, Path]:
+    pending = {doc_id: source_types for doc_id, source_types in requests}
+    resolved: dict[str, Path] = {}
+    source_type_names = sorted({source_type for _doc_id, source_types in requests for source_type in source_types})
+    for source_type in source_type_names:
+        doc_ids = [doc_id for doc_id, source_types in pending.items() if source_type in source_types]
+        search_document_batch(source_root / source_type, doc_ids, resolved)
+        pending = {doc_id: source_types for doc_id, source_types in pending.items() if doc_id not in resolved}
+        if not pending:
+            return resolved
+    if pending:
+        search_document_batch(source_root, list(pending), resolved)
+    missing = [doc_id for doc_id, _source_types in requests if doc_id not in resolved]
+    if missing:
+        raise FileNotFoundError(f"Could not locate EnterpriseRAG documents: {', '.join(missing)}")
+    return resolved
+
+
+def search_document_batch(directory: Path, doc_ids: list[str], resolved: dict[str, Path]) -> None:
+    if not doc_ids or not directory.exists():
+        return
+    try:
+        with tempfile.NamedTemporaryFile("w", encoding="utf-8", delete=True) as pattern_file:
+            pattern_file.write("\n".join(doc_ids))
+            pattern_file.flush()
             completed = subprocess.run(
-                ["rg", "-l", "-F", doc_id, str(directory)],
+                ["rg", "-l", "-F", "-f", pattern_file.name, "--glob", "*.json", str(directory)],
                 check=False,
                 capture_output=True,
                 text=True,
             )
-        except FileNotFoundError:
-            completed = None
-        if completed and completed.returncode in {0, 1}:
-            for line in completed.stdout.splitlines():
-                path = Path(line)
-                if path.suffix == ".json" and read_json(path).get("dataset_doc_uuid") == doc_id:
-                    return path
-    for path in source_root.rglob("*.json"):
-        if read_json(path).get("dataset_doc_uuid") == doc_id:
-            return path
-    raise FileNotFoundError(f"Could not locate EnterpriseRAG document: {doc_id}")
+    except FileNotFoundError:
+        completed = None
+    if completed and completed.returncode in {0, 1}:
+        wanted = set(doc_ids)
+        for line in completed.stdout.splitlines():
+            path = Path(line)
+            if not path.exists():
+                continue
+            data = read_json(path)
+            doc_id = data.get("dataset_doc_uuid")
+            if doc_id in wanted:
+                resolved[str(doc_id)] = path
+        return
+    wanted = set(doc_ids)
+    for path in directory.rglob("*.json"):
+        data = read_json(path)
+        doc_id = data.get("dataset_doc_uuid")
+        if doc_id in wanted:
+            resolved[str(doc_id)] = path
+            if wanted.issubset(resolved):
+                break
 
 
 def load_or_generate_profiles(
@@ -295,6 +342,7 @@ def load_or_generate_profiles(
     *,
     model: str,
     max_doc_chars: int,
+    workers: int,
     reuse_only: bool,
 ) -> dict[str, dict[str, Any]]:
     cached = read_json(cache_path) if cache_path.exists() else {}
@@ -306,13 +354,32 @@ def load_or_generate_profiles(
     if not missing:
         return profiles
 
-    client = openai_client()
-    for index, doc in enumerate(missing, 1):
-        print(f"[auto-gen] generating profile {index}/{len(missing)} {doc['dataset_doc_uuid']}", flush=True)
-        profile = generate_profile(client, model, doc, max_doc_chars=max_doc_chars)
-        profiles[doc["dataset_doc_uuid"]] = normalize_profile(profile)
-        write_json(cache_path, profiles)
+    if workers <= 1:
+        client = openai_client()
+        for index, doc in enumerate(missing, 1):
+            print(f"[auto-gen] generating profile {index}/{len(missing)} {doc['dataset_doc_uuid']}", flush=True)
+            profile = generate_profile(client, model, doc, max_doc_chars=max_doc_chars)
+            profiles[doc["dataset_doc_uuid"]] = normalize_profile(profile)
+            write_json(cache_path, profiles)
+        return profiles
+
+    print(f"[auto-gen] generating {len(missing)} profiles with {workers} workers", flush=True)
+    with ThreadPoolExecutor(max_workers=workers) as executor:
+        futures = {
+            executor.submit(generate_profile_for_doc, model, doc, max_doc_chars): doc
+            for doc in missing
+        }
+        for index, future in enumerate(as_completed(futures), 1):
+            doc = futures[future]
+            profiles[doc["dataset_doc_uuid"]] = future.result()
+            write_json(cache_path, profiles)
+            print(f"[auto-gen] generated profile {index}/{len(missing)} {doc['dataset_doc_uuid']}", flush=True)
     return profiles
+
+
+def generate_profile_for_doc(model: str, doc: dict[str, Any], max_doc_chars: int) -> dict[str, Any]:
+    client = openai_client()
+    return normalize_profile(generate_profile(client, model, doc, max_doc_chars=max_doc_chars))
 
 
 def load_or_generate_clusters(
@@ -321,6 +388,7 @@ def load_or_generate_clusters(
     cache_path: Path,
     *,
     model: str,
+    batch_size: int,
     reuse_only: bool,
 ) -> dict[str, Any]:
     if cache_path.exists():
@@ -331,7 +399,7 @@ def load_or_generate_clusters(
         raise RuntimeError("Missing cached topic clusters")
     client = openai_client()
     print("[auto-gen] generating topic clusters", flush=True)
-    clusters = generate_clusters(client, model, docs, profiles)
+    clusters = generate_clusters(client, model, docs, profiles, batch_size=batch_size)
     write_json(cache_path, clusters)
     return clusters
 
@@ -393,6 +461,25 @@ def generate_clusters(
     model: str,
     docs: list[dict[str, Any]],
     profiles: dict[str, dict[str, Any]],
+    *,
+    batch_size: int,
+) -> dict[str, Any]:
+    if len(docs) <= batch_size:
+        return generate_cluster_batch(client, model, docs, profiles)
+    batches = [docs[index : index + batch_size] for index in range(0, len(docs), batch_size)]
+    batch_clusters = []
+    for index, batch_docs in enumerate(batches, 1):
+        print(f"[auto-gen] generating topic cluster batch {index}/{len(batches)}", flush=True)
+        batch_clusters.append(generate_cluster_batch(client, model, batch_docs, profiles))
+    print("[auto-gen] merging topic cluster batches", flush=True)
+    return merge_cluster_batches(client, model, docs, profiles, batch_clusters)
+
+
+def generate_cluster_batch(
+    client: OpenAI,
+    model: str,
+    docs: list[dict[str, Any]],
+    profiles: dict[str, dict[str, Any]],
 ) -> dict[str, Any]:
     clustering_input = []
     for doc in docs:
@@ -442,6 +529,116 @@ def generate_clusters(
             doc_cluster[doc_id] = profiles[doc_id].get("topic_cluster_hint") or profiles[doc_id].get("primary_topic") or "general"
     clusters["doc_cluster"] = doc_cluster
     return clusters
+
+
+def merge_cluster_batches(
+    client: OpenAI,
+    model: str,
+    docs: list[dict[str, Any]],
+    profiles: dict[str, dict[str, Any]],
+    batch_clusters: list[dict[str, Any]],
+) -> dict[str, Any]:
+    raw_doc_cluster = {}
+    for clusters in batch_clusters:
+        raw_doc_cluster.update(clusters.get("doc_cluster", {}))
+    label_summaries = summarize_cluster_labels(docs, profiles, raw_doc_cluster)
+    label_map = {summary["label"]: summary["label"] for summary in label_summaries}
+    if len(label_summaries) > 1:
+        response = client.chat.completions.create(
+            model=model,
+            temperature=0.1,
+            response_format={"type": "json_object"},
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "Normalize virtual filesystem topic cluster labels across batches. "
+                        "Merge labels only when they describe the same broad retrieval topic. "
+                        "Return strict JSON only."
+                    ),
+                },
+                {
+                    "role": "user",
+                    "content": (
+                        "Return {label_map:{<old_label>:<canonical_label>}} for every old label.\n\n"
+                        f"Cluster label summaries:\n{json.dumps(label_summaries, ensure_ascii=False)}"
+                    ),
+                },
+            ],
+        )
+        generated = json.loads(response.choices[0].message.content or "{}")
+        generated_map = generated.get("label_map", {})
+        if isinstance(generated_map, dict):
+            for summary in label_summaries:
+                label = summary["label"]
+                mapped = as_text(generated_map.get(label, label))
+                label_map[label] = mapped if mapped != "unknown" else label
+    doc_cluster = {}
+    cluster_docs: dict[str, list[str]] = {}
+    for doc in docs:
+        doc_id = doc["dataset_doc_uuid"]
+        raw_label = raw_doc_cluster.get(doc_id) or profiles[doc_id].get("topic_cluster_hint") or "general"
+        canonical = label_map.get(raw_label, raw_label)
+        doc_cluster[doc_id] = canonical
+        cluster_docs.setdefault(canonical, []).append(doc_id)
+    return {
+        "clusters": [
+            {
+                "cluster_label": label,
+                "rationale": "Merged from batched topic clustering.",
+                "doc_ids": doc_ids,
+            }
+            for label, doc_ids in sorted(cluster_docs.items())
+        ],
+        "doc_cluster": doc_cluster,
+        "raw_label_map": label_map,
+    }
+
+
+def summarize_cluster_labels(
+    docs: list[dict[str, Any]],
+    profiles: dict[str, dict[str, Any]],
+    doc_cluster: dict[str, str],
+) -> list[dict[str, Any]]:
+    summaries: dict[str, dict[str, Any]] = {}
+    for doc in docs:
+        doc_id = doc["dataset_doc_uuid"]
+        label = doc_cluster.get(doc_id) or profiles[doc_id].get("topic_cluster_hint") or "general"
+        profile = profiles[doc_id]
+        summary = summaries.setdefault(
+            label,
+            {
+                "label": label,
+                "count": 0,
+                "source_types": Counter(),
+                "doc_types": Counter(),
+                "primary_topics": Counter(),
+                "examples": [],
+            },
+        )
+        summary["count"] += 1
+        summary["source_types"][doc["source_type"]] += 1
+        summary["doc_types"][as_text(profile.get("doc_type"))] += 1
+        summary["primary_topics"][as_text(profile.get("primary_topic"))] += 1
+        if len(summary["examples"]) < 3:
+            summary["examples"].append(
+                {
+                    "dataset_doc_uuid": doc_id,
+                    "title": doc["title"],
+                    "semantic_summary": as_text(profile.get("semantic_summary"))[:280],
+                }
+            )
+    return [
+        {
+            "label": label,
+            "count": summary["count"],
+            "source_types": dict(summary["source_types"].most_common(5)),
+            "doc_types": dict(summary["doc_types"].most_common(5)),
+            "primary_topics": dict(summary["primary_topics"].most_common(8)),
+            "examples": summary["examples"],
+        }
+        for label, summary in sorted(summaries.items(), key=lambda item: (-item[1]["count"], item[0]))
+    ]
 
 
 def normalize_profile(profile: dict[str, Any]) -> dict[str, Any]:
@@ -638,9 +835,10 @@ def evaluate_combo(
         tool_log: list[dict[str, Any]] = []
         raw_output = ""
         error = None
+        skipped = False
         parsed = {"answer": "", "document_ids": []}
         if skip_agent:
-            error = "skipped"
+            skipped = True
         else:
             try:
                 raw_output = run_pifs_agent(
@@ -667,6 +865,7 @@ def evaluate_combo(
                 "doc_hit": bool(expected.intersection(document_ids)),
                 "answer": parsed.get("answer", ""),
                 "error": error,
+                "skipped": skipped,
                 "seconds": round(time.time() - started, 3),
                 "tool_calls": len(tool_log),
                 "tool_log": tool_log,
@@ -711,6 +910,7 @@ Only include document_ids that appeared in tool output as external_id/document_i
 def summarize_combo(combo: str, results: list[dict[str, Any]]) -> dict[str, Any]:
     total = len(results)
     hits = sum(1 for result in results if result["doc_hit"])
+    skipped = all(result.get("skipped") for result in results)
     return {
         "combo": combo,
         "questions": total,
@@ -718,29 +918,44 @@ def summarize_combo(combo: str, results: list[dict[str, Any]]) -> dict[str, Any]
         "doc_hit_rate": hits / total if total else 0,
         "avg_tool_calls": round(sum(result["tool_calls"] for result in results) / total, 3) if total else 0,
         "avg_seconds": round(sum(result["seconds"] for result in results) / total, 3) if total else 0,
-        "errors": [result["question_id"] for result in results if result["error"]],
+        "skipped": skipped,
+        "errors": [] if skipped else [result["question_id"] for result in results if result["error"]],
     }
 
 
 def write_markdown_summary(path: Path, summary: dict[str, Any], plans: dict[str, Any]) -> None:
     rows = []
+    register_only = all(result.get("skipped") for result in summary["results"])
     for result in summary["results"]:
-        error_text = ", ".join(result["errors"]) if result["errors"] else ""
+        if result.get("skipped"):
+            doc_hits_text = "skipped"
+            hit_rate_text = "n/a"
+            avg_tool_calls = "n/a"
+            avg_seconds = "n/a"
+            error_text = ""
+        else:
+            doc_hits_text = f"{result['doc_hits']}/{result['questions']}"
+            hit_rate_text = f"{result['doc_hit_rate']:.2f}"
+            avg_tool_calls = f"{result['avg_tool_calls']:.2f}"
+            avg_seconds = f"{result['avg_seconds']:.2f}"
+            error_text = ", ".join(result["errors"]) if result["errors"] else ""
         rows.append(
-            f"| {result['combo']} | {result['doc_hits']}/{result['questions']} | "
-            f"{result['doc_hit_rate']:.2f} | {result['avg_tool_calls']:.2f} | "
-            f"{result['avg_seconds']:.2f} | {error_text} |"
+            f"| {result['combo']} | {doc_hits_text} | "
+            f"{hit_rate_text} | {avg_tool_calls} | "
+            f"{avg_seconds} | {error_text} |"
         )
     best = summary["results"][0] if summary["results"] else None
     lines = [
         "# Auto-Gen FileSystem Research Summary",
         "",
         f"- Run: `{summary['run_name']}`",
+        f"- Selection: `{summary.get('selection_id', 'unknown')}`",
         f"- Questions: `{', '.join(summary['question_ids'])}`",
         f"- Documents: `{summary['document_count']}`",
         f"- Agent model: `{summary['model']}`",
         f"- Generation model: `{summary['generation_model']}`",
         f"- Base URL: `{summary.get('base_url') or 'default OpenAI'}`",
+        f"- Cluster cache: `{summary.get('cluster_cache', 'unknown')}`",
         "",
         "## Result Table",
         "",
@@ -766,12 +981,20 @@ def write_markdown_summary(path: Path, summary: dict[str, Any], plans: dict[str,
         "",
     ]
     if best:
-        lines.extend(
-            [
-                f"The current best combo is `{best['combo']}` by hit rate, then tool calls, then runtime.",
-                "Treat this as a small-corpus signal only; the next step is to add distractor documents and rerun.",
-            ]
-        )
+        if register_only:
+            lines.extend(
+                [
+                    "This is a register-only run. It validates document selection, profile generation, folder planning, cluster caching, and SQLite registration.",
+                    "It does not measure retrieval accuracy because agent evaluation was skipped.",
+                ]
+            )
+        else:
+            lines.extend(
+                [
+                    f"The current best combo is `{best['combo']}` by hit rate, then tool calls, then runtime.",
+                    "Treat this as a corpus-specific signal; rerun with a larger distractor set before choosing a default layout.",
+                ]
+            )
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 

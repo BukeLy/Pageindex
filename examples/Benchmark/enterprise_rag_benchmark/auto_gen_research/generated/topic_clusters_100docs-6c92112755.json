@@ -1,0 +1,422 @@
+{
+  "clusters": [
+    {
+      "cluster_label": "API Input Handling and Streaming Enhancements",
+      "rationale": "Merged from batched topic clustering.",
+      "doc_ids": [
+        "dsid_ae068ee4aa9640159427cd941bef0238",
+        "dsid_9550250a59e74f1bbd5612480b2e7100"
+      ]
+    },
+    {
+      "cluster_label": "API Model Migration and Customer Onboarding",
+      "rationale": "Merged from batched topic clustering.",
+      "doc_ids": [
+        "dsid_27da22aa63b3446387fffc29b45a0883"
+      ]
+    },
+    {
+      "cluster_label": "Access Governance and Entitlements Management",
+      "rationale": "Merged from batched topic clustering.",
+      "doc_ids": [
+        "dsid_ba7d1565b0694e359983bccaa4bf5977",
+        "dsid_d7f0edbaa28147da807b5b85ea495bd1",
+        "dsid_f2f019c122154edc8b21f56879661043",
+        "dsid_1d5a3cde61104276b218c05dc101a546"
+      ]
+    },
+    {
+      "cluster_label": "Authentication and Access Control Incidents",
+      "rationale": "Merged from batched topic clustering.",
+      "doc_ids": [
+        "dsid_429267fe79c74918a26272f6c0e48f10",
+        "dsid_b097ab5d9e4c41609f47432dfcb1508b",
+        "dsid_3f4010bdd3c44b99bb1c1ad2326f5eda",
+        "dsid_8138b96e181940418cc5067b2630064e"
+      ]
+    },
+    {
+      "cluster_label": "Customer Account Management and Billing Issues",
+      "rationale": "Merged from batched topic clustering.",
+      "doc_ids": [
+        "dsid_9776bd75ffbb4ca7b10669be1512daa3",
+        "dsid_3b9483f629fd423d81ac49a7efff89c9",
+        "dsid_c23a3d9d049d4fe79acf83653b564e0b"
+      ]
+    },
+    {
+      "cluster_label": "Customer Evaluation and Proof of Concept for Redwood Platform",
+      "rationale": "Merged from batched topic clustering.",
+      "doc_ids": [
+        "dsid_f0567bbb5dbd4a52aef951e11ec13f2b",
+        "dsid_4b0f5e573e5e4ce8bbbcf370c3ea7eaa",
+        "dsid_8f5b801cebc34eb4b233bd0ef7c1b546"
+      ]
+    },
+    {
+      "cluster_label": "Customer Onboarding, Workshops, and Usage Metrics",
+      "rationale": "Merged from batched topic clustering.",
+      "doc_ids": [
+        "dsid_f4e0ec9fc27c4e52a55b34af90fcd1b0",
+        "dsid_089917448e654911bd186650ed12feb9"
+      ]
+    },
+    {
+      "cluster_label": "Customer Profiles and Sales Discovery",
+      "rationale": "Merged from batched topic clustering.",
+      "doc_ids": [
+        "dsid_e75bbf328fe349d2bb39e29b1ed7c9d5",
+        "dsid_03af1e44970d4d6db6e85bc2c5fce8de",
+        "dsid_eea41d353de049aa89be98b6f9cf5de1"
+      ]
+    },
+    {
+      "cluster_label": "Customer Profiles and Sales Engagements",
+      "rationale": "Merged from batched topic clustering.",
+      "doc_ids": [
+        "dsid_4331f37f2b8d4e2cb0f5c5719a033e2f",
+        "dsid_3bc3170ead63470eaef9a53ca835cec0"
+      ]
+    },
+    {
+      "cluster_label": "Design System and UI/UX Specifications",
+      "rationale": "Merged from batched topic clustering.",
+      "doc_ids": [
+        "dsid_3fd6af404fae48e6b8ea5a57875ef78f",
+        "dsid_8381e16639f148c7863aa3d393cb64da",
+        "dsid_2e5aaaa6db404ec19cb15a6f92be66a3",
+        "dsid_14a447cb5b1140709c7cb3cc9a88c430",
+        "dsid_f3c46e1166f34b9c92a83034450fe021"
+      ]
+    },
+    {
+      "cluster_label": "GPU and Network Incident Management and Operations",
+      "rationale": "Merged from batched topic clustering.",
+      "doc_ids": [
+        "dsid_42fcb5c1e0394276b37ecf4308e227ac",
+        "dsid_6d38a7bff5c84270adff95742a3eebce"
+      ]
+    },
+    {
+      "cluster_label": "Internal Company Meetings and Culture",
+      "rationale": "Merged from batched topic clustering.",
+      "doc_ids": [
+        "dsid_045c297ec2ef495abd66cb1f09921fc4",
+        "dsid_e56d8d932da04590b336dbc60ad25f41"
+      ]
+    },
+    {
+      "cluster_label": "Kernel Lattice Scheduler and GPU Workspace Optimization",
+      "rationale": "Merged from batched topic clustering.",
+      "doc_ids": [
+        "dsid_cfc80f61d84848c58d961b49d1b3a774",
+        "dsid_caf02469a41c46cf8387713b83c628f3"
+      ]
+    },
+    {
+      "cluster_label": "Marketplace and Subscription Management",
+      "rationale": "Merged from batched topic clustering.",
+      "doc_ids": [
+        "dsid_6c4c1c875e704f09b4d791d64d7bc7e5",
+        "dsid_7d9551aa21124d70b0e247c390d88622",
+        "dsid_a1e0ff30870f40d7b692aa27bbedc194"
+      ]
+    },
+    {
+      "cluster_label": "Network Incidents and VPN Connectivity Issues",
+      "rationale": "Merged from batched topic clustering.",
+      "doc_ids": [
+        "dsid_59cb294da8964683bb165a3bb615df71",
+        "dsid_e728a420a02a4ddcb125e6adb09d211e",
+        "dsid_4e89403dcf74496c8a8516bfd64e351f",
+        "dsid_fa2d9f0bda0e4d6b9174ae6b15f7b37e"
+      ]
+    },
+    {
+      "cluster_label": "Product Features and Engineering Design Documents",
+      "rationale": "Merged from batched topic clustering.",
+      "doc_ids": [
+        "dsid_72ec4a9962ba43e88acd61abbba1052d",
+        "dsid_1f81f208f51a4aacaca226109bbedc72",
+        "dsid_a2983978ba0d4d70a795eb7e13de8670",
+        "dsid_54525a33e2d44d4a9b665feaf8fab624",
+        "dsid_39e191ec758c41a8adecd223951b8b93",
+        "dsid_1867cdf06a00437194b3250c75321a92",
+        "dsid_f94b93a4bc7948ddab45c371187dc6c6",
+        "dsid_7a2cfe4b7e574e6995f33e64bbdbf426",
+        "dsid_8412db85d95a45f7bbfb14dacedb4d8b",
+        "dsid_7a094ff98c3b4c96a77f3949aedeb749",
+        "dsid_5fbf425415da4b7487f0ebbf289a39d6"
+      ]
+    },
+    {
+      "cluster_label": "Regional Failover and Reliability Automation",
+      "rationale": "Merged from batched topic clustering.",
+      "doc_ids": [
+        "dsid_8e838ab6a98f4cbcb672d41f210ff89c",
+        "dsid_184be937d34a412ab5e61366d54d8ed6"
+      ]
+    },
+    {
+      "cluster_label": "Routing, Traffic Management, and Autoscaling",
+      "rationale": "Merged from batched topic clustering.",
+      "doc_ids": [
+        "dsid_7a7c04eebb914edab49f734c8e814beb",
+        "dsid_2271ae6c393d409093b11b5a6d5b96ed",
+        "dsid_d921e1d4282b45a7b4990e2366bedc05",
+        "dsid_bec90d2205534ca9a016f244e13884e5"
+      ]
+    },
+    {
+      "cluster_label": "Runtime and SDK Enhancements for Redwood Inference",
+      "rationale": "Merged from batched topic clustering.",
+      "doc_ids": [
+        "dsid_c7860fdbc17a48b0b6c5f9a0c5e3d054",
+        "dsid_8779ac72d6504759b701178632772f6c"
+      ]
+    },
+    {
+      "cluster_label": "SDK and API Enhancements and Compatibility",
+      "rationale": "Merged from batched topic clustering.",
+      "doc_ids": [
+        "dsid_1c53affffb4f477ca476bec3138b60eb",
+        "dsid_88b39d13bd584ef8b1422d76994808c7",
+        "dsid_fa7dba9ea186436281a953c7b376bf11",
+        "dsid_6c58ddb8ecf543d89fca8352351dea29"
+      ]
+    },
+    {
+      "cluster_label": "Security Incident Response and Penetration Testing",
+      "rationale": "Merged from batched topic clustering.",
+      "doc_ids": [
+        "dsid_f1b208f3637e4987aeab371242a5bea5",
+        "dsid_862bb899faac43feab4f92a12d320e7c",
+        "dsid_9a088141571b435f995568199ec4bcc9",
+        "dsid_d555b86d66ab43a48018e16e0ec90eb0",
+        "dsid_0143493e1a514c28a39f1cf55744d37b",
+        "dsid_9eda2ec9cbda4188936246d888df1d0b"
+      ]
+    },
+    {
+      "cluster_label": "Service Assurance, Pricing, and Procurement Coordination",
+      "rationale": "Merged from batched topic clustering.",
+      "doc_ids": [
+        "dsid_85deb10a652742baaf28af6149600001",
+        "dsid_9c8cb10d65324c03a8ededbd98c1b058",
+        "dsid_214ba4ea822e4d328287194a5e27e632",
+        "dsid_94f011e1d2d04c89a4edc1d68ed9d855",
+        "dsid_e04776cee2964731b96192cae88e9e6b",
+        "dsid_a8f0c8524573431c9b789291d63b716a"
+      ]
+    },
+    {
+      "cluster_label": "Software Release and Runtime Incident Management",
+      "rationale": "Merged from batched topic clustering.",
+      "doc_ids": [
+        "dsid_5fc2dba9f6ac4af2b49b4f546a4298d0",
+        "dsid_7c0157af909c4a6190e00e1fc6b92b73",
+        "dsid_18621ce91fd14b408a2be95336bb4ab0",
+        "dsid_321eee6325824623833bbe754bf83a0b",
+        "dsid_1eba87b0b11b4f31a006f0cf164b8509",
+        "dsid_426ca69578a84dd4af512e5a2782086e",
+        "dsid_94095ba27ce5414db28e599562c12908"
+      ]
+    },
+    {
+      "cluster_label": "Telemetry, Observability, and Compliance for Private Deployments",
+      "rationale": "Merged from batched topic clustering.",
+      "doc_ids": [
+        "dsid_46a4cb87db414e769f2df86f01626948",
+        "dsid_c198dbbcf28a4c73ad1d705809634176",
+        "dsid_7c73cb76b80a41edb4959db4b1e7308b",
+        "dsid_43ecb807903f46848e8d099b6c8beb04",
+        "dsid_a673ed031ece43c5bc4a0d27a284c8dc",
+        "dsid_3be2b45196414cad9b187551da3ed448",
+        "dsid_702bc520c52040428799fed41c63c8ca"
+      ]
+    },
+    {
+      "cluster_label": "Telemetry, Observability, and Metrics Engineering",
+      "rationale": "Merged from batched topic clustering.",
+      "doc_ids": [
+        "dsid_c1a6a71323c04c1ba5445aadea340362",
+        "dsid_27bd877a9fb74bcaa4e93871f28f3f4d",
+        "dsid_49215834c17d4f0c98d4ad11f62f0c9a",
+        "dsid_87ef890a0795443bb74815e8a6378405",
+        "dsid_1a40ab782f8b4d80929a9668462912e2",
+        "dsid_ad3961a5bbd846d09d101bfa951ab739"
+      ]
+    },
+    {
+      "cluster_label": "Upgrade and Rollback Support for Redwood Private",
+      "rationale": "Merged from batched topic clustering.",
+      "doc_ids": [
+        "dsid_9ed01291d81947f49500df5fb28ab724",
+        "dsid_c6a6396159964deeb021d646eaaf2b0c",
+        "dsid_05faa1ab6427403888a06d7083c7f0a9"
+      ]
+    }
+  ],
+  "doc_cluster": {
+    "dsid_ae068ee4aa9640159427cd941bef0238": "API Input Handling and Streaming Enhancements",
+    "dsid_9550250a59e74f1bbd5612480b2e7100": "API Input Handling and Streaming Enhancements",
+    "dsid_3fd6af404fae48e6b8ea5a57875ef78f": "Design System and UI/UX Specifications",
+    "dsid_6c4c1c875e704f09b4d791d64d7bc7e5": "Marketplace and Subscription Management",
+    "dsid_8e838ab6a98f4cbcb672d41f210ff89c": "Regional Failover and Reliability Automation",
+    "dsid_184be937d34a412ab5e61366d54d8ed6": "Regional Failover and Reliability Automation",
+    "dsid_72ec4a9962ba43e88acd61abbba1052d": "Product Features and Engineering Design Documents",
+    "dsid_5fc2dba9f6ac4af2b49b4f546a4298d0": "Software Release and Runtime Incident Management",
+    "dsid_85deb10a652742baaf28af6149600001": "Service Assurance, Pricing, and Procurement Coordination",
+    "dsid_c1a6a71323c04c1ba5445aadea340362": "Telemetry, Observability, and Metrics Engineering",
+    "dsid_46a4cb87db414e769f2df86f01626948": "Telemetry, Observability, and Compliance for Private Deployments",
+    "dsid_59cb294da8964683bb165a3bb615df71": "Network Incidents and VPN Connectivity Issues",
+    "dsid_f1b208f3637e4987aeab371242a5bea5": "Security Incident Response and Penetration Testing",
+    "dsid_9ed01291d81947f49500df5fb28ab724": "Upgrade and Rollback Support for Redwood Private",
+    "dsid_e75bbf328fe349d2bb39e29b1ed7c9d5": "Customer Profiles and Sales Discovery",
+    "dsid_ba7d1565b0694e359983bccaa4bf5977": "Access Governance and Entitlements Management",
+    "dsid_03af1e44970d4d6db6e85bc2c5fce8de": "Customer Profiles and Sales Discovery",
+    "dsid_1f81f208f51a4aacaca226109bbedc72": "Product Features and Engineering Design Documents",
+    "dsid_e728a420a02a4ddcb125e6adb09d211e": "Network Incidents and VPN Connectivity Issues",
+    "dsid_1c53affffb4f477ca476bec3138b60eb": "SDK and API Enhancements and Compatibility",
+    "dsid_d7f0edbaa28147da807b5b85ea495bd1": "Access Governance and Entitlements Management",
+    "dsid_f2f019c122154edc8b21f56879661043": "Access Governance and Entitlements Management",
+    "dsid_a2983978ba0d4d70a795eb7e13de8670": "Product Features and Engineering Design Documents",
+    "dsid_1d5a3cde61104276b218c05dc101a546": "Access Governance and Entitlements Management",
+    "dsid_9c8cb10d65324c03a8ededbd98c1b058": "Service Assurance, Pricing, and Procurement Coordination",
+    "dsid_c6a6396159964deeb021d646eaaf2b0c": "Upgrade and Rollback Support for Redwood Private",
+    "dsid_214ba4ea822e4d328287194a5e27e632": "Service Assurance, Pricing, and Procurement Coordination",
+    "dsid_7c0157af909c4a6190e00e1fc6b92b73": "Software Release and Runtime Incident Management",
+    "dsid_429267fe79c74918a26272f6c0e48f10": "Authentication and Access Control Incidents",
+    "dsid_54525a33e2d44d4a9b665feaf8fab624": "Product Features and Engineering Design Documents",
+    "dsid_c198dbbcf28a4c73ad1d705809634176": "Telemetry, Observability, and Compliance for Private Deployments",
+    "dsid_39e191ec758c41a8adecd223951b8b93": "Product Features and Engineering Design Documents",
+    "dsid_05faa1ab6427403888a06d7083c7f0a9": "Upgrade and Rollback Support for Redwood Private",
+    "dsid_1867cdf06a00437194b3250c75321a92": "Product Features and Engineering Design Documents",
+    "dsid_7c73cb76b80a41edb4959db4b1e7308b": "Telemetry, Observability, and Compliance for Private Deployments",
+    "dsid_f94b93a4bc7948ddab45c371187dc6c6": "Product Features and Engineering Design Documents",
+    "dsid_18621ce91fd14b408a2be95336bb4ab0": "Software Release and Runtime Incident Management",
+    "dsid_f4e0ec9fc27c4e52a55b34af90fcd1b0": "Customer Onboarding, Workshops, and Usage Metrics",
+    "dsid_f0567bbb5dbd4a52aef951e11ec13f2b": "Customer Evaluation and Proof of Concept for Redwood Platform",
+    "dsid_43ecb807903f46848e8d099b6c8beb04": "Telemetry, Observability, and Compliance for Private Deployments",
+    "dsid_862bb899faac43feab4f92a12d320e7c": "Security Incident Response and Penetration Testing",
+    "dsid_eea41d353de049aa89be98b6f9cf5de1": "Customer Profiles and Sales Discovery",
+    "dsid_321eee6325824623833bbe754bf83a0b": "Software Release and Runtime Incident Management",
+    "dsid_94f011e1d2d04c89a4edc1d68ed9d855": "Service Assurance, Pricing, and Procurement Coordination",
+    "dsid_a673ed031ece43c5bc4a0d27a284c8dc": "Telemetry, Observability, and Compliance for Private Deployments",
+    "dsid_3be2b45196414cad9b187551da3ed448": "Telemetry, Observability, and Compliance for Private Deployments",
+    "dsid_7a2cfe4b7e574e6995f33e64bbdbf426": "Product Features and Engineering Design Documents",
+    "dsid_8412db85d95a45f7bbfb14dacedb4d8b": "Product Features and Engineering Design Documents",
+    "dsid_e04776cee2964731b96192cae88e9e6b": "Service Assurance, Pricing, and Procurement Coordination",
+    "dsid_089917448e654911bd186650ed12feb9": "Customer Onboarding, Workshops, and Usage Metrics",
+    "dsid_27bd877a9fb74bcaa4e93871f28f3f4d": "Telemetry, Observability, and Metrics Engineering",
+    "dsid_49215834c17d4f0c98d4ad11f62f0c9a": "Telemetry, Observability, and Metrics Engineering",
+    "dsid_87ef890a0795443bb74815e8a6378405": "Telemetry, Observability, and Metrics Engineering",
+    "dsid_cfc80f61d84848c58d961b49d1b3a774": "Kernel Lattice Scheduler and GPU Workspace Optimization",
+    "dsid_27da22aa63b3446387fffc29b45a0883": "API Model Migration and Customer Onboarding",
+    "dsid_42fcb5c1e0394276b37ecf4308e227ac": "GPU and Network Incident Management and Operations",
+    "dsid_4e89403dcf74496c8a8516bfd64e351f": "Network Incidents and VPN Connectivity Issues",
+    "dsid_a8f0c8524573431c9b789291d63b716a": "Service Assurance, Pricing, and Procurement Coordination",
+    "dsid_9a088141571b435f995568199ec4bcc9": "Security Incident Response and Penetration Testing",
+    "dsid_8381e16639f148c7863aa3d393cb64da": "Design System and UI/UX Specifications",
+    "dsid_2e5aaaa6db404ec19cb15a6f92be66a3": "Design System and UI/UX Specifications",
+    "dsid_702bc520c52040428799fed41c63c8ca": "Telemetry, Observability, and Compliance for Private Deployments",
+    "dsid_4b0f5e573e5e4ce8bbbcf370c3ea7eaa": "Customer Evaluation and Proof of Concept for Redwood Platform",
+    "dsid_d555b86d66ab43a48018e16e0ec90eb0": "Security Incident Response and Penetration Testing",
+    "dsid_1eba87b0b11b4f31a006f0cf164b8509": "Software Release and Runtime Incident Management",
+    "dsid_8f5b801cebc34eb4b233bd0ef7c1b546": "Customer Evaluation and Proof of Concept for Redwood Platform",
+    "dsid_14a447cb5b1140709c7cb3cc9a88c430": "Design System and UI/UX Specifications",
+    "dsid_c7860fdbc17a48b0b6c5f9a0c5e3d054": "Runtime and SDK Enhancements for Redwood Inference",
+    "dsid_6d38a7bff5c84270adff95742a3eebce": "GPU and Network Incident Management and Operations",
+    "dsid_7d9551aa21124d70b0e247c390d88622": "Marketplace and Subscription Management",
+    "dsid_f3c46e1166f34b9c92a83034450fe021": "Design System and UI/UX Specifications",
+    "dsid_0143493e1a514c28a39f1cf55744d37b": "Security Incident Response and Penetration Testing",
+    "dsid_a1e0ff30870f40d7b692aa27bbedc194": "Marketplace and Subscription Management",
+    "dsid_8779ac72d6504759b701178632772f6c": "Runtime and SDK Enhancements for Redwood Inference",
+    "dsid_caf02469a41c46cf8387713b83c628f3": "Kernel Lattice Scheduler and GPU Workspace Optimization",
+    "dsid_b097ab5d9e4c41609f47432dfcb1508b": "Authentication and Access Control Incidents",
+    "dsid_88b39d13bd584ef8b1422d76994808c7": "SDK and API Enhancements and Compatibility",
+    "dsid_1a40ab782f8b4d80929a9668462912e2": "Telemetry, Observability, and Metrics Engineering",
+    "dsid_9776bd75ffbb4ca7b10669be1512daa3": "Customer Account Management and Billing Issues",
+    "dsid_ad3961a5bbd846d09d101bfa951ab739": "Telemetry, Observability, and Metrics Engineering",
+    "dsid_7a7c04eebb914edab49f734c8e814beb": "Routing, Traffic Management, and Autoscaling",
+    "dsid_045c297ec2ef495abd66cb1f09921fc4": "Internal Company Meetings and Culture",
+    "dsid_3b9483f629fd423d81ac49a7efff89c9": "Customer Account Management and Billing Issues",
+    "dsid_7a094ff98c3b4c96a77f3949aedeb749": "Product Features and Engineering Design Documents",
+    "dsid_2271ae6c393d409093b11b5a6d5b96ed": "Routing, Traffic Management, and Autoscaling",
+    "dsid_3f4010bdd3c44b99bb1c1ad2326f5eda": "Authentication and Access Control Incidents",
+    "dsid_d921e1d4282b45a7b4990e2366bedc05": "Routing, Traffic Management, and Autoscaling",
+    "dsid_e56d8d932da04590b336dbc60ad25f41": "Internal Company Meetings and Culture",
+    "dsid_426ca69578a84dd4af512e5a2782086e": "Software Release and Runtime Incident Management",
+    "dsid_4331f37f2b8d4e2cb0f5c5719a033e2f": "Customer Profiles and Sales Engagements",
+    "dsid_9eda2ec9cbda4188936246d888df1d0b": "Security Incident Response and Penetration Testing",
+    "dsid_fa7dba9ea186436281a953c7b376bf11": "SDK and API Enhancements and Compatibility",
+    "dsid_3bc3170ead63470eaef9a53ca835cec0": "Customer Profiles and Sales Engagements",
+    "dsid_bec90d2205534ca9a016f244e13884e5": "Routing, Traffic Management, and Autoscaling",
+    "dsid_5fbf425415da4b7487f0ebbf289a39d6": "Product Features and Engineering Design Documents",
+    "dsid_8138b96e181940418cc5067b2630064e": "Authentication and Access Control Incidents",
+    "dsid_6c58ddb8ecf543d89fca8352351dea29": "SDK and API Enhancements and Compatibility",
+    "dsid_c23a3d9d049d4fe79acf83653b564e0b": "Customer Account Management and Billing Issues",
+    "dsid_fa2d9f0bda0e4d6b9174ae6b15f7b37e": "Network Incidents and VPN Connectivity Issues",
+    "dsid_94095ba27ce5414db28e599562c12908": "Software Release and Runtime Incident Management"
+  },
+  "raw_label_map": {
+    "Product Features and Engineering Design Documents": "Product Features and Engineering Design Documents",
+    "Access Governance and Entitlements Management": "Access Governance and Entitlements Management",
+    "Design System and UI/UX Specifications": "Design System and UI/UX Specifications",
+    "Telemetry, Observability, and Compliance for Private Deployments": "Telemetry, Observability, and Compliance for Private Deployments",
+    "Authentication and Access Control Incidents": "Authentication and Access Control Incidents",
+    "Customer Account Management and Billing Issues": "Customer Account Management and Billing Issues",
+    "Routing, Traffic Management, and Autoscaling": "Routing, Traffic Management, and Autoscaling",
+    "SDK and API Enhancements and Compatibility": "SDK and API Enhancements and Compatibility",
+    "Security Incident Response and Penetration Testing": "Security Incident Response and Penetration Testing",
+    "Service Assurance, Pricing, and Procurement Coordination": "Service Assurance, Pricing, and Procurement Coordination",
+    "Software Release and Runtime Incident Management": "Software Release and Runtime Incident Management",
+    "Telemetry, Observability, and Metrics Engineering": "Telemetry, Observability, and Metrics Engineering",
+    "API Input Handling and Streaming Enhancements": "API Input Handling and Streaming Enhancements",
+    "Customer Evaluation and Proof of Concept for Redwood Platform": "Customer Evaluation and Proof of Concept for Redwood Platform",
+    "Customer Onboarding, Workshops, and Usage Metrics": "Customer Onboarding, Workshops, and Usage Metrics",
+    "Customer Profiles and Sales Discovery": "Customer Profiles and Sales Discovery",
+    "Customer Profiles and Sales Engagements": "Customer Profiles and Sales Engagements",
+    "GPU and Network Incident Management and Operations": "GPU and Network Incident Management and Operations",
+    "Internal Company Meetings and Culture": "Internal Company Meetings and Culture",
+    "Kernel Lattice Scheduler and GPU Workspace Optimization": "Kernel Lattice Scheduler and GPU Workspace Optimization",
+    "Marketplace and Subscription Management": "Marketplace and Subscription Management",
+    "Network Incidents and VPN Connectivity Issues": "Network Incidents and VPN Connectivity Issues",
+    "Regional Failover and Reliability Automation": "Regional Failover and Reliability Automation",
+    "Runtime and SDK Enhancements for Redwood Inference": "Runtime and SDK Enhancements for Redwood Inference",
+    "Upgrade and Rollback Support for Redwood Private": "Upgrade and Rollback Support for Redwood Private",
+    "API Model Migration and Customer Onboarding": "API Model Migration and Customer Onboarding",
+    "API compatibility and streaming robustness enhancements for OpenAI chat completions": "SDK and API Enhancements and Compatibility",
+    "API performance evaluation and competitive signal operationalization": "Product Features and Engineering Design Documents",
+    "Bias Analysis and Model Evaluation": "Product Features and Engineering Design Documents",
+    "Cache Management and Memory Leak Remediation": "Product Features and Engineering Design Documents",
+    "Cloud Marketplace Onboarding and Billing Integration": "Marketplace and Subscription Management",
+    "Commercial Negotiations and Licensing": "Service Assurance, Pricing, and Procurement Coordination",
+    "Company Profile and Product Usage": "Customer Profiles and Sales Discovery",
+    "Design and Frontend UI Enhancements": "Design System and UI/UX Specifications",
+    "Enterprise Go-Live and Cutover Protocols": "Service Assurance, Pricing, and Procurement Coordination",
+    "Fewshot Prompt Engineering and Heuristics": "Product Features and Engineering Design Documents",
+    "GPU CI Credential Rotation and Image Promotion": "Security Incident Response and Penetration Testing",
+    "Incident Reports and Hotfixes": "Software Release and Runtime Incident Management",
+    "Incident Reports and Status Page Communication": "Software Release and Runtime Incident Management",
+    "Interaction Tiering and API Request Routing Models": "Routing, Traffic Management, and Autoscaling",
+    "Kernel Snapshot Observability and Diagnostic Playbooks": "Telemetry, Observability, and Compliance for Private Deployments",
+    "Large File Download Debugging and Network Issues": "Network Incidents and VPN Connectivity Issues",
+    "Latency Mitigation and Optimizer Profile Management": "Telemetry, Observability, and Metrics Engineering",
+    "Network and Infrastructure Incident Debugging": "Network Incidents and VPN Connectivity Issues",
+    "Observability and Alerting Systems": "Telemetry, Observability, and Metrics Engineering",
+    "Observability and Monitoring Features": "Telemetry, Observability, and Metrics Engineering",
+    "On-Prem Private Environment Upgrades": "Upgrade and Rollback Support for Redwood Private",
+    "Operator Training and Runbook Development": "Telemetry, Observability, and Compliance for Private Deployments",
+    "POC planning and customer workshops for Redwood Dedicated or Private deployments": "Customer Evaluation and Proof of Concept for Redwood Platform",
+    "Performance Optimization and Runtime Safety": "Software Release and Runtime Incident Management",
+    "Product Management and Enterprise Intake Processes": "Product Features and Engineering Design Documents",
+    "Quantization Profiles and Customer Documentation": "Product Features and Engineering Design Documents",
+    "Release Engineering and Shiproom Operations": "Software Release and Runtime Incident Management",
+    "Security Reviews and Marketplace Compliance": "Security Incident Response and Penetration Testing",
+    "Security and Cryptographic Key Management": "Security Incident Response and Penetration Testing",
+    "authentication failures in scheduled jobs due to Okta policy changes": "Authentication and Access Control Incidents",
+    "software licensing renewal and procurement negotiation": "Service Assurance, Pricing, and Procurement Coordination",
+    "trace visualization and debugging tools": "Telemetry, Observability, and Compliance for Private Deployments"
+  }
+}

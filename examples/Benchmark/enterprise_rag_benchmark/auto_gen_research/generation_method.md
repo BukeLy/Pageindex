@@ -55,6 +55,8 @@ The experiment compares two folder generators:
 1. `topic_count_folder`
    - Summarize each document into `primary_topic`.
    - Cluster related topics across the selected corpus.
+   - For larger subsets, cluster profiles in batches and normalize cluster
+     labels across batches before counting.
    - Count documents per cluster.
    - Folder path starts with the largest cluster rank:
      `/topic_count/r01_<cluster>/source_<source_type>/type_<doc_type>`.
@@ -71,6 +73,9 @@ The experiment compares two folder generators:
 ## Evaluation
 
 Each metadata schema is crossed with each folder generator, producing four PIFS
-workspaces. The same 10 EnterpriseRAG questions are run through the same agent
+workspaces. The selected EnterpriseRAG questions are run through the same agent
 loop. Primary score is `doc_hit_rate`; tie-breakers are average tool calls and
-average seconds.
+average seconds. Question selection walks benchmark questions in order until the
+unique `expected_doc_ids` count reaches `--target-docs`, so `--target-docs 100`
+means the registered corpus has 100 expected documents, not merely 100
+question-document pairs.

@@ -1,0 +1,13 @@
+{
+  "combo": "dag_fixed_schema__topic_count_folder",
+  "questions": 100,
+  "doc_hits": 0,
+  "doc_hit_rate": 0.0,
+  "avg_tool_calls": 0.0,
+  "avg_seconds": 0.0,
+  "skipped": true,
+  "errors": [],
+  "metadata_strategy": "dag_fixed_schema",
+  "folder_strategy": "topic_count_folder",
+  "workspace": "/Users/chengjie/.codex/worktrees/6d00/PageIndex/examples/Benchmark/enterprise_rag_benchmark/auto_gen_research/workspaces/20260515-011421-100docs-register-only/dag_fixed_schema__topic_count_folder"
+}

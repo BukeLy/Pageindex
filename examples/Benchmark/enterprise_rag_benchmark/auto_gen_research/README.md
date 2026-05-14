@@ -35,6 +35,12 @@ Run:
 python run_auto_gen_research.py --reset
 ```
 
+Generate and register a 100-document corpus without running the agent loop:
+
+```bash
+python run_auto_gen_research.py --reset --skip-agent --target-docs 100
+```
+
 By default the script selects questions in benchmark order until the number of
 unique `expected_doc_ids` reaches `--target-docs` (default `10`). It then uses
 those expected document ids as the fixed document subset. Passing
@@ -54,8 +60,15 @@ second:
 OPENAI_API_KEY=...
 OPENAI_BASE_URL=https://api.openai.com/v1
 PIFS_AGENT_MODEL=gpt-4.1-mini
+PIFS_PROFILE_WORKERS=4
+PIFS_CLUSTER_BATCH_SIZE=25
 ```
 
 Generated SQLite workspaces live under `workspaces/` and are ignored by git.
 Research inputs, generated metadata, and result summaries are written under
 this folder so each run is reproducible.
+
+`generated/doc_profiles.json` is a per-document cache and can be reused across
+different corpus sizes. Topic clusters are cached per selected document set as
+`generated/topic_clusters_<selection-id>.json`, so a 100-document run does not
+overwrite the 10-document cluster layout.
