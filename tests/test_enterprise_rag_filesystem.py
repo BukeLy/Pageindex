@@ -276,9 +276,9 @@ class EnterpriseRAGFileSystemTest(unittest.TestCase):
             self.assertIn("line 1", opened.text)
             self.assertIn("line 120", opened.text)
 
-    def test_enterprise_rag_context_uses_full_leaf_documents(self):
+    def test_enterprise_rag_answer_uses_agent_core_with_full_leaf_documents(self):
         with tempfile.TemporaryDirectory() as tmp:
-            from examples.Benchmark.enterprise_rag_benchmark.run_smoke import build_context
+            from examples.Benchmark.enterprise_rag_benchmark.run_smoke import answer_question
             from pageindex.filesystem import PageIndexFileSystem
 
             filesystem = PageIndexFileSystem(workspace=Path(tmp) / "workspace")
@@ -293,9 +293,29 @@ class EnterpriseRAGFileSystemTest(unittest.TestCase):
             )
 
             candidate = filesystem.search("prefix", limit=1)[0]
-            context = build_context(filesystem, [candidate], max_docs=1)
 
-            self.assertIn(answer_tail, context)
+            def fake_agent_query(client, doc_id, prompt, verbose=False):
+                document = json.loads(client.get_document(doc_id))
+                structure = json.loads(client.get_document_structure(doc_id))
+                content = json.loads(client.get_page_content(doc_id, "1"))
+                self.assertEqual(client.retrieve_model, "test-model")
+                self.assertEqual(document["doc_name"], "Retrieved EnterpriseRAG leaf documents")
+                self.assertEqual(structure[0]["title"], "Full context document")
+                self.assertIn(answer_tail, content[0]["content"])
+                self.assertIn("Which document contains the answer?", prompt)
+                return "agent answer"
+
+            answer = answer_question(
+                filesystem,
+                "Which document contains the answer?",
+                [candidate],
+                model="test-model",
+                base_url="unused",
+                max_context_docs=1,
+                agent_query=fake_agent_query,
+            )
+
+            self.assertEqual(answer, "agent answer")
 
     def test_tree_search_uses_folder_and_virtual_nodes_before_leaf_files(self):
         with tempfile.TemporaryDirectory() as tmp:

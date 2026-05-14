@@ -21,7 +21,7 @@ import time
 import urllib.error
 import urllib.request
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -249,31 +249,131 @@ def chat_completion(
     return parsed["choices"][0]["message"]["content"]
 
 
-def build_context(
+class RetrievedLeafAgentClient:
+    def __init__(self, *, retrieve_model: str, doc_id: str, document: dict[str, Any]):
+        self.retrieve_model = retrieve_model
+        self.documents = {doc_id: document}
+
+    def get_document(self, doc_id: str) -> str:
+        doc = self.documents.get(doc_id)
+        if not doc:
+            return json.dumps({"error": f"Document {doc_id} not found"})
+        return json.dumps(
+            {
+                "doc_id": doc_id,
+                "doc_name": doc.get("doc_name", ""),
+                "doc_description": doc.get("doc_description", ""),
+                "type": doc.get("type", ""),
+                "status": "completed",
+                "line_count": doc.get("line_count", 0),
+            },
+            ensure_ascii=False,
+        )
+
+    def get_document_structure(self, doc_id: str) -> str:
+        doc = self.documents.get(doc_id)
+        if not doc:
+            return json.dumps({"error": f"Document {doc_id} not found"})
+        return json.dumps(self._remove_text(doc.get("structure", [])), ensure_ascii=False)
+
+    def get_page_content(self, doc_id: str, pages: str) -> str:
+        doc = self.documents.get(doc_id)
+        if not doc:
+            return json.dumps({"error": f"Document {doc_id} not found"})
+        page_nums = self._parse_pages(pages, doc.get("line_count", 0))
+        node_by_line = {
+            node.get("line_num"): node
+            for node in doc.get("structure", [])
+            if node.get("line_num") is not None
+        }
+        content = [
+            {"page": page_num, "content": node_by_line[page_num].get("text", "")}
+            for page_num in page_nums
+            if page_num in node_by_line
+        ]
+        return json.dumps(content, ensure_ascii=False)
+
+    @classmethod
+    def _remove_text(cls, value: Any) -> Any:
+        if isinstance(value, list):
+            return [cls._remove_text(item) for item in value]
+        if isinstance(value, dict):
+            return {key: cls._remove_text(item) for key, item in value.items() if key != "text"}
+        return value
+
+    @staticmethod
+    def _parse_pages(pages: str, line_count: int) -> list[int]:
+        if str(pages).strip().lower() in {"all", "full", "*"}:
+            return list(range(1, line_count + 1))
+        result = []
+        for part in str(pages).split(","):
+            part = part.strip()
+            if not part:
+                continue
+            if "-" in part:
+                start, end = part.split("-", 1)
+                result.extend(range(int(start), int(end) + 1))
+            else:
+                result.append(int(part))
+        return sorted({page for page in result if 1 <= page <= line_count})
+
+
+def build_leaf_agent_client(
     fs: PageIndexFileSystem,
     candidates: list[Any],
     max_docs: int,
-) -> str:
-    chunks = []
+    model: str,
+) -> tuple[RetrievedLeafAgentClient, str]:
+    doc_id = "enterprise_rag_retrieved_leaf_documents"
+    nodes = []
     for i, candidate in enumerate(candidates[:max_docs], 1):
         try:
             opened = fs.open(candidate.reference_id, "all")
             body = opened.text
         except Exception:
             body = candidate.snippet
-        chunks.append(
-            "\n".join(
-                [
-                    f"[doc {i}]",
-                    f"document_id: {candidate.external_id}",
-                    f"title: {candidate.title}",
-                    f"folder: {candidate.folder_path}",
-                    "content:",
-                    body,
-                ]
-            )
+        external_id = candidate.external_id or candidate.file_ref
+        text = "\n".join(
+            [
+                f"document_id: {external_id}",
+                f"title: {candidate.title}",
+                f"folder: {candidate.folder_path}",
+                "content:",
+                body,
+            ]
         )
-    return "\n\n---\n\n".join(chunks)
+        nodes.append(
+            {
+                "title": candidate.title,
+                "node_id": str(i),
+                "line_num": i,
+                "summary": f"document_id={external_id}; folder={candidate.folder_path}; snippet={candidate.snippet}",
+                "text": text,
+            }
+        )
+    document = {
+        "id": doc_id,
+        "type": "md",
+        "path": "filesystem://enterprise-rag/retrieved-leaf-documents",
+        "doc_name": "Retrieved EnterpriseRAG leaf documents",
+        "doc_description": (
+            "Filesystem-selected EnterpriseRAG leaf documents. Each tree node is one full source document."
+        ),
+        "line_count": len(nodes),
+        "structure": nodes,
+    }
+    return RetrievedLeafAgentClient(retrieve_model=model, doc_id=doc_id, document=document), doc_id
+
+
+def load_agent_query() -> Callable[..., str]:
+    try:
+        from examples.agentic_vectorless_rag_demo import query_agent
+    except ModuleNotFoundError as exc:
+        raise RuntimeError(
+            "Agentic answer generation requires the optional demo dependencies. "
+            "Install openai-agents and the repository runtime requirements, or run with --skip-llm."
+        ) from exc
+    return query_agent
 
 
 def answer_question(
@@ -284,23 +384,21 @@ def answer_question(
     model: str,
     base_url: str,
     max_context_docs: int,
+    agent_query: Callable[..., str] | None = None,
 ) -> str:
-    context = build_context(fs, candidates, max_context_docs)
-    return chat_completion(
-        [
-            {
-                "role": "system",
-                "content": (
-                    "Answer the user question using only the provided documents. "
-                    "Be concise but include all requested concrete facts. "
-                    "If the documents do not contain the answer, say NOT FOUND."
-                ),
-            },
-            {"role": "user", "content": f"Question:\n{question}\n\nDocuments:\n{context}"},
-        ],
-        model=model,
-        base_url=base_url,
+    os.environ["OPENAI_BASE_URL"] = base_url.rstrip("/")
+    client, doc_id = build_leaf_agent_client(fs, candidates, max_context_docs, model)
+    agent_query = agent_query or load_agent_query()
+    prompt = (
+        "Answer the EnterpriseRAG question using only the retrieved leaf documents. "
+        "The filesystem has already selected candidate leaf documents. "
+        "Call get_document(), inspect get_document_structure(), and call get_page_content() "
+        "for the relevant leaf node line numbers. Each leaf node's page content is the full source document. "
+        "Be concise but include all requested concrete facts. If none of the leaf documents contain the answer, "
+        "say NOT FOUND.\n\n"
+        f"Question: {question}"
     )
+    return agent_query(client, doc_id, prompt, verbose=False)
 
 
 def judge_answer(

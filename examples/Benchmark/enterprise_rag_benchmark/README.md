@@ -18,6 +18,14 @@ OPENAI_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai
 PAGEINDEX_ANSWER_MODEL=gemini-2.5-flash
 ```
 
+Answer generation uses the same OpenAI Agents SDK path as
+`examples/agentic_vectorless_rag_demo.py`. Install the optional dependency
+before running without `--skip-llm`:
+
+```bash
+pip3 install openai-agents
+```
+
 Run:
 
 ```bash
