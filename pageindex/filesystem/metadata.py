@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import math
 import re
 from typing import Any
 
@@ -21,16 +20,32 @@ class MetadataQueryEngine:
     def __init__(self, store: Any):
         self.store = store
 
-    def ensure_fields(self, metadata: dict[str, Any], source: str = "source") -> None:
+    def register_schema(self, schema: dict[str, Any], source: str = "manual") -> None:
         fields = []
-        for name, value in metadata.items():
+        raw_fields = schema.get("fields", schema)
+        if not isinstance(raw_fields, dict):
+            raise MetadataQueryError("metadata schema must contain a fields object")
+        for name, declaration in raw_fields.items():
             name = str(name)
-            if not self.FIELD_RE.match(name):
-                continue
-            field_type = self.infer_type(value)
-            if field_type is None:
-                continue
-            fields.append(MetadataField(name=name, field_type=field_type, source=source))
+            self.validate_field_name(name)
+            if isinstance(declaration, str):
+                field_type = declaration
+                description = ""
+            elif isinstance(declaration, dict):
+                field_type = str(declaration.get("type", ""))
+                description = str(declaration.get("description", ""))
+            else:
+                raise MetadataQueryError(f"Invalid schema declaration for field: {name}")
+            if field_type not in {"string", "number", "boolean"}:
+                raise MetadataQueryError(f"Unsupported metadata field type for {name}: {field_type}")
+            fields.append(
+                MetadataField(
+                    name=name,
+                    field_type=field_type,
+                    description=description,
+                    source=source,
+                )
+            )
         if fields:
             self.store.upsert_metadata_fields(fields)
 
@@ -101,10 +116,13 @@ class MetadataQueryEngine:
         self._validate_scalar(expected, context=f"{field} {operator}")
 
     def validate_field(self, field: str) -> None:
-        if not self.FIELD_RE.match(field):
-            raise MetadataQueryError(f"Invalid metadata field: {field}")
+        self.validate_field_name(field)
         if not self.store.metadata_field_exists(field):
             raise MetadataQueryError(f"Unknown metadata field: {field}")
+
+    def validate_field_name(self, field: str) -> None:
+        if not self.FIELD_RE.match(field):
+            raise MetadataQueryError(f"Invalid metadata field: {field}")
 
     def export_schema(self) -> dict[str, Any]:
         fields = {}
@@ -115,31 +133,11 @@ class MetadataQueryEngine:
             }
         return {"fields": fields}
 
-    @classmethod
-    def infer_type(cls, value: Any) -> str | None:
-        if isinstance(value, list):
-            for item in value:
-                inferred = cls.infer_type(item)
-                if inferred is not None:
-                    return inferred
-            return None
-        if isinstance(value, bool):
-            return "boolean"
-        if isinstance(value, (int, float)) and not isinstance(value, bool):
-            if isinstance(value, float) and not math.isfinite(value):
-                return None
-            return "number"
-        if value is None:
-            return None
-        return "string"
-
     @staticmethod
     def _validate_scalar(value: Any, *, context: str) -> None:
         if isinstance(value, bool):
             return
         if isinstance(value, (int, float)):
-            if isinstance(value, float) and not math.isfinite(value):
-                raise MetadataQueryError(f"{context} must be finite")
             return
         if isinstance(value, str):
             return
@@ -149,5 +147,3 @@ class MetadataQueryEngine:
     def _validate_range_value(value: Any, *, context: str) -> None:
         if isinstance(value, bool) or not isinstance(value, (int, float, str)):
             raise MetadataQueryError(f"{context} must be a string or number")
-        if isinstance(value, float) and not math.isfinite(value):
-            raise MetadataQueryError(f"{context} must be finite")

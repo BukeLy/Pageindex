@@ -43,23 +43,7 @@ class EnterpriseRAGBenchmark:
         return file_refs
 
     def load_questions(self, questions_path: Union[str, Path]) -> list[EnterpriseRAGQuestion]:
-        questions_path = Path(questions_path).expanduser()
-        questions = []
-        with questions_path.open("r", encoding="utf-8") as f:
-            for line in f:
-                if not line.strip():
-                    continue
-                row = json.loads(line)
-                questions.append(
-                    EnterpriseRAGQuestion(
-                        question_id=row["question_id"],
-                        question=row["question"],
-                        question_type=row.get("question_type", ""),
-                        source_types=list(row.get("source_types") or []),
-                        expected_doc_ids=list(row.get("expected_doc_ids") or []),
-                    )
-                )
-        return questions
+        return load_questions(questions_path)
 
     @staticmethod
     def write_answers(answers_path: Union[str, Path], answers: list[dict[str, Any]]):
@@ -140,3 +124,23 @@ class EnterpriseRAGBenchmark:
         field_name = data.get("title_field_name") or "title"
         title = data.get(field_name)
         return str(title) if title else str(data.get("dataset_doc_uuid") or "Untitled")
+
+
+def load_questions(questions_path: Union[str, Path]) -> list[EnterpriseRAGQuestion]:
+    questions_path = Path(questions_path).expanduser()
+    questions = []
+    with questions_path.open("r", encoding="utf-8") as f:
+        for line in f:
+            if not line.strip():
+                continue
+            row = json.loads(line)
+            questions.append(
+                EnterpriseRAGQuestion(
+                    question_id=row["question_id"],
+                    question=row["question"],
+                    question_type=row.get("question_type", ""),
+                    source_types=list(row.get("source_types") or []),
+                    expected_doc_ids=list(row.get("expected_doc_ids") or []),
+                )
+            )
+    return questions

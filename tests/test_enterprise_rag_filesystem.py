@@ -7,6 +7,10 @@ import unittest
 from pathlib import Path
 
 
+def register_metadata_schema(filesystem, fields):
+    filesystem._register_metadata_schema({"fields": fields})
+
+
 class EnterpriseRAGFileSystemTest(unittest.TestCase):
     def test_filesystem_import_does_not_require_core_dependencies(self):
         repo_root = Path(__file__).resolve().parents[1]
@@ -92,6 +96,34 @@ class EnterpriseRAGFileSystemTest(unittest.TestCase):
             self.assertEqual(opened.end_line, 4)
             self.assertIn("private.bundle_verification.succeeded", opened.text)
 
+    def test_register_file_does_not_infer_metadata_schema(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            from pageindex.filesystem import PIFSCommandExecutor, PageIndexFileSystem
+            from pageindex.filesystem.metadata import MetadataQueryError
+
+            filesystem = PageIndexFileSystem(workspace=Path(tmp) / "workspace")
+            filesystem.register_file(
+                storage_uri="file:///tmp/doc.json",
+                source_path="github/redwood/doc.json",
+                folder_path="/github/redwood",
+                external_id="dsid_no_infer",
+                title="No inferred schema",
+                metadata={"repo": "redwood", "state": "merged"},
+                content="raw metadata remains available in stat and search text",
+            )
+
+            schema = json.loads(
+                PIFSCommandExecutor(filesystem, json_output=True).execute("stat --schema /")
+            )["data"]
+            stat = json.loads(
+                PIFSCommandExecutor(filesystem, json_output=True).execute("stat dsid_no_infer")
+            )["data"]
+
+            self.assertEqual(schema["fields"], {})
+            self.assertEqual(stat["metadata"]["repo"], "redwood")
+            with self.assertRaises(MetadataQueryError):
+                filesystem.search(None, metadata_filter={"repo": "redwood"})
+
     def test_search_filters_by_folder_scope_and_metadata(self):
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
@@ -134,6 +166,13 @@ class EnterpriseRAGFileSystemTest(unittest.TestCase):
             from pageindex.filesystem import PageIndexFileSystem
 
             filesystem = PageIndexFileSystem(workspace=tmp_path / "workspace")
+            register_metadata_schema(
+                filesystem,
+                {
+                    "repo": {"type": "string"},
+                    "labels": {"type": "string"},
+                },
+            )
             EnterpriseRAGBenchmark(filesystem).ingest_sources(source_root)
 
             results = filesystem.search(
@@ -341,6 +380,13 @@ class EnterpriseRAGFileSystemTest(unittest.TestCase):
             from pageindex.filesystem import PageIndexFileSystem
 
             filesystem = PageIndexFileSystem(workspace=tmp_path / "workspace")
+            register_metadata_schema(
+                filesystem,
+                {
+                    "repo": {"type": "string"},
+                    "labels": {"type": "string"},
+                },
+            )
             EnterpriseRAGBenchmark(filesystem).ingest_sources(source_root)
 
             root = filesystem.browse("/")
@@ -364,6 +410,13 @@ class EnterpriseRAGFileSystemTest(unittest.TestCase):
             from pageindex.filesystem import PIFSCommandExecutor, PageIndexFileSystem
 
             filesystem = PageIndexFileSystem(workspace=Path(tmp) / "workspace")
+            register_metadata_schema(
+                filesystem,
+                {
+                    "repo": {"type": "string"},
+                    "labels": {"type": "string"},
+                },
+            )
             filesystem.register_file(
                 storage_uri="file:///tmp/pr.json",
                 source_path="github/redwood/pr-audit.json",
@@ -396,6 +449,7 @@ class EnterpriseRAGFileSystemTest(unittest.TestCase):
             from pageindex.filesystem import PIFSCommandExecutor, PageIndexFileSystem
 
             filesystem = PageIndexFileSystem(workspace=Path(tmp) / "workspace")
+            register_metadata_schema(filesystem, {"year": {"type": "number"}})
             filesystem.register_file(
                 storage_uri="file:///tmp/report.json",
                 source_path="finance/apple/report.json",
@@ -419,6 +473,15 @@ class EnterpriseRAGFileSystemTest(unittest.TestCase):
             from pageindex.filesystem import PageIndexFileSystem
 
             filesystem = PageIndexFileSystem(workspace=Path(tmp) / "workspace")
+            register_metadata_schema(
+                filesystem,
+                {
+                    "repo": {"type": "string"},
+                    "year": {"type": "number"},
+                    "channel": {"type": "string"},
+                    "private": {"type": "boolean"},
+                },
+            )
             filesystem.register_files(
                 [
                     {
@@ -476,6 +539,7 @@ class EnterpriseRAGFileSystemTest(unittest.TestCase):
             from pageindex.filesystem.metadata import MetadataQueryError
 
             filesystem = PageIndexFileSystem(workspace=Path(tmp) / "workspace")
+            register_metadata_schema(filesystem, {"repo": {"type": "string"}})
             filesystem.register_file(
                 storage_uri="file:///tmp/doc.json",
                 source_path="github/redwood/doc.json",
@@ -584,6 +648,7 @@ class EnterpriseRAGFileSystemTest(unittest.TestCase):
 
             workspace = Path(tmp) / "workspace"
             first = PageIndexFileSystem(workspace=workspace)
+            register_metadata_schema(first, {"repo": {"type": "string"}})
             first.register_file(
                 storage_uri="file:///tmp/doc.json",
                 source_path="github/redwood/doc.json",
@@ -650,6 +715,7 @@ class EnterpriseRAGFileSystemTest(unittest.TestCase):
                 )
 
             filesystem = PageIndexFileSystem(workspace=workspace)
+            register_metadata_schema(filesystem, {"repo": {"type": "string"}})
             filesystem.register_file(
                 storage_uri="file:///tmp/new.json",
                 source_path="github/redwood/new.json",

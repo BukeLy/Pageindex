@@ -73,7 +73,7 @@ class MetadataField:
     indexed: bool = True
     faceted: bool = False
     sortable: bool = False
-    source: str = "inferred"
+    source: str = "manual"
 
 
 @dataclass(frozen=True)

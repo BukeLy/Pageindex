@@ -109,7 +109,7 @@ class SQLiteFileSystemStore:
                 indexed INTEGER NOT NULL DEFAULT 1,
                 faceted INTEGER NOT NULL DEFAULT 0,
                 sortable INTEGER NOT NULL DEFAULT 0,
-                source TEXT NOT NULL DEFAULT 'inferred',
+                source TEXT NOT NULL DEFAULT 'manual',
                 created_at TEXT DEFAULT CURRENT_TIMESTAMP,
                 updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE(schema_id, name),
@@ -215,12 +215,6 @@ class SQLiteFileSystemStore:
                 metadata = json.loads(row["metadata_json"] or "{}")
             except json.JSONDecodeError:
                 metadata = {}
-            fields = []
-            for name, value in metadata.items():
-                field_type = self._infer_metadata_type(value)
-                if self._valid_field_name(name) and field_type is not None:
-                    fields.append(MetadataField(name=name, field_type=field_type))
-            self.upsert_metadata_fields(fields, conn=conn)
             self.replace_metadata_values(conn, row["file_ref"], metadata)
 
     @staticmethod
@@ -308,7 +302,9 @@ class SQLiteFileSystemStore:
         for name, value in metadata.items():
             if not self._valid_field_name(name):
                 continue
-            field_id = self.field_id(name)
+            field_id = self._registered_field_id(conn, name)
+            if field_id is None:
+                continue
             for item in self._metadata_value_items(value):
                 conn.execute(
                     """
@@ -325,6 +321,18 @@ class SQLiteFileSystemStore:
                         item["value_json"],
                     ),
                 )
+
+    @staticmethod
+    def _registered_field_id(conn: sqlite3.Connection, name: str) -> str | None:
+        row = conn.execute(
+            """
+            SELECT field_id
+            FROM metadata_fields
+            WHERE schema_id = 'default' AND name = ?
+            """,
+            (name,),
+        ).fetchone()
+        return None if row is None else row["field_id"]
 
     def replace_fts(self, conn: sqlite3.Connection, record: dict[str, Any]) -> None:
         conn.execute("DELETE FROM file_fts WHERE file_ref = ?", (record["file_ref"],))
@@ -1118,22 +1126,6 @@ class SQLiteFileSystemStore:
         if isinstance(value, (dict, list)):
             return json.dumps(value, ensure_ascii=False, sort_keys=True)
         return "" if value is None else str(value)
-
-    @staticmethod
-    def _infer_metadata_type(value: Any) -> str | None:
-        if isinstance(value, list):
-            for item in value:
-                inferred = SQLiteFileSystemStore._infer_metadata_type(item)
-                if inferred is not None:
-                    return inferred
-            return None
-        if isinstance(value, bool):
-            return "boolean"
-        if isinstance(value, (int, float)) and not isinstance(value, bool):
-            return "number"
-        if value is None:
-            return None
-        return "string"
 
     @staticmethod
     def _valid_field_name(name: str) -> bool:

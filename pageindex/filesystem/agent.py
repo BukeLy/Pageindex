@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import asyncio
 import concurrent.futures
+import json
+import os
 
 from .commands import PIFSCommandError, PIFSCommandExecutor
 from .core import PageIndexFileSystem
@@ -27,9 +29,9 @@ Allowed commands:
 Metadata filters use JSON DSL, for example:
 {"$and":[{"repo":"redwood"},{"year":{"$gte":2024}}]}.
 
-Start by inspecting the top-level folders and metadata schema. Use find/grep to
-narrow candidate documents, then use stat/cat to verify evidence. Answer only
-from tool output and preserve document_ids from external_id values when present.
+Start by inspecting the relevant source folder. Use find/grep to narrow
+candidate documents, then use stat/cat to verify evidence. Answer only from
+tool output and preserve document_ids from external_id values when present.
 """
 
 
@@ -42,7 +44,8 @@ def run_pifs_agent(
     verbose: bool = False,
 ) -> str:
     try:
-        from agents import Agent, Runner, function_tool, set_tracing_disabled
+        from agents import Agent, OpenAIChatCompletionsModel, Runner, function_tool, set_tracing_disabled
+        from openai import AsyncOpenAI
     except ModuleNotFoundError as exc:
         if exc.name == "agents":
             raise RuntimeError("openai-agents is required to run the PageIndex FileSystem agent") from exc
@@ -50,13 +53,22 @@ def run_pifs_agent(
 
     set_tracing_disabled(True)
     executor = PIFSCommandExecutor(filesystem, json_output=True)
+    schema = filesystem._metadata_schema()
+    schema_fields = schema.get("fields", {})
+    schema_sample = dict(list(schema_fields.items())[:50])
     initial_context = "\n".join(
         [
             f"Root path: {root}",
             "Top-level listing:",
             executor.execute(f"ls {root}"),
-            "Metadata schema:",
-            executor.execute("stat --schema /"),
+            "Metadata schema summary:",
+            json.dumps(
+                {
+                    "field_count": len(schema_fields),
+                    "sample_fields": schema_sample,
+                },
+                ensure_ascii=False,
+            ),
         ]
     )
 
@@ -71,11 +83,21 @@ def run_pifs_agent(
             print(f"\n[pifs bash] {command}\n{output[:1000]}", flush=True)
         return output
 
+    model_config = model
+    if os.environ.get("OPENAI_BASE_URL"):
+        model_config = OpenAIChatCompletionsModel(
+            model=model,
+            openai_client=AsyncOpenAI(
+                api_key=os.environ.get("OPENAI_API_KEY"),
+                base_url=os.environ.get("OPENAI_BASE_URL"),
+            ),
+        )
+
     agent = Agent(
         name="PageIndexFileSystem",
         instructions=AGENT_SYSTEM_PROMPT + "\n\n" + initial_context,
         tools=[bash],
-        model=model,
+        model=model_config,
     )
 
     async def _run() -> str:

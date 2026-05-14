@@ -54,7 +54,6 @@ class PageIndexFileSystem:
     def register_files(self, files: list[dict[str, Any]]) -> list[str]:
         records = [self._prepare_file_record(file) for file in files]
         for record in records:
-            self.metadata.ensure_fields(record["metadata"])
             self.store.insert_file(record)
         return [record["file_ref"] for record in records]
 
@@ -142,6 +141,9 @@ class PageIndexFileSystem:
 
     def _metadata_schema(self) -> dict[str, Any]:
         return self.metadata.export_schema()
+
+    def _register_metadata_schema(self, schema: dict[str, Any]) -> None:
+        self.metadata.register_schema(schema)
 
     def _create_folder(self, path: str) -> str:
         return self.store.ensure_folder(None, path, kind="physical", source="user")

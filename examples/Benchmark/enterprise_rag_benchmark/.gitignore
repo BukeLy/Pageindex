@@ -1,4 +1,5 @@
 runs/
+dataset/
 *.sqlite
 *.sqlite-*
 artifacts/
