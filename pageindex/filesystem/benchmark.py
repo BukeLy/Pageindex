@@ -1,8 +1,18 @@
 import json
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Union
 
 from .core import PageIndexFileSystem
+
+
+@dataclass(frozen=True)
+class EnterpriseRAGQuestion:
+    question_id: str
+    question: str
+    question_type: str
+    source_types: list[str]
+    expected_doc_ids: list[str]
 
 
 class EnterpriseRAGBenchmark:
@@ -16,6 +26,38 @@ class EnterpriseRAGBenchmark:
             data = self._read_json(path)
             file_refs.append(self._register_document(source_root, path, data))
         return file_refs
+
+    def load_questions(self, questions_path: Union[str, Path]) -> list[EnterpriseRAGQuestion]:
+        questions_path = Path(questions_path).expanduser()
+        questions = []
+        with questions_path.open("r", encoding="utf-8") as f:
+            for line in f:
+                if not line.strip():
+                    continue
+                row = json.loads(line)
+                questions.append(
+                    EnterpriseRAGQuestion(
+                        question_id=row["question_id"],
+                        question=row["question"],
+                        question_type=row.get("question_type", ""),
+                        source_types=list(row.get("source_types") or []),
+                        expected_doc_ids=list(row.get("expected_doc_ids") or []),
+                    )
+                )
+        return questions
+
+    @staticmethod
+    def write_answers(answers_path: Union[str, Path], answers: list[dict[str, Any]]):
+        answers_path = Path(answers_path).expanduser()
+        answers_path.parent.mkdir(parents=True, exist_ok=True)
+        with answers_path.open("w", encoding="utf-8") as f:
+            for answer in answers:
+                row = {
+                    "question_id": answer["question_id"],
+                    "answer": answer.get("answer", ""),
+                    "document_ids": list(answer.get("document_ids") or []),
+                }
+                f.write(json.dumps(row, ensure_ascii=False) + "\n")
 
     def _register_document(
         self,

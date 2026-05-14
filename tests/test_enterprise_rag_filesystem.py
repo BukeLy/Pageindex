@@ -144,6 +144,62 @@ class EnterpriseRAGFileSystemTest(unittest.TestCase):
 
             self.assertEqual([result.external_id for result in results], ["dsid_github_audit"])
 
+    def test_enterprise_rag_questions_and_answer_jsonl_output(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            questions_path = tmp_path / "questions.jsonl"
+            answers_path = tmp_path / "answers.jsonl"
+            questions_path.write_text(
+                json.dumps(
+                    {
+                        "question_id": "qst_0001",
+                        "question_type": "basic",
+                        "source_types": ["github"],
+                        "question": "Which PR added audit logging?",
+                        "expected_doc_ids": ["dsid_github_audit"],
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            from pageindex.filesystem import EnterpriseRAGBenchmark, PageIndexFileSystem
+
+            filesystem = PageIndexFileSystem(workspace=tmp_path / "workspace")
+            benchmark = EnterpriseRAGBenchmark(filesystem)
+
+            questions = benchmark.load_questions(questions_path)
+
+            self.assertEqual(len(questions), 1)
+            self.assertEqual(questions[0].question_id, "qst_0001")
+            self.assertEqual(questions[0].question, "Which PR added audit logging?")
+
+            benchmark.write_answers(
+                answers_path,
+                [
+                    {
+                        "question_id": questions[0].question_id,
+                        "answer": "PR 56247 added audit logging.",
+                        "document_ids": ["dsid_github_audit"],
+                    }
+                ],
+            )
+
+            rows = [
+                json.loads(line)
+                for line in answers_path.read_text(encoding="utf-8").splitlines()
+            ]
+            self.assertEqual(
+                rows,
+                [
+                    {
+                        "question_id": "qst_0001",
+                        "answer": "PR 56247 added audit logging.",
+                        "document_ids": ["dsid_github_audit"],
+                    }
+                ],
+            )
+
 
 if __name__ == "__main__":
     unittest.main()
