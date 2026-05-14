@@ -10,8 +10,9 @@ class EnterpriseRAGFileSystemTest(unittest.TestCase):
     def test_filesystem_import_does_not_require_core_dependencies(self):
         repo_root = Path(__file__).resolve().parents[1]
         script = (
-            "from pageindex.filesystem import PageIndexFileSystem, EnterpriseRAGBenchmark; "
-            "print(PageIndexFileSystem.__name__, EnterpriseRAGBenchmark.__name__)"
+            "import pageindex.filesystem as filesystem; "
+            "from pageindex.filesystem import PageIndexFileSystem; "
+            "print(PageIndexFileSystem.__name__, hasattr(filesystem, 'EnterpriseRAGBenchmark'))"
         )
 
         result = subprocess.run(
@@ -27,7 +28,7 @@ class EnterpriseRAGFileSystemTest(unittest.TestCase):
             msg=f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}",
         )
         self.assertIn("PageIndexFileSystem", result.stdout)
-        self.assertIn("EnterpriseRAGBenchmark", result.stdout)
+        self.assertIn("False", result.stdout)
 
     def test_enterprise_rag_json_ingests_with_folder_metadata_search_and_open(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -60,7 +61,8 @@ class EnterpriseRAGFileSystemTest(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            from pageindex.filesystem import EnterpriseRAGBenchmark, PageIndexFileSystem
+            from examples.Benchmark.enterprise_rag_benchmark.enterprise_rag import EnterpriseRAGBenchmark
+            from pageindex.filesystem import PageIndexFileSystem
 
             filesystem = PageIndexFileSystem(workspace=tmp_path / "workspace")
             benchmark = EnterpriseRAGBenchmark(filesystem)
@@ -127,7 +129,8 @@ class EnterpriseRAGFileSystemTest(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            from pageindex.filesystem import EnterpriseRAGBenchmark, PageIndexFileSystem
+            from examples.Benchmark.enterprise_rag_benchmark.enterprise_rag import EnterpriseRAGBenchmark
+            from pageindex.filesystem import PageIndexFileSystem
 
             filesystem = PageIndexFileSystem(workspace=tmp_path / "workspace")
             EnterpriseRAGBenchmark(filesystem).ingest_sources(source_root)
@@ -163,7 +166,8 @@ class EnterpriseRAGFileSystemTest(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            from pageindex.filesystem import EnterpriseRAGBenchmark, PageIndexFileSystem
+            from examples.Benchmark.enterprise_rag_benchmark.enterprise_rag import EnterpriseRAGBenchmark
+            from pageindex.filesystem import PageIndexFileSystem
 
             filesystem = PageIndexFileSystem(workspace=tmp_path / "workspace")
             benchmark = EnterpriseRAGBenchmark(filesystem)
@@ -274,7 +278,7 @@ class EnterpriseRAGFileSystemTest(unittest.TestCase):
 
     def test_enterprise_rag_context_uses_full_leaf_documents(self):
         with tempfile.TemporaryDirectory() as tmp:
-            from examples.enterprise_rag_benchmark.run_smoke import build_context
+            from examples.Benchmark.enterprise_rag_benchmark.run_smoke import build_context
             from pageindex.filesystem import PageIndexFileSystem
 
             filesystem = PageIndexFileSystem(workspace=Path(tmp) / "workspace")
@@ -331,7 +335,8 @@ class EnterpriseRAGFileSystemTest(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            from pageindex.filesystem import EnterpriseRAGBenchmark, PageIndexFileSystem
+            from examples.Benchmark.enterprise_rag_benchmark.enterprise_rag import EnterpriseRAGBenchmark
+            from pageindex.filesystem import PageIndexFileSystem
 
             filesystem = PageIndexFileSystem(workspace=tmp_path / "workspace")
             EnterpriseRAGBenchmark(filesystem).ingest_sources(source_root)

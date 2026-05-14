@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Union
 
-from .core import PageIndexFileSystem
+from pageindex.filesystem import PageIndexFileSystem
 
 
 @dataclass(frozen=True)

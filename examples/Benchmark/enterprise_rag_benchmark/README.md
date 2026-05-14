@@ -21,7 +21,7 @@ PAGEINDEX_ANSWER_MODEL=gemini-2.5-flash
 Run:
 
 ```bash
-python3 examples/enterprise_rag_benchmark/run_smoke.py \
+python3 examples/Benchmark/enterprise_rag_benchmark/run_smoke.py \
   --bench-root /private/tmp/EnterpriseRAG-Bench-20260514 \
   --limit 5
 ```
@@ -30,12 +30,12 @@ For a faster fixed 5-question smoke that avoids the very large Gmail/Slack
 sources, run:
 
 ```bash
-python3 examples/enterprise_rag_benchmark/run_smoke.py \
+python3 examples/Benchmark/enterprise_rag_benchmark/run_smoke.py \
   --bench-root /private/tmp/EnterpriseRAG-Bench-20260514 \
   --question-ids qst_0001,qst_0002,qst_0004,qst_0011,qst_0012 \
-  --workspace examples/enterprise_rag_benchmark/runs/smoke-small/workspace \
-  --results-path examples/enterprise_rag_benchmark/runs/smoke-small/results.jsonl \
-  --summary-path examples/enterprise_rag_benchmark/runs/smoke-small/summary.json
+  --workspace examples/Benchmark/enterprise_rag_benchmark/runs/smoke-small/workspace \
+  --results-path examples/Benchmark/enterprise_rag_benchmark/runs/smoke-small/results.jsonl \
+  --summary-path examples/Benchmark/enterprise_rag_benchmark/runs/smoke-small/summary.json
 ```
 
 If the configured OpenAI-compatible endpoint is unavailable, add `--skip-llm`
@@ -47,7 +47,7 @@ smoke test, but it is not a leaderboard-fair run because the benchmark question
 metadata narrows the corpus. For a fairer retrieval run, use:
 
 ```bash
-python3 examples/enterprise_rag_benchmark/run_smoke.py \
+python3 examples/Benchmark/enterprise_rag_benchmark/run_smoke.py \
   --bench-root /private/tmp/EnterpriseRAG-Bench-20260514 \
   --limit 5 \
   --source-scope all
@@ -55,9 +55,9 @@ python3 examples/enterprise_rag_benchmark/run_smoke.py \
 
 Generated PageIndex artifacts are written under this benchmark folder by default:
 
-- `examples/enterprise_rag_benchmark/runs/smoke/results.jsonl`
-- `examples/enterprise_rag_benchmark/runs/smoke/summary.json`
-- `examples/enterprise_rag_benchmark/runs/smoke/workspace/`
+- `examples/Benchmark/enterprise_rag_benchmark/runs/smoke/results.jsonl`
+- `examples/Benchmark/enterprise_rag_benchmark/runs/smoke/summary.json`
+- `examples/Benchmark/enterprise_rag_benchmark/runs/smoke/workspace/`
 
 The `runs/` directory is ignored by git because it contains local SQLite
 databases, text artifacts, and generated JSON result files.

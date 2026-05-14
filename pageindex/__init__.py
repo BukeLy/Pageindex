@@ -7,4 +7,4 @@ except ModuleNotFoundError as exc:
     if exc.name != "litellm":
         raise
 
-from .filesystem import EnterpriseRAGBenchmark, PageIndexFileSystem
+from .filesystem import PageIndexFileSystem

@@ -24,15 +24,17 @@ from pathlib import Path
 from typing import Any
 
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+REPO_ROOT = Path(__file__).resolve().parents[3]
 BENCHMARK_DIR = Path(__file__).resolve().parent
 DEFAULT_RUN_DIR = BENCHMARK_DIR / "runs" / "smoke"
 DEFAULT_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai"
 DEFAULT_MODEL = "gemini-2.5-flash"
 
 sys.path.insert(0, str(REPO_ROOT))
+sys.path.insert(0, str(BENCHMARK_DIR))
 
-from pageindex.filesystem import EnterpriseRAGBenchmark, PageIndexFileSystem  # noqa: E402
+from enterprise_rag import EnterpriseRAGBenchmark  # noqa: E402
+from pageindex.filesystem import PageIndexFileSystem  # noqa: E402
 
 
 def parse_args() -> argparse.Namespace:
