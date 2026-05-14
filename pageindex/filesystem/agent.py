@@ -29,9 +29,12 @@ Allowed commands:
 Metadata filters use JSON DSL, for example:
 {"$and":[{"repo":"redwood"},{"year":{"$gte":2024}}]}.
 
-Start by inspecting the relevant source folder. Use find/grep to narrow
-candidate documents, then use stat/cat to verify evidence. Answer only from
-tool output and preserve document_ids from external_id values when present.
+Start by inspecting the relevant source folder. For retrieval questions, run at
+least one grep using the full natural-language question or the longest
+distinctive phrase before falling back to broad keyword searches. Do not drop
+disambiguating words such as metric names, limits, dates, product names, or
+error names. Use stat/cat to verify evidence. Answer only from tool output and
+preserve document_ids from external_id values when present.
 """
 
 

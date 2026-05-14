@@ -175,7 +175,9 @@ Question: {question.question}
 
 Use the PageIndex virtual shell only. Start with folder inspection, search
 within the relevant source folder, and open full leaf documents with `cat --all`
-before answering.
+before answering. Your first content search should use the complete Question
+text with `grep -R` in the source folder; refine only if the top results do not
+contain enough evidence.
 
 Return final output as a single JSON object only:
 {{"answer":"...","document_ids":["dsid_..."]}}
