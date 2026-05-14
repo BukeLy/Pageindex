@@ -1,0 +1,17 @@
+{
+  "combo": "dag_fixed_schema__entropy_folder",
+  "questions": 100,
+  "doc_hits": 93,
+  "doc_hit_rate": 0.93,
+  "avg_tool_calls": 4.83,
+  "avg_seconds": 47.381,
+  "skipped": false,
+  "errors": [
+    "qst_0016",
+    "qst_0057",
+    "qst_0062"
+  ],
+  "metadata_strategy": "dag_fixed_schema",
+  "folder_strategy": "entropy_folder",
+  "workspace": "/Users/chengjie/.codex/worktrees/6d00/PageIndex/examples/Benchmark/enterprise_rag_benchmark/auto_gen_research/workspaces/20260515-100docs-agent-eval/dag_fixed_schema__entropy_folder"
+}
