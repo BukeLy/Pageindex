@@ -27,6 +27,21 @@ class OpenResult:
     text: str
 
 
+@dataclass(frozen=True)
+class TreeNodeResult:
+    path: str
+    kind: str
+    score: int
+    reason: str
+
+
+@dataclass(frozen=True)
+class TreeSearchResult:
+    query: str
+    nodes: list[TreeNodeResult]
+    candidates: list[SearchResult]
+
+
 class PageIndexFileSystem:
     def __init__(self, workspace: Union[str, Path]):
         self.workspace = Path(workspace).expanduser()
@@ -61,6 +76,7 @@ class PageIndexFileSystem:
 
         with self._connect() as conn:
             self._ensure_folder(conn, folder_path)
+            self._ensure_virtual_nodes(conn, file_ref, metadata)
             conn.execute(
                 """
                 INSERT OR REPLACE INTO files (
@@ -172,6 +188,18 @@ class PageIndexFileSystem:
                 break
         return results
 
+    def tree_search(self, query: str, limit: int = 10) -> TreeSearchResult:
+        nodes = self._rank_nodes(query)
+        scope = self._scope_from_nodes(nodes)
+        metadata_filter = self._metadata_filter_from_nodes(nodes)
+        candidates = self.search(
+            query,
+            scope=scope,
+            metadata_filter=metadata_filter,
+            limit=limit,
+        )
+        return TreeSearchResult(query=query, nodes=nodes[:limit], candidates=candidates)
+
     def find(self, reference_id: str, patterns: Union[str, list[str]]) -> list[OpenResult]:
         file_ref = self._resolve_reference(reference_id)
         patterns = [patterns] if isinstance(patterns, str) else patterns
@@ -224,6 +252,17 @@ class PageIndexFileSystem:
             )
             conn.execute(
                 """
+                CREATE TABLE IF NOT EXISTS virtual_memberships (
+                    path TEXT NOT NULL,
+                    file_ref TEXT NOT NULL,
+                    metadata_key TEXT NOT NULL,
+                    metadata_value TEXT NOT NULL,
+                    PRIMARY KEY (path, file_ref)
+                )
+                """
+            )
+            conn.execute(
+                """
                 CREATE VIRTUAL TABLE IF NOT EXISTS file_fts
                 USING fts5(file_ref UNINDEXED, title, body, metadata_text)
                 """
@@ -241,6 +280,30 @@ class PageIndexFileSystem:
         for part in parts:
             current = f"{current}/{part}"
             conn.execute("INSERT OR IGNORE INTO folders(path) VALUES (?)", (current,))
+
+    def _ensure_virtual_nodes(
+        self,
+        conn: sqlite3.Connection,
+        file_ref: str,
+        metadata: dict[str, Any],
+    ):
+        for key, value in metadata.items():
+            for item in self._metadata_items(value):
+                path = self._virtual_path(key, item)
+                if not path:
+                    continue
+                conn.execute(
+                    "INSERT OR IGNORE INTO folders(path, kind, source) VALUES (?, 'virtual', 'metadata')",
+                    (path,),
+                )
+                conn.execute(
+                    """
+                    INSERT OR REPLACE INTO virtual_memberships(
+                        path, file_ref, metadata_key, metadata_value
+                    ) VALUES (?, ?, ?, ?)
+                    """,
+                    (path, file_ref, key, str(item)),
+                )
 
     def _write_text_artifact(self, file_ref: str, content: str) -> Path:
         path = self.artifacts_dir / f"{file_ref}.txt"
@@ -277,6 +340,61 @@ class PageIndexFileSystem:
             return self._references[reference_id]
         except KeyError as exc:
             raise KeyError(f"Unknown reference_id: {reference_id}") from exc
+
+    def _rank_nodes(self, query: str) -> list[TreeNodeResult]:
+        query_terms = set(self._fts_query(query).lower().split())
+        if not query_terms:
+            return []
+        with self._connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT path, kind
+                FROM folders
+                WHERE path != '/'
+                ORDER BY kind DESC, path
+                """
+            ).fetchall()
+        scored = []
+        for row in rows:
+            path_terms = set(self._fts_query(row["path"]).lower().split())
+            score = len(query_terms & path_terms)
+            if score:
+                scored.append(
+                    TreeNodeResult(
+                        path=row["path"],
+                        kind=row["kind"],
+                        score=score,
+                        reason=f"matched {score} query term(s) in node path",
+                    )
+                )
+        scored.sort(key=lambda node: (-node.score, self._node_kind_rank(node.kind), node.path))
+        return scored
+
+    @staticmethod
+    def _node_kind_rank(kind: str) -> int:
+        return 0 if kind == "physical" else 1
+
+    @staticmethod
+    def _scope_from_nodes(nodes: list[TreeNodeResult]) -> Optional[dict[str, Any]]:
+        physical = [node for node in nodes if node.kind == "physical"]
+        if not physical:
+            return None
+        best = physical[0]
+        return {"folder_path": best.path, "recursive": True}
+
+    @classmethod
+    def _metadata_filter_from_nodes(
+        cls,
+        nodes: list[TreeNodeResult],
+    ) -> Optional[dict[str, Any]]:
+        filters = {}
+        for node in nodes:
+            parsed = cls._parse_virtual_path(node.path)
+            if not parsed:
+                continue
+            key, value = parsed
+            filters[key] = {"$contains": value}
+        return filters or None
 
     def _reference_for(self, file_ref: str) -> str:
         for reference_id, existing in self._references.items():
@@ -325,6 +443,44 @@ class PageIndexFileSystem:
             elif value is not None:
                 values.append(str(value))
         return " ".join(values)
+
+    @staticmethod
+    def _metadata_items(value: Any) -> list[str]:
+        if isinstance(value, list):
+            return [str(item) for item in value if item is not None]
+        if isinstance(value, (str, int, float, bool)):
+            return [str(value)]
+        return []
+
+    @classmethod
+    def _parse_virtual_path(cls, path: str) -> Optional[tuple[str, str]]:
+        parts = [part for part in path.split("/") if part]
+        if len(parts) < 3 or parts[0] != "metadata":
+            return None
+        return parts[1], cls._unslug(parts[2])
+
+    @classmethod
+    def _virtual_path(cls, key: str, value: str) -> Optional[str]:
+        if key in {
+            "dataset_doc_uuid",
+            "title",
+            "title_field_name",
+            "content_field_names",
+            "source_type",
+        }:
+            return None
+        slug = cls._slug(value)
+        if not slug:
+            return None
+        return f"/metadata/{cls._slug(key)}/{slug}"
+
+    @staticmethod
+    def _slug(value: str) -> str:
+        return "-".join(re.findall(r"[A-Za-z0-9_]+", str(value).lower()))
+
+    @staticmethod
+    def _unslug(value: str) -> str:
+        return value
 
     @classmethod
     def _matches_filter(

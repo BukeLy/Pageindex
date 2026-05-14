@@ -222,6 +222,59 @@ class EnterpriseRAGFileSystemTest(unittest.TestCase):
 
             self.assertEqual([result.external_id for result in results], ["dsid_auth_proxy"])
 
+    def test_tree_search_uses_folder_and_virtual_nodes_before_leaf_files(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            source_root = tmp_path / "generated_data" / "sources"
+            github_doc = source_root / "github" / "redwood" / "pr-audit.json"
+            slack_doc = source_root / "slack" / "eng" / "audit-rollout.json"
+            github_doc.parent.mkdir(parents=True)
+            slack_doc.parent.mkdir(parents=True)
+            github_doc.write_text(
+                json.dumps(
+                    {
+                        "repo": "redwood",
+                        "title": "Audit logging bundle verification PR",
+                        "state": "merged",
+                        "labels": ["security", "audit-logging"],
+                        "description": "Adds bundle verification audit event.",
+                        "title_field_name": "title",
+                        "content_field_names": ["description"],
+                        "dataset_doc_uuid": "dsid_github_tree",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            slack_doc.write_text(
+                json.dumps(
+                    {
+                        "channel": "eng",
+                        "title": "Audit logging rollout discussion",
+                        "participants": ["maya", "logan"],
+                        "messages": "Rollout notes for audit logging.",
+                        "title_field_name": "title",
+                        "content_field_names": ["messages"],
+                        "dataset_doc_uuid": "dsid_slack_tree",
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            from pageindex.filesystem import EnterpriseRAGBenchmark, PageIndexFileSystem
+
+            filesystem = PageIndexFileSystem(workspace=tmp_path / "workspace")
+            EnterpriseRAGBenchmark(filesystem).ingest_sources(source_root)
+
+            traversal = filesystem.tree_search("redwood audit logging", limit=5)
+
+            self.assertIn("/github/redwood", [node.path for node in traversal.nodes])
+            self.assertIn("/metadata/repo/redwood", [node.path for node in traversal.nodes])
+            self.assertIn("/metadata/labels/audit-logging", [node.path for node in traversal.nodes])
+            self.assertEqual(
+                [candidate.external_id for candidate in traversal.candidates],
+                ["dsid_github_tree"],
+            )
+
 
 if __name__ == "__main__":
     unittest.main()
