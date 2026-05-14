@@ -24,12 +24,14 @@ from pageindex.filesystem.agent import run_pifs_agent
 
 
 DEFAULT_QUESTION_IDS = ["qst_0001", "qst_0002", "qst_0004", "qst_0011", "qst_0012"]
-DEFAULT_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai"
 
 
 def main() -> int:
-    args = parse_args()
     benchmark_dir = Path(__file__).resolve().parent
+    load_dotenv(REPO_ROOT / ".env")
+    load_dotenv(benchmark_dir / ".env")
+
+    args = parse_args()
     dataset_root = (benchmark_dir / args.dataset).resolve()
     questions_path = dataset_root / "questions.jsonl"
     run_dir = benchmark_dir / "runs" / args.run_name
@@ -38,12 +40,8 @@ def main() -> int:
     if not (workspace / "filesystem.sqlite").exists():
         raise SystemExit(f"workspace is not registered: {workspace}")
 
-    load_dotenv(REPO_ROOT / ".env")
-    load_dotenv(benchmark_dir / ".env")
     if args.base_url:
         os.environ["OPENAI_BASE_URL"] = args.base_url
-    elif "OPENAI_BASE_URL" not in os.environ:
-        os.environ["OPENAI_BASE_URL"] = DEFAULT_BASE_URL
 
     run_dir.mkdir(parents=True, exist_ok=True)
     filesystem = PageIndexFileSystem(workspace=workspace)
@@ -109,7 +107,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--run-name", default="pifs-agent-smoke")
     parser.add_argument("--question-ids", default=",".join(DEFAULT_QUESTION_IDS))
     parser.add_argument("--max-questions", type=int, default=0)
-    parser.add_argument("--model", default=os.environ.get("PIFS_AGENT_MODEL", "gemini-2.5-flash"))
+    parser.add_argument("--model", default=os.environ.get("PIFS_AGENT_MODEL", "gpt-4.1-mini"))
     parser.add_argument("--base-url", default=os.environ.get("OPENAI_BASE_URL"))
     parser.add_argument("--skip-agent", action="store_true")
     parser.add_argument("--verbose", action="store_true")

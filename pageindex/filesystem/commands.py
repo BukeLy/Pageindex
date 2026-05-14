@@ -144,6 +144,11 @@ class PIFSCommandExecutor:
             raise PIFSCommandError("grep requires a query")
         query = positionals[0]
         path = positionals[1] if len(positionals) > 1 else "/"
+        if path != "/":
+            try:
+                return self.filesystem.find(path, query, limit=limit)
+            except (KeyError, ValueError):
+                pass
         return self.filesystem.search(
             query=query,
             scope={"folder_path": path, "recursive": recursive},

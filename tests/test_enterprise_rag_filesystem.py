@@ -435,12 +435,17 @@ class EnterpriseRAGFileSystemTest(unittest.TestCase):
                 )
             )
             grepped = json.loads(executor.execute('grep -R "bundle verification" /github'))
+            file_grep = json.loads(
+                executor.execute('grep "bundle verification" /github/redwood/pr-audit.json')
+            )
             stat = json.loads(executor.execute("stat dsid_cli_audit"))
             opened = json.loads(executor.execute("cat dsid_cli_audit --all"))
 
             self.assertIn("/github", [folder["path"] for folder in listing["data"]["folders"]])
             self.assertEqual(found["data"][0]["external_id"], "dsid_cli_audit")
             self.assertEqual(grepped["data"][0]["external_id"], "dsid_cli_audit")
+            self.assertEqual(file_grep["data"][0]["external_id"], "dsid_cli_audit")
+            self.assertIn("bundle verification", file_grep["data"][0]["text"])
             self.assertEqual(stat["data"]["external_id"], "dsid_cli_audit")
             self.assertIn("audit logging", opened["data"]["text"])
 

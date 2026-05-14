@@ -44,6 +44,7 @@ def run_pifs_agent(
     *,
     model: str,
     root: str = "/",
+    max_turns: int = 20,
     verbose: bool = False,
 ) -> str:
     try:
@@ -104,7 +105,7 @@ def run_pifs_agent(
     )
 
     async def _run() -> str:
-        streamed_run = Runner.run_streamed(agent, question)
+        streamed_run = Runner.run_streamed(agent, question, max_turns=max_turns)
         async for _event in streamed_run.stream_events():
             pass
         return "" if not streamed_run.final_output else str(streamed_run.final_output)

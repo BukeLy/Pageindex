@@ -15,6 +15,18 @@ python register_enterprise_rag_pifs_dataset.py --reset --question-ids qst_0001,q
 python run_enterprise_rag_pifs_agent.py --question-ids qst_0001,qst_0002
 ```
 
+The runner reads model configuration from environment variables loaded from the
+repo `.env` first, then this folder's `.env`:
+
+```bash
+OPENAI_API_KEY=...
+OPENAI_BASE_URL=https://api.openai.com/v1
+PIFS_AGENT_MODEL=gpt-4.1-mini
+```
+
+`OPENAI_BASE_URL` is optional for the default OpenAI endpoint, but should be set
+for OpenAI-compatible providers.
+
 The runner only checks that `runs/pifs-workspace/workspace/filesystem.sqlite`
 already exists, loads questions, and calls the PIFS agent. It must not register
 files, infer metadata, reset the catalog, or modify benchmark data/gold answers.
