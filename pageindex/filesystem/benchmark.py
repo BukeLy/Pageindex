@@ -19,12 +19,27 @@ class EnterpriseRAGBenchmark:
     def __init__(self, filesystem: PageIndexFileSystem):
         self.filesystem = filesystem
 
-    def ingest_sources(self, source_root: Union[str, Path]) -> list[str]:
+    def ingest_sources(self, source_root: Union[str, Path], batch_size: int = 1000) -> list[str]:
+        source_root = Path(source_root).expanduser()
+        return self.ingest_paths(source_root, sorted(source_root.rglob("*.json")), batch_size=batch_size)
+
+    def ingest_paths(
+        self,
+        source_root: Union[str, Path],
+        paths: list[Path],
+        batch_size: int = 1000,
+    ) -> list[str]:
         source_root = Path(source_root).expanduser()
         file_refs = []
-        for path in sorted(source_root.rglob("*.json")):
+        batch = []
+        for path in paths:
             data = self._read_json(path)
-            file_refs.append(self._register_document(source_root, path, data))
+            batch.append(self._document_spec(source_root, path, data))
+            if len(batch) >= batch_size:
+                file_refs.extend(self.filesystem.register_files(batch))
+                batch = []
+        if batch:
+            file_refs.extend(self.filesystem.register_files(batch))
         return file_refs
 
     def load_questions(self, questions_path: Union[str, Path]) -> list[EnterpriseRAGQuestion]:
@@ -65,6 +80,14 @@ class EnterpriseRAGBenchmark:
         path: Path,
         data: dict[str, Any],
     ) -> str:
+        return self.filesystem.register_file(**self._document_spec(source_root, path, data))
+
+    def _document_spec(
+        self,
+        source_root: Path,
+        path: Path,
+        data: dict[str, Any],
+    ) -> dict[str, Any]:
         relative_path = path.relative_to(source_root)
         title = self._title(data)
         content = self._text_content(data, title)
@@ -77,17 +100,17 @@ class EnterpriseRAGBenchmark:
         metadata["source_type"] = relative_path.parts[0] if relative_path.parts else None
         folder_path = "/" + "/".join(relative_path.parent.parts)
 
-        return self.filesystem.register_file(
-            storage_uri=str(path),
-            source_path=str(relative_path),
-            folder_path=folder_path,
-            metadata=metadata,
-            external_id=data.get("dataset_doc_uuid"),
-            title=title,
-            content=content,
-            content_type="application/json",
-            source_type=metadata["source_type"],
-        )
+        return {
+            "storage_uri": str(path),
+            "source_path": str(relative_path),
+            "folder_path": folder_path,
+            "metadata": metadata,
+            "external_id": data.get("dataset_doc_uuid"),
+            "title": title,
+            "content": content,
+            "content_type": "application/json",
+            "source_type": metadata["source_type"],
+        }
 
     @staticmethod
     def _read_json(path: Path) -> dict[str, Any]:

@@ -222,6 +222,36 @@ class EnterpriseRAGFileSystemTest(unittest.TestCase):
 
             self.assertEqual([result.external_id for result in results], ["dsid_auth_proxy"])
 
+    def test_search_falls_back_for_long_natural_language_questions(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            from pageindex.filesystem import PageIndexFileSystem
+
+            filesystem = PageIndexFileSystem(workspace=Path(tmp) / "workspace")
+            filesystem.register_file(
+                storage_uri="file:///tmp/pr.json",
+                source_path="github/redwood/pr-upload.json",
+                folder_path="/github/redwood",
+                external_id="dsid_multipart_upload",
+                title="Multipart upload defaults",
+                metadata={"repo": "redwood", "source_type": "github"},
+                content=(
+                    "OpenAI compatible API endpoints accept multipart uploads. "
+                    "max_file_size defaults to 10 MiB and "
+                    "max_total_request_size defaults to 50 MiB."
+                ),
+            )
+
+            results = filesystem.search(
+                "What are the default size limits for file uploads and total "
+                "request size for the new multipart upload support on the "
+                "OpenAI-compatible API endpoints?",
+            )
+
+            self.assertEqual(
+                [result.external_id for result in results],
+                ["dsid_multipart_upload"],
+            )
+
     def test_tree_search_uses_folder_and_virtual_nodes_before_leaf_files(self):
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)

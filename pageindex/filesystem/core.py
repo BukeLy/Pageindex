@@ -65,6 +65,40 @@ class PageIndexFileSystem:
         content_type: str = "text/plain",
         source_type: Optional[str] = None,
     ) -> str:
+        return self.register_files(
+            [
+                {
+                    "storage_uri": storage_uri,
+                    "source_path": source_path,
+                    "folder_path": folder_path,
+                    "metadata": metadata,
+                    "external_id": external_id,
+                    "title": title,
+                    "content": content,
+                    "content_type": content_type,
+                    "source_type": source_type,
+                }
+            ]
+        )[0]
+
+    def register_files(self, files: list[dict[str, Any]]) -> list[str]:
+        records = [self._prepare_file_record(file) for file in files]
+        with self._connect() as conn:
+            for record in records:
+                self._insert_file_record(conn, record)
+        return [record["file_ref"] for record in records]
+
+    def _prepare_file_record(self, file: dict[str, Any]) -> dict[str, Any]:
+        storage_uri = file["storage_uri"]
+        source_path = file["source_path"]
+        folder_path = file.get("folder_path")
+        metadata = file.get("metadata")
+        external_id = file.get("external_id")
+        title = file.get("title")
+        content = file.get("content") or ""
+        content_type = file.get("content_type") or "text/plain"
+        source_type = file.get("source_type")
+
         metadata = metadata or {}
         source_path = source_path.strip("/")
         folder_path = self._normalize_path(folder_path or "/" + str(Path(source_path).parent))
@@ -73,42 +107,63 @@ class PageIndexFileSystem:
         file_ref = self._make_file_ref(external_id or source_path)
         text_artifact_path = self._write_text_artifact(file_ref, content)
         descriptor = self._build_descriptor(title, metadata)
+        return {
+            "file_ref": file_ref,
+            "external_id": external_id,
+            "storage_uri": storage_uri,
+            "source_path": source_path,
+            "title": title,
+            "descriptor": descriptor,
+            "content_type": content_type,
+            "source_type": source_type,
+            "fingerprint": self._fingerprint(content),
+            "text_artifact_path": str(text_artifact_path),
+            "metadata": metadata,
+            "metadata_json": json.dumps(metadata, ensure_ascii=False),
+            "metadata_text": self._metadata_text(metadata),
+            "folder_path": folder_path,
+            "content": content,
+        }
 
-        with self._connect() as conn:
-            self._ensure_folder(conn, folder_path)
-            self._ensure_virtual_nodes(conn, file_ref, metadata)
-            conn.execute(
-                """
-                INSERT OR REPLACE INTO files (
-                    file_ref, external_id, storage_uri, source_path, title,
-                    descriptor, content_type, source_type, fingerprint,
-                    text_artifact_path, metadata_json, folder_path
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    file_ref,
-                    external_id,
-                    storage_uri,
-                    source_path,
-                    title,
-                    descriptor,
-                    content_type,
-                    source_type,
-                    self._fingerprint(content),
-                    str(text_artifact_path),
-                    json.dumps(metadata, ensure_ascii=False),
-                    folder_path,
-                ),
-            )
-            conn.execute("DELETE FROM file_fts WHERE file_ref = ?", (file_ref,))
-            conn.execute(
-                """
-                INSERT INTO file_fts(file_ref, title, body, metadata_text)
-                VALUES (?, ?, ?, ?)
-                """,
-                (file_ref, title, content, self._metadata_text(metadata)),
-            )
-        return file_ref
+    def _insert_file_record(self, conn: sqlite3.Connection, record: dict[str, Any]):
+        self._ensure_folder(conn, record["folder_path"])
+        self._ensure_virtual_nodes(conn, record["file_ref"], record["metadata"])
+        conn.execute(
+            """
+            INSERT OR REPLACE INTO files (
+                file_ref, external_id, storage_uri, source_path, title,
+                descriptor, content_type, source_type, fingerprint,
+                text_artifact_path, metadata_json, folder_path
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                record["file_ref"],
+                record["external_id"],
+                record["storage_uri"],
+                record["source_path"],
+                record["title"],
+                record["descriptor"],
+                record["content_type"],
+                record["source_type"],
+                record["fingerprint"],
+                record["text_artifact_path"],
+                record["metadata_json"],
+                record["folder_path"],
+            ),
+        )
+        conn.execute("DELETE FROM file_fts WHERE file_ref = ?", (record["file_ref"],))
+        conn.execute(
+            """
+            INSERT INTO file_fts(file_ref, title, body, metadata_text)
+            VALUES (?, ?, ?, ?)
+            """,
+            (
+                record["file_ref"],
+                record["title"],
+                record["content"],
+                record["metadata_text"],
+            ),
+        )
 
     def browse(self, path: str = "/", limit: int = 100) -> dict[str, list[dict[str, Any]]]:
         path = self._normalize_path(path)
@@ -143,50 +198,58 @@ class PageIndexFileSystem:
         limit: int = 10,
     ) -> list[SearchResult]:
         queries = [query] if isinstance(query, str) else list(query)
-        match_query = self._fts_query(" ".join(queries))
-        if not match_query:
+        match_queries = self._fts_match_queries(" ".join(queries))
+        if not match_queries:
             return []
-        with self._connect() as conn:
-            rows = conn.execute(
-                """
-                SELECT
-                    f.file_ref,
-                    f.external_id,
-                    f.title,
-                    f.folder_path,
-                    f.metadata_json,
-                    snippet(file_fts, 2, '', '', '...', 16) AS snippet,
-                    bm25(file_fts) AS rank
-                FROM file_fts
-                JOIN files f ON f.file_ref = file_fts.file_ref
-                WHERE file_fts MATCH ?
-                ORDER BY rank
-                LIMIT ?
-                """,
-                (match_query, max(limit * 10, limit)),
-            ).fetchall()
-        results = []
-        for row in rows:
-            metadata = json.loads(row["metadata_json"] or "{}")
-            if not self._matches_scope(row["folder_path"], scope):
-                continue
-            if not self._matches_filter(metadata, metadata_filter):
-                continue
-            reference_id = self._reference_for(row["file_ref"])
-            results.append(
-                SearchResult(
-                    reference_id=reference_id,
-                    file_ref=row["file_ref"],
-                    external_id=row["external_id"],
-                    title=row["title"],
-                    snippet=row["snippet"] or row["title"],
-                    folder_path=row["folder_path"],
-                    metadata=metadata,
+
+        seen = set()
+        for match_query in match_queries:
+            with self._connect() as conn:
+                rows = conn.execute(
+                    """
+                    SELECT
+                        f.file_ref,
+                        f.external_id,
+                        f.title,
+                        f.folder_path,
+                        f.metadata_json,
+                        snippet(file_fts, 2, '', '', '...', 16) AS snippet,
+                        bm25(file_fts) AS rank
+                    FROM file_fts
+                    JOIN files f ON f.file_ref = file_fts.file_ref
+                    WHERE file_fts MATCH ?
+                    ORDER BY rank
+                    LIMIT ?
+                    """,
+                    (match_query, max(limit * 25, limit)),
+                ).fetchall()
+            results = []
+            for row in rows:
+                if row["file_ref"] in seen:
+                    continue
+                metadata = json.loads(row["metadata_json"] or "{}")
+                if not self._matches_scope(row["folder_path"], scope):
+                    continue
+                if not self._matches_filter(metadata, metadata_filter):
+                    continue
+                seen.add(row["file_ref"])
+                reference_id = self._reference_for(row["file_ref"])
+                results.append(
+                    SearchResult(
+                        reference_id=reference_id,
+                        file_ref=row["file_ref"],
+                        external_id=row["external_id"],
+                        title=row["title"],
+                        snippet=row["snippet"] or row["title"],
+                        folder_path=row["folder_path"],
+                        metadata=metadata,
+                    )
                 )
-            )
-            if len(results) >= limit:
-                break
-        return results
+                if len(results) >= limit:
+                    break
+            if results:
+                return results
+        return []
 
     def tree_search(self, query: str, limit: int = 10) -> TreeSearchResult:
         nodes = self._rank_nodes(query)
@@ -419,8 +482,64 @@ class PageIndexFileSystem:
 
     @staticmethod
     def _fts_query(query: str) -> str:
-        terms = re.findall(r"[A-Za-z0-9_]+", query)
+        terms = PageIndexFileSystem._fts_terms(query)
         return " ".join(terms)
+
+    @classmethod
+    def _fts_match_queries(cls, query: str) -> list[str]:
+        terms = cls._fts_terms(query)
+        if not terms:
+            return []
+        queries = [" ".join(terms)]
+        if len(terms) > 1:
+            queries.append(" OR ".join(terms))
+        return queries
+
+    @staticmethod
+    def _fts_terms(query: str) -> list[str]:
+        stopwords = {
+            "a",
+            "an",
+            "and",
+            "are",
+            "as",
+            "at",
+            "be",
+            "by",
+            "did",
+            "do",
+            "does",
+            "for",
+            "from",
+            "how",
+            "in",
+            "is",
+            "it",
+            "of",
+            "on",
+            "or",
+            "that",
+            "the",
+            "to",
+            "was",
+            "were",
+            "what",
+            "when",
+            "where",
+            "which",
+            "who",
+            "why",
+            "with",
+        }
+        terms = re.findall(r"[A-Za-z0-9_]+", query.lower())
+        unique_terms = []
+        seen = set()
+        for term in terms:
+            if term in stopwords or term in seen:
+                continue
+            seen.add(term)
+            unique_terms.append(term)
+        return unique_terms
 
     @staticmethod
     def _infer_source_type(source_path: str) -> Optional[str]:
