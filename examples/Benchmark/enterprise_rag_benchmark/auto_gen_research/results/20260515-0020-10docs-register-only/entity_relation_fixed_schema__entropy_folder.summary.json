@@ -1,0 +1,23 @@
+{
+  "combo": "entity_relation_fixed_schema__entropy_folder",
+  "questions": 10,
+  "doc_hits": 0,
+  "doc_hit_rate": 0.0,
+  "avg_tool_calls": 0.0,
+  "avg_seconds": 0.0,
+  "errors": [
+    "qst_0001",
+    "qst_0002",
+    "qst_0003",
+    "qst_0004",
+    "qst_0005",
+    "qst_0006",
+    "qst_0007",
+    "qst_0008",
+    "qst_0009",
+    "qst_0010"
+  ],
+  "metadata_strategy": "entity_relation_fixed_schema",
+  "folder_strategy": "entropy_folder",
+  "workspace": "/Users/chengjie/.codex/worktrees/6d00/PageIndex/examples/Benchmark/enterprise_rag_benchmark/auto_gen_research/workspaces/20260515-0020-10docs-register-only/entity_relation_fixed_schema__entropy_folder"
+}

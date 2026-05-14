@@ -1,0 +1,62 @@
+[
+  {
+    "dataset_doc_uuid": "dsid_ae068ee4aa9640159427cd941bef0238",
+    "source_type": "github",
+    "source_path": "github/pr-18421-multipart-file-validation-limits.json",
+    "title": "add multipart/form-data handling, strict content-type validation, and payload limit enforcement for API tool/file inputs"
+  },
+  {
+    "dataset_doc_uuid": "dsid_9550250a59e74f1bbd5612480b2e7100",
+    "source_type": "github",
+    "source_path": "github/pr-129874-timebox-abort-idempotency-resume-openai-compat.json",
+    "title": "introduce-server-timebox-and-idempotent-cancel-fallbacks-for-streaming-compat"
+  },
+  {
+    "dataset_doc_uuid": "dsid_3fd6af404fae48e6b8ea5a57875ef78f",
+    "source_type": "linear",
+    "source_path": "linear/design/DES-72681-develop-interactive-tone-derivatives-and-kappa-elevation-scale-for-data-grids.json",
+    "title": "Develop interactive tone derivatives and Kappa elevation scale for data grids"
+  },
+  {
+    "dataset_doc_uuid": "dsid_6c4c1c875e704f09b4d791d64d7bc7e5",
+    "source_type": "fireflies",
+    "source_path": "fireflies/2026-01-16-gcp-marketplace-onboarding-and-billing-review.json",
+    "title": "GCP Marketplace onboarding + billing review (Redwood Inference)"
+  },
+  {
+    "dataset_doc_uuid": "dsid_8e838ab6a98f4cbcb672d41f210ff89c",
+    "source_type": "gmail",
+    "source_path": "gmail/rafael_mendes/20280503-region-fallback-priority-ops-inventory.json",
+    "title": "Regional fallback priorities & logs — post-call inventory"
+  },
+  {
+    "dataset_doc_uuid": "dsid_184be937d34a412ab5e61366d54d8ed6",
+    "source_type": "google_drive",
+    "source_path": "google_drive/shared_drives/policy-engine-failover-extensions-draft.json",
+    "title": "Draft Spec: Policy Engine Extensions for Regional Failover Automation"
+  },
+  {
+    "dataset_doc_uuid": "dsid_72ec4a9962ba43e88acd61abbba1052d",
+    "source_type": "google_drive",
+    "source_path": "google_drive/users/rolling-bias-bisection-log-jared.json",
+    "title": "rolling-bias-bisection-log-jared"
+  },
+  {
+    "dataset_doc_uuid": "dsid_5fc2dba9f6ac4af2b49b4f546a4298d0",
+    "source_type": "google_drive",
+    "source_path": "google_drive/users/shiproom-runner-personal-prep-log.json",
+    "title": "Shiproom runner: personal prep log and sticky notes"
+  },
+  {
+    "dataset_doc_uuid": "dsid_85deb10a652742baaf28af6149600001",
+    "source_type": "gmail",
+    "source_path": "gmail/avery_johnson/20250803-license-offsets-and-migration-incentive.json",
+    "title": "Licensing offsets & packaging for potential migration"
+  },
+  {
+    "dataset_doc_uuid": "dsid_c1a6a71323c04c1ba5445aadea340362",
+    "source_type": "github",
+    "source_path": "github/pr-867001-introduce-token-stage-cohorting-and-route-matrix-alerting.json",
+    "title": "introduce-token-stage-cohorting-and-route-matrix-alerting"
+  }
+]

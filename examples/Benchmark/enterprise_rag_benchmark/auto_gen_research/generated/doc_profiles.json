@@ -1,0 +1,1855 @@
+{
+  "dsid_ae068ee4aa9640159427cd941bef0238": {
+    "doc_type": "github_pull_request",
+    "primary_topic": "multipart/form-data handling and validation",
+    "secondary_topics": [
+      "content-type validation",
+      "payload size limits",
+      "OpenAI compatibility",
+      "API input validation",
+      "streaming multipart parser",
+      "error handling",
+      "telemetry and metrics",
+      "feature rollout"
+    ],
+    "topic_cluster_hint": "API multipart input validation and compatibility improvements",
+    "time_period": "2026-02 to 2026-03",
+    "communication_channel": "github pull request",
+    "product_or_system": "Redwood API OpenAI-compatibility endpoints",
+    "primary_entity": "multipart/form-data input handling feature",
+    "action_or_event": "addition of multipart handling, strict content-type validation, and payload limit enforcement",
+    "entities": [
+      {
+        "name": "Aisha Patel",
+        "type": "author",
+        "salience": 0.9,
+        "aliases": []
+      },
+      {
+        "name": "Liam Chen",
+        "type": "reviewer",
+        "salience": 0.5,
+        "aliases": []
+      },
+      {
+        "name": "Ravi Singh",
+        "type": "reviewer",
+        "salience": 0.5,
+        "aliases": []
+      },
+      {
+        "name": "Sofia Alvarez",
+        "type": "reviewer",
+        "salience": 0.5,
+        "aliases": []
+      },
+      {
+        "name": "OpenAI-compatibility endpoints",
+        "type": "system_component",
+        "salience": 0.8,
+        "aliases": [
+          "OpenAI-compat API paths"
+        ]
+      },
+      {
+        "name": "multipart parser",
+        "type": "software_component",
+        "salience": 0.8,
+        "aliases": [
+          "streaming-safe multipart parser"
+        ]
+      },
+      {
+        "name": "multipart validator",
+        "type": "software_component",
+        "salience": 0.7,
+        "aliases": [
+          "multipart validation layer"
+        ]
+      },
+      {
+        "name": "feature.enable_multipart_input",
+        "type": "feature_flag",
+        "salience": 0.6,
+        "aliases": []
+      }
+    ],
+    "relations": [
+      {
+        "subject": "Aisha Patel",
+        "relation": "authored",
+        "object": "multipart/form-data input handling feature",
+        "direction": "forward",
+        "evidence_terms": [
+          "author",
+          "Aisha Patel",
+          "add multipart/form-data handling"
+        ]
+      },
+      {
+        "subject": "multipart parser",
+        "relation": "implements",
+        "object": "streaming-safe multipart parsing",
+        "direction": "forward",
+        "evidence_terms": [
+          "streaming-safe multipart parser implemented",
+          "runtime/multipart/stream_parser.py"
+        ]
+      },
+      {
+        "subject": "multipart validator",
+        "relation": "enforces",
+        "object": "content-type validation and payload limits",
+        "direction": "forward",
+        "evidence_terms": [
+          "multipart validation layer",
+          "strict Content-Type validation",
+          "payload limit enforcement"
+        ]
+      },
+      {
+        "subject": "feature.enable_multipart_input",
+        "relation": "controls",
+        "object": "multipart/form-data input handling feature",
+        "direction": "forward",
+        "evidence_terms": [
+          "feature-flagged behind feature.enable_multipart_input"
+        ]
+      },
+      {
+        "subject": "OpenAI-compatibility endpoints",
+        "relation": "integrates",
+        "object": "multipart validator",
+        "direction": "forward",
+        "evidence_terms": [
+          "Hook validation into the OpenAI-compat layer"
+        ]
+      },
+      {
+        "subject": "reviewers",
+        "relation": "reviewed",
+        "object": "pull request",
+        "direction": "forward",
+        "evidence_terms": [
+          "reviewers",
+          "Liam Chen",
+          "Ravi Singh",
+          "Sofia Alvarez"
+        ]
+      }
+    ],
+    "semantic_summary": "This pull request introduces a new multipart/form-data handling feature for the Redwood API's OpenAI-compatibility endpoints. It adds a streaming-safe multipart parser, strict content-type validation with a whitelist, and configurable payload size limits per file and per request. The feature is backward-compatible and controlled by a feature flag. It includes detailed error handling with structured error responses, telemetry metrics for observability, and comprehensive testing (unit, integration, and end-to-end). The rollout plan involves staged enabling via configuration. Reviewers provided feedback on content-type whitelist and error handling improvements, which were addressed before merging.",
+    "search_terms": [
+      "multipart/form-data handling",
+      "content-type validation",
+      "payload size limits",
+      "OpenAI compatibility",
+      "streaming multipart parser",
+      "multipart validator",
+      "feature flag multipart input",
+      "API input validation",
+      "structured error responses",
+      "telemetry multipart metrics",
+      "Redwood API multipart",
+      "multipart upload limits"
+    ],
+    "folder_hints": [
+      "runtime/multipart",
+      "api/validation",
+      "api/openai_compat",
+      "config/defaults",
+      "docs/openai-compat",
+      "tests/unit",
+      "tests/integration",
+      "observability/metrics"
+    ]
+  },
+  "dsid_9550250a59e74f1bbd5612480b2e7100": {
+    "doc_type": "pull_request",
+    "primary_topic": "server-side streaming timebox and idempotent cancel fallbacks",
+    "secondary_topics": [
+      "streaming session management",
+      "tool-call idempotency",
+      "OpenAI-compatible streaming",
+      "network disconnect handling",
+      "resume tokens",
+      "integration testing",
+      "runtime configuration",
+      "stream finalization"
+    ],
+    "topic_cluster_hint": "streaming reliability and idempotency enhancements",
+    "time_period": "2026-02",
+    "communication_channel": "github pull request",
+    "product_or_system": "Redwood streaming runtime and OpenAI compatibility adapter",
+    "primary_entity": "stream manager and openai_compat_stream adapter",
+    "action_or_event": "introduce server-side streaming timebox and idempotent cancel fallbacks",
+    "entities": [
+      {
+        "name": "Marcus Li",
+        "type": "author",
+        "salience": 0.9,
+        "aliases": []
+      },
+      {
+        "name": "Ava Chen",
+        "type": "reviewer",
+        "salience": 0.6,
+        "aliases": []
+      },
+      {
+        "name": "Diego Martinez",
+        "type": "reviewer",
+        "salience": 0.5,
+        "aliases": []
+      },
+      {
+        "name": "Priya Nair",
+        "type": "reviewer",
+        "salience": 0.5,
+        "aliases": []
+      },
+      {
+        "name": "SRE Team",
+        "type": "CI bot",
+        "salience": 0.3,
+        "aliases": []
+      },
+      {
+        "name": "Redwood",
+        "type": "repository",
+        "salience": 0.7,
+        "aliases": []
+      },
+      {
+        "name": "SUP-4572",
+        "type": "jira_ticket",
+        "salience": 0.4,
+        "aliases": []
+      },
+      {
+        "name": "ENG-1023",
+        "type": "linear_ticket",
+        "salience": 0.4,
+        "aliases": []
+      },
+      {
+        "name": "ENG-1108",
+        "type": "linear_ticket",
+        "salience": 0.3,
+        "aliases": []
+      }
+    ],
+    "relations": [
+      {
+        "subject": "Marcus Li",
+        "relation": "authored",
+        "object": "introduce server-side streaming timebox and idempotent cancel fallbacks",
+        "direction": "forward",
+        "evidence_terms": [
+          "author",
+          "Marcus Li",
+          "introduce-server-timebox-and-idempotent-cancel-fallbacks-for-streaming-compat"
+        ]
+      },
+      {
+        "subject": "Ava Chen",
+        "relation": "reviewed",
+        "object": "pull request",
+        "direction": "forward",
+        "evidence_terms": [
+          "reviewers",
+          "Ava Chen",
+          "approved"
+        ]
+      },
+      {
+        "subject": "stream manager",
+        "relation": "implements",
+        "object": "configurable streaming timebox and finalization",
+        "direction": "forward",
+        "evidence_terms": [
+          "stream manager",
+          "timebox_ms",
+          "finalization path",
+          "__redwood_timeboxed__"
+        ]
+      },
+      {
+        "subject": "openai_compat_stream adapter",
+        "relation": "interprets",
+        "object": "Cancel events as idempotent markers",
+        "direction": "forward",
+        "evidence_terms": [
+          "openai adapter",
+          "Cancel events",
+          "idempotent markers",
+          "resume tokens"
+        ]
+      },
+      {
+        "subject": "tooling",
+        "relation": "maps",
+        "object": "function-call invocations to idempotency keys",
+        "direction": "forward",
+        "evidence_terms": [
+          "tooling",
+          "idempotency keys",
+          "stream checkpoint"
+        ]
+      },
+      {
+        "subject": "API",
+        "relation": "extends",
+        "object": "OpenAI-compat streaming spec with timeboxed and resume_hint flags",
+        "direction": "forward",
+        "evidence_terms": [
+          "API",
+          "OpenAI-compat streaming spec",
+          "timeboxed",
+          "resume_hint"
+        ]
+      },
+      {
+        "subject": "tests",
+        "relation": "cover",
+        "object": "disconnect, resume, and timebox behavior",
+        "direction": "forward",
+        "evidence_terms": [
+          "tests",
+          "integration tests",
+          "disconnect",
+          "resume",
+          "timebox"
+        ]
+      }
+    ],
+    "semantic_summary": "This pull request introduces a server-side streaming timebox mechanism configurable per route to ensure streaming sessions do not remain indefinitely active, providing a deterministic final event when streams exceed a configured time limit. It enhances client Cancel event handling to be idempotent within a resume window using resume tokens containing minimal idempotency metadata, preventing duplicated tool or function executions on reconnect. The implementation includes changes to the stream manager, OpenAI compatibility adapter, tooling for idempotency key persistence, API extensions for streaming event flags, and comprehensive integration tests simulating network disconnects and retries. The feature is guarded by runtime flags and maintains backwards compatibility by default.",
+    "search_terms": [
+      "server-side streaming timebox",
+      "idempotent cancel fallbacks",
+      "stream manager timebox_ms",
+      "OpenAI streaming compatibility",
+      "resume tokens idempotency",
+      "stream finalizer",
+      "network disconnect retry",
+      "integration tests streaming",
+      "runtime flag streaming",
+      "streaming lifecycle SLO"
+    ],
+    "folder_hints": [
+      "src/runtime",
+      "src/adapter",
+      "pkg/tooling",
+      "api/openai_compat",
+      "tests/integration",
+      "docs/release"
+    ]
+  },
+  "dsid_3fd6af404fae48e6b8ea5a57875ef78f": {
+    "doc_type": "design specification",
+    "primary_topic": "interactive tone derivatives and Kappa elevation scale for data grids",
+    "secondary_topics": [
+      "color tokens",
+      "accessibility contrast",
+      "design tokens migration",
+      "frontend implementation",
+      "visual regression testing",
+      "Figma design system",
+      "algorithmic color transforms",
+      "elevation shadows",
+      "data grid UI components"
+    ],
+    "topic_cluster_hint": "design tokens and component theming for data grid UI",
+    "time_period": "2026-03",
+    "communication_channel": "internal design and engineering documentation",
+    "product_or_system": "Design Tokens & Components",
+    "primary_entity": "Kappa elevation scale and interactive tone derivatives",
+    "action_or_event": "develop and rollout interactive tone derivatives and Kappa elevation tokens for data grids",
+    "entities": [
+      {
+        "name": "Jun Park",
+        "type": "person",
+        "salience": 0.8,
+        "aliases": []
+      },
+      {
+        "name": "Ava Martinez",
+        "type": "person",
+        "salience": 0.9,
+        "aliases": []
+      },
+      {
+        "name": "Alex Chen",
+        "type": "person",
+        "salience": 0.6,
+        "aliases": []
+      },
+      {
+        "name": "Riya Patel",
+        "type": "person",
+        "salience": 0.5,
+        "aliases": []
+      },
+      {
+        "name": "DataGrid",
+        "type": "software component",
+        "salience": 0.85,
+        "aliases": []
+      },
+      {
+        "name": "Table",
+        "type": "software component",
+        "salience": 0.7,
+        "aliases": []
+      },
+      {
+        "name": "Button",
+        "type": "software component",
+        "salience": 0.5,
+        "aliases": []
+      },
+      {
+        "name": "InlineAction",
+        "type": "software component",
+        "salience": 0.5,
+        "aliases": []
+      },
+      {
+        "name": "Kappa elevation scale",
+        "type": "design token family",
+        "salience": 0.9,
+        "aliases": [
+          "kappa-0..kappa-6"
+        ]
+      },
+      {
+        "name": "CSS variables",
+        "type": "technology",
+        "salience": 0.7,
+        "aliases": [
+          "CSS custom properties"
+        ]
+      },
+      {
+        "name": "Figma",
+        "type": "design tool",
+        "salience": 0.8,
+        "aliases": []
+      }
+    ],
+    "relations": [
+      {
+        "subject": "Ava Martinez",
+        "relation": "created",
+        "object": "initial spec draft and seeded Figma file",
+        "direction": "forward",
+        "evidence_terms": [
+          "Created initial spec draft",
+          "seeded Figma file"
+        ]
+      },
+      {
+        "subject": "Jun Park",
+        "relation": "performed",
+        "object": "engineering review and frontend spike",
+        "direction": "forward",
+        "evidence_terms": [
+          "Engineering review notes",
+          "Frontend spike completed"
+        ]
+      },
+      {
+        "subject": "Alex Chen",
+        "relation": "conducted",
+        "object": "accessibility contrast tests",
+        "direction": "forward",
+        "evidence_terms": [
+          "Ran preliminary contrast tests"
+        ]
+      },
+      {
+        "subject": "Riya Patel",
+        "relation": "approved",
+        "object": "rollout plan",
+        "direction": "forward",
+        "evidence_terms": [
+          "Approved rollout plan"
+        ]
+      },
+      {
+        "subject": "Kappa elevation scale",
+        "relation": "used in",
+        "object": "DataGrid and Table components",
+        "direction": "forward",
+        "evidence_terms": [
+          "DataGrid and Table components consume new tokens"
+        ]
+      },
+      {
+        "subject": "CSS variables",
+        "relation": "implement",
+        "object": "interactive tone derivatives and elevation tokens",
+        "direction": "forward",
+        "evidence_terms": [
+          "prefer CSS custom properties",
+          "runtime CSS variables"
+        ]
+      },
+      {
+        "subject": "Design Tokens & Components",
+        "relation": "project for",
+        "object": "developing interactive tone derivatives and Kappa elevation scale",
+        "direction": "forward",
+        "evidence_terms": [
+          "project: Design Tokens & Components"
+        ]
+      }
+    ],
+    "semantic_summary": "This design specification outlines the development of interactive tone derivatives and a physics-inspired Kappa elevation scale for data grids and dense UI surfaces. The goal is to algorithmically derive color tokens that maintain accessibility contrast standards and introduce elevation shadows optimized for compact rows. The tokens will be implemented as CSS variables with a compiled fallback, integrated into frontend components like DataGrid and Table behind feature flags, and supported by updated Figma design kits. The rollout plan includes automated accessibility and visual regression testing, a canary release on internal dashboards, and migration guidance to ensure smooth adoption. Key contributors include Ava Martinez (spec creation), Jun Park (engineering review and implementation), Alex Chen (accessibility testing), and Riya Patel (project management approval).",
+    "search_terms": [
+      "interactive tone derivatives",
+      "Kappa elevation scale",
+      "data grid design tokens",
+      "color accessibility contrast",
+      "design tokens migration",
+      "CSS variables theming",
+      "Figma token library",
+      "frontend feature flag",
+      "visual regression testing",
+      "algorithmic color transforms"
+    ],
+    "folder_hints": [
+      "design tokens",
+      "data grid components",
+      "accessibility",
+      "frontend implementation",
+      "Figma design system",
+      "migration plans",
+      "visual testing"
+    ]
+  },
+  "dsid_6c4c1c875e704f09b4d791d64d7bc7e5": {
+    "doc_type": "meeting_transcript",
+    "primary_topic": "GCP Marketplace onboarding and billing integration",
+    "secondary_topics": [
+      "billing dimensions mapping",
+      "entitlement propagation",
+      "metering payloads",
+      "onboarding UX",
+      "staging test plan",
+      "Cloud Commerce metering"
+    ],
+    "topic_cluster_hint": "Cloud marketplace SaaS billing and onboarding integration",
+    "time_period": "2026-01-16",
+    "communication_channel": "technical deep dive meeting",
+    "product_or_system": "Redwood Inference marketplace SKUs and GCP Marketplace",
+    "primary_entity": "Redwood Inference and Google Cloud Marketplace teams",
+    "action_or_event": "review and align on onboarding and billing integration requirements",
+    "entities": [
+      {
+        "name": "Redwood Inference",
+        "type": "company",
+        "salience": 0.9,
+        "aliases": [
+          "Redwood"
+        ]
+      },
+      {
+        "name": "Google Cloud Marketplace",
+        "type": "platform",
+        "salience": 0.9,
+        "aliases": [
+          "GCP Marketplace",
+          "Cloud Marketplace"
+        ]
+      },
+      {
+        "name": "Stephanie Nguyen",
+        "type": "person",
+        "salience": 0.7,
+        "aliases": []
+      },
+      {
+        "name": "Chris Osei",
+        "type": "person",
+        "salience": 0.6,
+        "aliases": []
+      },
+      {
+        "name": "Cole Summers",
+        "type": "person",
+        "salience": 0.6,
+        "aliases": []
+      },
+      {
+        "name": "Nadia Rahman",
+        "type": "person",
+        "salience": 0.5,
+        "aliases": []
+      },
+      {
+        "name": "Ben Carter",
+        "type": "person",
+        "salience": 0.5,
+        "aliases": []
+      },
+      {
+        "name": "Priya Shah",
+        "type": "person",
+        "salience": 0.6,
+        "aliases": []
+      },
+      {
+        "name": "Anika Desai",
+        "type": "person",
+        "salience": 0.7,
+        "aliases": []
+      },
+      {
+        "name": "Miguel Alvarez",
+        "type": "person",
+        "salience": 0.7,
+        "aliases": []
+      }
+    ],
+    "relations": [
+      {
+        "subject": "Redwood Inference",
+        "relation": "collaborates with",
+        "object": "Google Cloud Marketplace",
+        "direction": "subject_to_object",
+        "evidence_terms": [
+          "reviewed",
+          "aligned",
+          "onboarding",
+          "billing",
+          "metering"
+        ]
+      },
+      {
+        "subject": "Redwood Inference",
+        "relation": "proposes",
+        "object": "marketplace SKU dimension names and metering payloads",
+        "direction": "subject_to_object",
+        "evidence_terms": [
+          "proposed dimension list",
+          "sample metering payloads"
+        ]
+      },
+      {
+        "subject": "Google Cloud Marketplace",
+        "relation": "provides",
+        "object": "aggregation and rounding guidance",
+        "direction": "subject_to_object",
+        "evidence_terms": [
+          "aggregation interval",
+          "rounding guidance"
+        ]
+      },
+      {
+        "subject": "Redwood Inference",
+        "relation": "runs",
+        "object": "staging procurement test",
+        "direction": "subject_to_object",
+        "evidence_terms": [
+          "staging test plan",
+          "subscribe",
+          "entitlement lookup",
+          "metering verification"
+        ]
+      },
+      {
+        "subject": "Ben Carter",
+        "relation": "provides",
+        "object": "onboarding entrypoint wireframes and error states",
+        "direction": "subject_to_object",
+        "evidence_terms": [
+          "screenshots",
+          "wireframe",
+          "error states"
+        ]
+      },
+      {
+        "subject": "Cole Summers",
+        "relation": "sends",
+        "object": "mapping table and example metering payloads",
+        "direction": "subject_to_object",
+        "evidence_terms": [
+          "draft mapping table",
+          "example metering payloads"
+        ]
+      },
+      {
+        "subject": "Chris Osei",
+        "relation": "sets up",
+        "object": "follow-up session and circulates test plan checklist",
+        "direction": "subject_to_object",
+        "evidence_terms": [
+          "follow-up session",
+          "staging test plan checklist"
+        ]
+      }
+    ],
+    "semantic_summary": "The Redwood Inference and Google Cloud Marketplace teams conducted a technical deep dive meeting on January 16, 2026, to review and align on the onboarding and billing integration for Redwood's new marketplace SKUs. They discussed mapping Redwood's internal billing meters to GCP billing dimensions, ensuring stable identifiers for entitlement and consumer IDs, handling entitlement propagation delays gracefully in the onboarding UX, and agreed on a staging test plan to validate the end-to-end procurement and metering process. Action items were assigned to team members to provide mapping tables, onboarding wireframes, aggregation and rounding guidance, and to schedule follow-up sessions focusing on edge cases like cancellation and plan changes.",
+    "search_terms": [
+      "GCP Marketplace onboarding",
+      "Redwood Inference billing integration",
+      "marketplace SKU metering",
+      "Cloud Commerce metering validation",
+      "entitlement propagation delay",
+      "subscription entitlement mapping",
+      "billing dimension names",
+      "staging test plan GCP marketplace",
+      "onboarding UX error states",
+      "aggregation and rounding guidance"
+    ],
+    "folder_hints": [
+      "cloud_marketplace",
+      "billing_integration",
+      "onboarding_process",
+      "technical_meetings",
+      "redwood_inference",
+      "gcp_marketplace"
+    ]
+  },
+  "dsid_8e838ab6a98f4cbcb672d41f210ff89c": {
+    "doc_type": "email_thread",
+    "primary_topic": "regional fallback priorities and logs",
+    "secondary_topics": [
+      "data residency and pinning",
+      "failover order and cross-region replication",
+      "logs and telemetry handling",
+      "backups and snapshots",
+      "key management and attestations",
+      "audit evidence and compliance"
+    ],
+    "topic_cluster_hint": "cloud data management and compliance for healthcare",
+    "time_period": "May 2028",
+    "communication_channel": "email",
+    "product_or_system": "Redwood Inference platform",
+    "primary_entity": "MedThink Health",
+    "action_or_event": "post-call inventory and technical deep-dive planning",
+    "entities": [
+      {
+        "name": "Rafael Mendes",
+        "type": "person",
+        "salience": 0.9,
+        "aliases": [
+          "Senior AE, Redwood Inference",
+          "r.mendes@redwoodinference.com"
+        ]
+      },
+      {
+        "name": "Elena Ruiz",
+        "type": "person",
+        "salience": 0.85,
+        "aliases": [
+          "Director of Security & Compliance, MedThink Health",
+          "elena.ruiz@medthink.health"
+        ]
+      },
+      {
+        "name": "Monica Patel",
+        "type": "person",
+        "salience": 0.6,
+        "aliases": [
+          "monica.patel@redwoodinference.com"
+        ]
+      },
+      {
+        "name": "Stephanie Nguyen",
+        "type": "person",
+        "salience": 0.6,
+        "aliases": [
+          "stephanie.nguyen@redwoodinference.com"
+        ]
+      },
+      {
+        "name": "Tom Baxter",
+        "type": "person",
+        "salience": 0.5,
+        "aliases": [
+          "tbaxter@medthink.health"
+        ]
+      },
+      {
+        "name": "MedThink Health",
+        "type": "organization",
+        "salience": 0.95,
+        "aliases": []
+      },
+      {
+        "name": "Redwood Inference",
+        "type": "organization",
+        "salience": 0.9,
+        "aliases": []
+      }
+    ],
+    "relations": [
+      {
+        "subject": "Rafael Mendes",
+        "relation": "communicates with",
+        "object": "Elena Ruiz",
+        "direction": "subject_to_object",
+        "evidence_terms": [
+          "email",
+          "call",
+          "post-call inventory",
+          "technical deep-dive"
+        ]
+      },
+      {
+        "subject": "MedThink Health",
+        "relation": "requires",
+        "object": "data residency in EU for PHI",
+        "direction": "subject_to_object",
+        "evidence_terms": [
+          "patient clinical records must remain in-region (EU)",
+          "PHI"
+        ]
+      },
+      {
+        "subject": "MedThink Health",
+        "relation": "permits",
+        "object": "cross-region failover to US for emergency",
+        "direction": "subject_to_object",
+        "evidence_terms": [
+          "cross-region failover to US is permitted only for declared emergency windows (max 4 hours)"
+        ]
+      },
+      {
+        "subject": "Redwood Inference",
+        "relation": "provides",
+        "object": "ops inventory template and pinning diagram",
+        "direction": "subject_to_object",
+        "evidence_terms": [
+          "attached a simple diagram and an ops inventory CSV template"
+        ]
+      },
+      {
+        "subject": "MedThink Health",
+        "relation": "requires",
+        "object": "audit evidence including SOC 2, access logs, key rotation logs",
+        "direction": "subject_to_object",
+        "evidence_terms": [
+          "SOC 2 Type II report, access log exports, key rotation logs"
+        ]
+      }
+    ],
+    "semantic_summary": "This email thread documents a post-call inventory and planning discussion between Redwood Inference and MedThink Health regarding regional fallback priorities, data residency requirements, failover strategies, log handling, backups, key management, and audit evidence for compliance. The parties align on constraints such as EU-only residency for PHI, emergency cross-region failover limits, log redaction policies, backup frequencies, and key management proofs. Next steps include scheduling a technical deep-dive, preparing sanitized log samples, cost analysis, and drafting mutual action maps.",
+    "search_terms": [
+      "regional fallback priorities",
+      "data residency EU",
+      "cross-region failover",
+      "log redaction PHI",
+      "backups and snapshots healthcare",
+      "key management customer-managed keys",
+      "audit evidence SOC 2",
+      "Redwood Inference MedThink Health",
+      "technical deep-dive scheduling",
+      "failover RPO RTO targets"
+    ],
+    "folder_hints": [
+      "MedThink Health",
+      "Redwood Inference",
+      "2028-05",
+      "regional fallback",
+      "technical deep-dive",
+      "audit and compliance",
+      "backup and snapshot policies"
+    ]
+  },
+  "dsid_184be937d34a412ab5e61366d54d8ed6": {
+    "doc_type": "draft specification",
+    "primary_topic": "Policy Engine Extensions for Regional Failover Automation",
+    "secondary_topics": [
+      "failover automation",
+      "routing policy evaluation",
+      "deterministic decision making",
+      "signal processing",
+      "safety constraints",
+      "reliability program",
+      "policy language and config schema",
+      "evaluation modes",
+      "signal hierarchy",
+      "failover decision output schema"
+    ],
+    "topic_cluster_hint": "engineering platform reliability and failover policy automation",
+    "time_period": "Q1–Q2 2026",
+    "communication_channel": "google_drive shared drive document",
+    "product_or_system": "Policy Engine for Regional Failover Automation",
+    "primary_entity": "Policy Engine",
+    "action_or_event": "Extension and upgrade of policy engine for deterministic regional failover automation",
+    "entities": [
+      {
+        "name": "Policy Engine",
+        "type": "system",
+        "salience": 0.95,
+        "aliases": [
+          "engine",
+          "failover decision engine"
+        ]
+      },
+      {
+        "name": "Regional Failover Automation",
+        "type": "process",
+        "salience": 0.9,
+        "aliases": [
+          "failover automation",
+          "regional failover"
+        ]
+      },
+      {
+        "name": "Reliability Program",
+        "type": "program",
+        "salience": 0.8,
+        "aliases": [
+          "reliability initiative"
+        ]
+      },
+      {
+        "name": "ADR-042",
+        "type": "architecture decision record",
+        "salience": 0.7,
+        "aliases": [
+          "signal priority ADR"
+        ]
+      },
+      {
+        "name": "ADR-043",
+        "type": "architecture decision record",
+        "salience": 0.7,
+        "aliases": [
+          "rollback and anti-flap ADR"
+        ]
+      },
+      {
+        "name": "Controller",
+        "type": "system",
+        "salience": 0.75,
+        "aliases": [
+          "automation controller",
+          "execution controller"
+        ]
+      },
+      {
+        "name": "Jordan Lee",
+        "type": "person",
+        "salience": 0.6,
+        "aliases": []
+      },
+      {
+        "name": "Ravi Menon",
+        "type": "person",
+        "salience": 0.5,
+        "aliases": []
+      },
+      {
+        "name": "Miles Thornton",
+        "type": "person",
+        "salience": 0.5,
+        "aliases": []
+      },
+      {
+        "name": "Benji Okafor",
+        "type": "person",
+        "salience": 0.5,
+        "aliases": []
+      },
+      {
+        "name": "Mina Haddad",
+        "type": "person",
+        "salience": 0.5,
+        "aliases": []
+      },
+      {
+        "name": "Ethan Park",
+        "type": "person",
+        "salience": 0.5,
+        "aliases": []
+      },
+      {
+        "name": "Allison Grant",
+        "type": "person",
+        "salience": 0.5,
+        "aliases": []
+      }
+    ],
+    "relations": [
+      {
+        "subject": "Policy Engine",
+        "relation": "extends",
+        "object": "Regional Failover Automation",
+        "direction": "forward",
+        "evidence_terms": [
+          "Policy Engine Extensions for Regional Failover Automation",
+          "upgrading regional failover automation"
+        ]
+      },
+      {
+        "subject": "Policy Engine",
+        "relation": "implements",
+        "object": "deterministic and auditable failover decisioning",
+        "direction": "forward",
+        "evidence_terms": [
+          "deterministic and auditable",
+          "same inputs => same decision",
+          "explainability built-in"
+        ]
+      },
+      {
+        "subject": "Policy Engine",
+        "relation": "compatible with",
+        "object": "ADR-042 and ADR-043",
+        "direction": "forward",
+        "evidence_terms": [
+          "Compatible with ADR-042",
+          "Compatible with ADR-043"
+        ]
+      },
+      {
+        "subject": "Controller",
+        "relation": "orchestrates",
+        "object": "execution, approvals, and cross-system workflow",
+        "direction": "forward",
+        "evidence_terms": [
+          "controller still orchestrates execution, approvals, and cross-system workflow"
+        ]
+      },
+      {
+        "subject": "Policy Engine",
+        "relation": "consumes",
+        "object": "normalized, time-bucketed signals from Region Health + SLO toolkit",
+        "direction": "forward",
+        "evidence_terms": [
+          "consume normalized, time-bucketed signals from Region Health + SLO toolkit"
+        ]
+      },
+      {
+        "subject": "Policy Engine",
+        "relation": "produces",
+        "object": "single decision object per evaluation",
+        "direction": "forward",
+        "evidence_terms": [
+          "engine emits exactly one decision object",
+          "single decision per evaluation"
+        ]
+      },
+      {
+        "subject": "Policy Engine",
+        "relation": "supports",
+        "object": "recommend and enforce evaluation modes",
+        "direction": "forward",
+        "evidence_terms": [
+          "recommend mode",
+          "enforce mode",
+          "evaluation_mode field"
+        ]
+      }
+    ],
+    "semantic_summary": "This draft specification details extensions to the Policy Engine to upgrade regional failover automation as part of the 2026 Reliability Program. It addresses current gaps in routing policy evaluation by introducing deterministic, auditable decision-making with built-in explainability. The engine will support both recommendation (dry-run) and enforcement modes, consume normalized signals, and enforce safety constraints such as max flips and blast radius limits. Compatibility with architecture decision records ADR-042 and ADR-043 is ensured. The controller remains responsible for execution orchestration. The specification defines new predicates, evaluation modes, signal hierarchy, policy language additions, and output schema to produce a single, stable decision per evaluation.",
+    "search_terms": [
+      "policy engine",
+      "regional failover automation",
+      "deterministic failover",
+      "routing policy evaluation",
+      "failover decisioning",
+      "ADR-042",
+      "ADR-043",
+      "failover safety constraints",
+      "evaluation modes recommend enforce",
+      "signal hierarchy failover",
+      "policy language schema",
+      "failover automation reliability program"
+    ],
+    "folder_hints": [
+      "engineering/platform-engineering",
+      "policy-engine",
+      "failover",
+      "reliability-program",
+      "draft-specifications"
+    ]
+  },
+  "dsid_72ec4a9962ba43e88acd61abbba1052d": {
+    "doc_type": "doc",
+    "primary_topic": "bias regression bisection",
+    "secondary_topics": [
+      "tokenization normalization",
+      "kernel scheduling",
+      "KV cache behavior",
+      "heuristic rubric",
+      "sampling",
+      "political-leaning amplification",
+      "attention weights",
+      "token merge heuristics"
+    ],
+    "topic_cluster_hint": "machine learning model bias analysis and mitigation",
+    "time_period": "2026-03-10 to 2026-03-12",
+    "communication_channel": "google_drive document with linked Slack discussion",
+    "product_or_system": "applied-ml model deployment (versions v2026-02-16-quant and v2026-03-01-opt)",
+    "primary_entity": "Jared Kim",
+    "action_or_event": "rolling bias/regression bisection analysis",
+    "entities": [
+      {
+        "name": "Jared Kim",
+        "type": "person",
+        "salience": 0.9,
+        "aliases": [
+          "Jared K."
+        ]
+      },
+      {
+        "name": "Priya Singh",
+        "type": "person",
+        "salience": 0.6,
+        "aliases": [
+          "Priya"
+        ]
+      },
+      {
+        "name": "Lina Patel",
+        "type": "person",
+        "salience": 0.6,
+        "aliases": [
+          "Lina"
+        ]
+      },
+      {
+        "name": "v2026-02-16-quant",
+        "type": "model_version",
+        "salience": 0.8,
+        "aliases": [
+          "baseline"
+        ]
+      },
+      {
+        "name": "v2026-03-01-opt",
+        "type": "model_version",
+        "salience": 0.8,
+        "aliases": [
+          "current",
+          "new"
+        ]
+      },
+      {
+        "name": "tokenization normalization",
+        "type": "technical_component",
+        "salience": 0.7,
+        "aliases": [
+          "token merge heuristics",
+          "token merge differences"
+        ]
+      },
+      {
+        "name": "kernel scheduling",
+        "type": "technical_component",
+        "salience": 0.6,
+        "aliases": [
+          "kernel patch",
+          "rotary embeddings tiling"
+        ]
+      },
+      {
+        "name": "KV cache",
+        "type": "technical_component",
+        "salience": 0.6,
+        "aliases": [
+          "cache chunking"
+        ]
+      },
+      {
+        "name": "heuristic rubric",
+        "type": "methodology",
+        "salience": 0.7,
+        "aliases": [
+          "ad-hoc rubric"
+        ]
+      },
+      {
+        "name": "Slack",
+        "type": "communication_platform",
+        "salience": 0.5,
+        "aliases": [
+          "slack:#eval-bias"
+        ]
+      }
+    ],
+    "relations": [
+      {
+        "subject": "tokenization normalization",
+        "relation": "caused",
+        "object": "political-leaning amplification",
+        "direction": "forward",
+        "evidence_terms": [
+          "token merge/undo heuristics",
+          "longer prefix attention weights shift",
+          "token merge differences"
+        ]
+      },
+      {
+        "subject": "v2026-02-16-quant",
+        "relation": "compared to",
+        "object": "v2026-03-01-opt",
+        "direction": "forward",
+        "evidence_terms": [
+          "baseline vs current",
+          "rubric scores 2.7 vs 1.9",
+          "bias increase on policy prompts"
+        ]
+      },
+      {
+        "subject": "tokenization normalization",
+        "relation": "contributed to",
+        "object": "rubric score drop",
+        "direction": "forward",
+        "evidence_terms": [
+          "token table swap partial recovery",
+          "average moves to 2.4"
+        ]
+      },
+      {
+        "subject": "kernel scheduling",
+        "relation": "affected",
+        "object": "rubric score",
+        "direction": "forward",
+        "evidence_terms": [
+          "revert kernel scheduling",
+          "average 2.1",
+          "small improvement"
+        ]
+      },
+      {
+        "subject": "KV cache chunking",
+        "relation": "interacted with",
+        "object": "token merges",
+        "direction": "bidirectional",
+        "evidence_terms": [
+          "cache off/on tests",
+          "prefix chunking",
+          "attention falloff"
+        ]
+      },
+      {
+        "subject": "Jared Kim",
+        "relation": "authored",
+        "object": "rolling-bias-bisection-log-jared",
+        "direction": "forward",
+        "evidence_terms": [
+          "-- Jared K.",
+          "owner: Jared Kim"
+        ]
+      },
+      {
+        "subject": "Priya Singh",
+        "relation": "participated in",
+        "object": "heatmap runs",
+        "direction": "forward",
+        "evidence_terms": [
+          "Priya: saw similar",
+          "pinged you for heatmap runs"
+        ]
+      },
+      {
+        "subject": "Lina Patel",
+        "relation": "participated in",
+        "object": "heatmap runs",
+        "direction": "forward",
+        "evidence_terms": [
+          "Lina: KV chunking change",
+          "pinged you for heatmap runs"
+        ]
+      }
+    ],
+    "semantic_summary": "This document is a rolling log authored by Jared Kim detailing a bias and regression bisection analysis performed on nightly samples comparing two model versions (v2026-02-16-quant baseline and v2026-03-01-opt current). The analysis identifies subtle political-leaning amplification caused primarily by tokenization normalization changes, with secondary effects from kernel scheduling and KV cache chunking. An ad-hoc rubric was used to score outputs for bias, revealing a drop in neutrality in the newer model. The document includes timeline steps, hypotheses, representative examples, and planned next steps including heatmap instrumentation and mitigation strategies. Collaborators Priya Singh and Lina Patel are involved in follow-up runs. The document is informal, timestamped, and linked to Slack discussions and GitHub PRs for instrumentation.",
+    "search_terms": [
+      "bias regression bisection",
+      "tokenization normalization",
+      "kernel scheduling",
+      "KV cache chunking",
+      "political-leaning amplification",
+      "heuristic rubric",
+      "model version comparison",
+      "rolling bias log",
+      "Jared Kim",
+      "applied-ml bias analysis"
+    ],
+    "folder_hints": [
+      "users",
+      "applied-ml",
+      "bias-analysis",
+      "regression-bisection",
+      "rolling-logs"
+    ]
+  },
+  "dsid_5fc2dba9f6ac4af2b49b4f546a4298d0": {
+    "doc_type": "doc",
+    "primary_topic": "Shiproom runner personal prep and checklist",
+    "secondary_topics": [
+      "weekly readiness sync",
+      "canary rollout validation",
+      "latency and throughput monitoring",
+      "smoke testing",
+      "escalation procedures",
+      "rollback planning",
+      "model quality monitoring",
+      "release engineering operations"
+    ],
+    "topic_cluster_hint": "release engineering runbook and operational checklist for shiproom readiness and rollout",
+    "time_period": "2026-03",
+    "communication_channel": "email, slack (#infra-runbooks), pager, internal release tracker (JIRA-RELEASE-2026), meeting notes channel",
+    "product_or_system": "rwx-v2-quant model rollout and Dedicated pool infrastructure",
+    "primary_entity": "Aisha Patel",
+    "action_or_event": "shiproom readiness checks and weekly rollout meeting",
+    "entities": [
+      {
+        "name": "Aisha Patel",
+        "type": "person",
+        "salience": 0.9,
+        "aliases": [
+          "me",
+          "owner"
+        ]
+      },
+      {
+        "name": "Jordan Morales",
+        "type": "person",
+        "salience": 0.7,
+        "aliases": [
+          "Jordan"
+        ]
+      },
+      {
+        "name": "Priya Nair",
+        "type": "person",
+        "salience": 0.7,
+        "aliases": [
+          "Priya"
+        ]
+      },
+      {
+        "name": "Marco",
+        "type": "person",
+        "salience": 0.6,
+        "aliases": [
+          "Marco (perf eng)"
+        ]
+      },
+      {
+        "name": "SRE on-call",
+        "type": "role",
+        "salience": 0.6,
+        "aliases": [
+          "Eng-sre on-call",
+          "pager.sre@redwood.internal"
+        ]
+      },
+      {
+        "name": "Applied ML",
+        "type": "team",
+        "salience": 0.6,
+        "aliases": [
+          "Applied ML team",
+          "priya.nair@redwood.com"
+        ]
+      },
+      {
+        "name": "Dedicated pool",
+        "type": "system",
+        "salience": 0.8,
+        "aliases": [
+          "Dedicated",
+          "Pool-5"
+        ]
+      },
+      {
+        "name": "rwx-v2-quant",
+        "type": "model",
+        "salience": 0.8,
+        "aliases": [
+          "model variant",
+          "model"
+        ]
+      },
+      {
+        "name": "infra-runbooks",
+        "type": "communication channel",
+        "salience": 0.5,
+        "aliases": [
+          "#infra-runbooks",
+          "infra runbook slack"
+        ]
+      }
+    ],
+    "relations": [
+      {
+        "subject": "Aisha Patel",
+        "relation": "owns",
+        "object": "shiproom runner personal prep log",
+        "direction": "forward",
+        "evidence_terms": [
+          "owner: me (Aisha)",
+          "my sticky running list",
+          "Aisha (me) — rehearse rollback commands"
+        ]
+      },
+      {
+        "subject": "Priya Nair",
+        "relation": "responsible for",
+        "object": "golden prompt suite regression",
+        "direction": "forward",
+        "evidence_terms": [
+          "A1: Priya — re-run golden prompt suite",
+          "Owner: Priya",
+          "Applied ML: priya.nair@redwood.com"
+        ]
+      },
+      {
+        "subject": "Jordan Morales",
+        "relation": "responsible for",
+        "object": "Dedicated pool latency anomaly validation",
+        "direction": "forward",
+        "evidence_terms": [
+          "A2: Jordan — validate Dedicated pool latency anomaly",
+          "Owner: Jordan"
+        ]
+      },
+      {
+        "subject": "Marco",
+        "relation": "responsible for",
+        "object": "scaling headroom estimates",
+        "direction": "forward",
+        "evidence_terms": [
+          "A3: Marco — confirm scaling headroom numbers",
+          "Owner: Marco (perf eng)"
+        ]
+      },
+      {
+        "subject": "SRE on-call",
+        "relation": "receives pages for",
+        "object": "latency spikes and pool-5 issues",
+        "direction": "forward",
+        "evidence_terms": [
+          "page SRE and tag 'pool-5'",
+          "SRE on-call (pager): pager.sre@redwood.internal"
+        ]
+      },
+      {
+        "subject": "Shiproom runner",
+        "relation": "validates",
+        "object": "canary capacity and smoke test results",
+        "direction": "forward",
+        "evidence_terms": [
+          "Ensure canary capacity reserved",
+          "Verify last smoke-run results"
+        ]
+      },
+      {
+        "subject": "Latency alert",
+        "relation": "triggers",
+        "object": "SRE confirmation and capacity burst or throttles",
+        "direction": "forward",
+        "evidence_terms": [
+          "If latency alert fires: call out metric, ask SRE",
+          "consider global throttles",
+          "trigger capacity burst"
+        ]
+      },
+      {
+        "subject": "Canary failure",
+        "relation": "triggers",
+        "object": "pause rollout and escalate to Applied ML",
+        "direction": "forward",
+        "evidence_terms": [
+          "If canary fails: pause rollout",
+          "escalate to Applied ML for quality triage"
+        ]
+      }
+    ],
+    "semantic_summary": "This document is a personal prep log and checklist used by Aisha Patel to run the weekly shiproom readiness sync and rollout meetings for the rwx-v2-quant model and Dedicated pool infrastructure. It includes pre-flight checks such as latency and throughput validation, canary capacity confirmation, smoke test quick-looks, and escalation contacts. The document outlines a go/no-go checklist with assigned owners, live-run cues for incident response, risks to monitor, open action items with due dates, and communication templates for post-meeting follow-ups. It serves as a practical operational runbook for release engineering and site reliability coordination during staged rollouts in March 2026.",
+    "search_terms": [
+      "shiproom runner checklist",
+      "weekly readiness sync",
+      "rwx-v2-quant model rollout",
+      "Dedicated pool latency monitoring",
+      "canary capacity validation",
+      "smoke test procedures",
+      "rollback rehearsal",
+      "escalation contacts shiproom",
+      "release engineering runbook",
+      "latency alert response",
+      "model quality triage",
+      "infra runbooks slack",
+      "JIRA-RELEASE-2026",
+      "shiproom go no go checklist",
+      "post-meeting follow-up format"
+    ],
+    "folder_hints": [
+      "users",
+      "release-engineering",
+      "shiproom",
+      "ops",
+      "runbook-notes"
+    ]
+  },
+  "dsid_85deb10a652742baaf28af6149600001": {
+    "doc_type": "email thread",
+    "primary_topic": "Licensing offsets and packaging for migration",
+    "secondary_topics": [
+      "commercial pricing comparison",
+      "migration incentives",
+      "usage cost modeling",
+      "contract negotiation",
+      "procurement requirements",
+      "service level objectives"
+    ],
+    "topic_cluster_hint": "software licensing and migration commercial negotiation",
+    "time_period": "August 2025",
+    "communication_channel": "email",
+    "product_or_system": "Redwood Inference platform",
+    "primary_entity": "Redwood",
+    "action_or_event": "commercial proposal and negotiation for licensing and migration incentives",
+    "entities": [
+      {
+        "name": "Redwood",
+        "type": "company",
+        "salience": 0.9,
+        "aliases": [
+          "Redwood Inference"
+        ]
+      },
+      {
+        "name": "EdgePath",
+        "type": "company",
+        "salience": 0.85,
+        "aliases": []
+      },
+      {
+        "name": "CloudOrbit",
+        "type": "company",
+        "salience": 0.7,
+        "aliases": []
+      },
+      {
+        "name": "Avery Johnson",
+        "type": "person",
+        "salience": 0.8,
+        "aliases": []
+      },
+      {
+        "name": "Sarah Lin",
+        "type": "person",
+        "salience": 0.8,
+        "aliases": []
+      },
+      {
+        "name": "Karthik Iyer",
+        "type": "person",
+        "salience": 0.7,
+        "aliases": []
+      },
+      {
+        "name": "Dan Richards",
+        "type": "person",
+        "salience": 0.6,
+        "aliases": []
+      },
+      {
+        "name": "Connor O'Brien",
+        "type": "person",
+        "salience": 0.5,
+        "aliases": []
+      },
+      {
+        "name": "Monica Patel",
+        "type": "person",
+        "salience": 0.5,
+        "aliases": []
+      }
+    ],
+    "relations": [
+      {
+        "subject": "Redwood",
+        "relation": "proposes",
+        "object": "licensing and migration commercial package",
+        "direction": "forward",
+        "evidence_terms": [
+          "proposal",
+          "packaging options",
+          "onboarding credit",
+          "prepay buckets",
+          "seat licenses",
+          "amendment"
+        ]
+      },
+      {
+        "subject": "EdgePath",
+        "relation": "evaluates",
+        "object": "Redwood and CloudOrbit offerings",
+        "direction": "forward",
+        "evidence_terms": [
+          "parallel evaluation",
+          "commercial comparison",
+          "procurement"
+        ]
+      },
+      {
+        "subject": "CloudOrbit",
+        "relation": "offers",
+        "object": "50% discount and $60k migration credit",
+        "direction": "forward",
+        "evidence_terms": [
+          "CloudOrbit",
+          "50% discount",
+          "migration credit",
+          "24-month commitment"
+        ]
+      },
+      {
+        "subject": "Redwood",
+        "relation": "offers",
+        "object": "40% discount and $50k onboarding credit",
+        "direction": "forward",
+        "evidence_terms": [
+          "40% off list",
+          "onboarding allowance",
+          "migration milestones",
+          "12-month commit"
+        ]
+      },
+      {
+        "subject": "Redwood",
+        "relation": "provides",
+        "object": "99.9% latency SLO",
+        "direction": "forward",
+        "evidence_terms": [
+          "operational concession",
+          "latency SLO",
+          "US region"
+        ]
+      },
+      {
+        "subject": "Procurement",
+        "relation": "requests",
+        "object": "apples-to-apples cost comparison and credit examples",
+        "direction": "forward",
+        "evidence_terms": [
+          "procurement",
+          "apples-to-apples",
+          "cost model",
+          "credits",
+          "invoice"
+        ]
+      }
+    ],
+    "semantic_summary": "This email thread documents a commercial negotiation between Redwood and EdgePath regarding licensing offsets, packaging options, and migration incentives for Redwood's inference platform. EdgePath is evaluating Redwood alongside incumbent CloudOrbit, which offers a 50% discount and migration credit. Redwood proposes a competitive alternative with a 40% discount on committed prepay buckets, a $50k onboarding credit tied to migration milestones, and a 99.9% latency service level objective. The negotiation includes detailed cost modeling, usage assumptions, and contract amendment language to support procurement's request for a side-by-side commercial comparison and operational guarantees.",
+    "search_terms": [
+      "Redwood licensing offsets",
+      "EdgePath migration incentives",
+      "CloudOrbit discount comparison",
+      "Redwood prepay bucket pricing",
+      "inference platform cost model",
+      "procurement commercial negotiation",
+      "onboarding credit migration",
+      "latency SLO Redwood",
+      "software licensing packaging",
+      "contract amendment example"
+    ],
+    "folder_hints": [
+      "commercial_negotiations",
+      "licensing_and_pricing",
+      "migration_incentives",
+      "procurement_documents",
+      "Redwood_Inference",
+      "EdgePath_deals",
+      "CloudOrbit_comparisons",
+      "2025_August"
+    ]
+  },
+  "dsid_c1a6a71323c04c1ba5445aadea340362": {
+    "doc_type": "github_pull_request",
+    "primary_topic": "token stage cohorting and route matrix alerting",
+    "secondary_topics": [
+      "observability",
+      "alerts",
+      "dashboard",
+      "metrics",
+      "performance monitoring",
+      "SLO attribution",
+      "cohort drift",
+      "root cause analysis"
+    ],
+    "topic_cluster_hint": "observability alerting and monitoring enhancements",
+    "time_period": "2026-02 to 2026-03",
+    "communication_channel": "github pull request and CI pipeline",
+    "product_or_system": "redwood observability system",
+    "primary_entity": "token_stage_cohort service",
+    "action_or_event": "introduce token stage cohorting and route matrix alerting",
+    "entities": [
+      {
+        "name": "token_stage_cohort service",
+        "type": "software service",
+        "salience": 0.9,
+        "aliases": [
+          "token_stage_cohort",
+          "cohort service"
+        ]
+      },
+      {
+        "name": "route-matrix alert generator",
+        "type": "software component",
+        "salience": 0.8,
+        "aliases": [
+          "alert route-matrix generator",
+          "route matrix generator"
+        ]
+      },
+      {
+        "name": "token-stage cohort dashboard",
+        "type": "dashboard",
+        "salience": 0.7,
+        "aliases": [
+          "cohort dashboard",
+          "dashboard"
+        ]
+      },
+      {
+        "name": "Maya Chen",
+        "type": "author",
+        "salience": 0.6,
+        "aliases": []
+      },
+      {
+        "name": "Diego Alvarez",
+        "type": "reviewer",
+        "salience": 0.5,
+        "aliases": []
+      },
+      {
+        "name": "Priya Nandakumar",
+        "type": "reviewer",
+        "salience": 0.5,
+        "aliases": []
+      },
+      {
+        "name": "Liam O'Connor",
+        "type": "reviewer",
+        "salience": 0.5,
+        "aliases": []
+      },
+      {
+        "name": "SLO",
+        "type": "service level objective",
+        "salience": 0.6,
+        "aliases": []
+      },
+      {
+        "name": "model-major-version",
+        "type": "versioning scheme",
+        "salience": 0.4,
+        "aliases": [
+          "model version"
+        ]
+      }
+    ],
+    "relations": [
+      {
+        "subject": "token_stage_cohort service",
+        "relation": "computes",
+        "object": "deterministic cohort key per invocation",
+        "direction": "forward",
+        "evidence_terms": [
+          "token_stage_cohort service",
+          "computes a deterministic cohort key per invocation"
+        ]
+      },
+      {
+        "subject": "route-matrix alert generator",
+        "relation": "consumes",
+        "object": "cohort rollups",
+        "direction": "forward",
+        "evidence_terms": [
+          "alert route-matrix generator",
+          "consumes cohort rollups"
+        ]
+      },
+      {
+        "subject": "route-matrix alert generator",
+        "relation": "emits",
+        "object": "alert bindings",
+        "direction": "forward",
+        "evidence_terms": [
+          "alert route-matrix generator",
+          "emits alert bindings"
+        ]
+      },
+      {
+        "subject": "alert bindings",
+        "relation": "bias escalation to",
+        "object": "top-k stages for that route",
+        "direction": "forward",
+        "evidence_terms": [
+          "alert bindings",
+          "bias escalation to the top-k stages for that route"
+        ]
+      },
+      {
+        "subject": "token-stage cohort dashboard",
+        "relation": "helps",
+        "object": "oncall quickly validate root cause hypotheses",
+        "direction": "forward",
+        "evidence_terms": [
+          "dashboard focused on cohort drift",
+          "help oncall quickly validate root cause hypotheses"
+        ]
+      },
+      {
+        "subject": "feature flag",
+        "relation": "controls rollout of",
+        "object": "token_stage_cohort service",
+        "direction": "forward",
+        "evidence_terms": [
+          "service defaults to read-only mode until flagged by a feature flag"
+        ]
+      },
+      {
+        "subject": "quiet-window attenuation",
+        "relation": "mitigates",
+        "object": "alert noise",
+        "direction": "forward",
+        "evidence_terms": [
+          "quiet-window attenuation to avoid regressing noise"
+        ]
+      },
+      {
+        "subject": "cohort keys",
+        "relation": "namespaced with",
+        "object": "model-major-version",
+        "direction": "forward",
+        "evidence_terms": [
+          "namespace cohort keys with model-major-version"
+        ]
+      }
+    ],
+    "semantic_summary": "This pull request introduces a token stage cohorting service and a route matrix alerting system within the Redwood observability platform to improve SLO attribution and reduce alert noise. The token_stage_cohort service computes deterministic cohort keys per invocation based on stage-level metrics, enabling grouping of requests by stage footprint. An alert route-matrix generator consumes cohort rollups to emit alert bindings that bias escalation to the most likely pipeline stages responsible for SLO violations. A new dashboard visualizes cohort drift, stage heatmaps, and cost/latency breakdowns to assist oncall engineers in root cause analysis. The feature is rolled out behind a feature flag with low-sensitivity defaults and quiet-window attenuation to mitigate noise. Testing includes unit, integration, and synthetic replay tests. Cohort keys are namespaced by model-major-version to maintain stability across model rollouts.",
+    "search_terms": [
+      "token stage cohorting",
+      "route matrix alerting",
+      "observability",
+      "SLO attribution",
+      "alert noise reduction",
+      "cohort drift dashboard",
+      "feature flag rollout",
+      "quiet-window attenuation",
+      "model-major-version namespacing",
+      "synthetic replay tests"
+    ],
+    "folder_hints": [
+      "services/observability",
+      "alerts",
+      "dashboards",
+      "tests/integration",
+      "docs/observability",
+      "sdk/python/redwood/observability"
+    ]
+  }
+}

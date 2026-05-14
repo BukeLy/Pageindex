@@ -1,0 +1,485 @@
+[
+  {
+    "question_id": "qst_0001",
+    "question": "What are the default size limits for file uploads and total request size for the new multipart upload support on the OpenAI-compatible API endpoints?",
+    "source_types": [
+      "github"
+    ],
+    "expected_doc_ids": [
+      "dsid_ae068ee4aa9640159427cd941bef0238"
+    ],
+    "document_ids": [
+      "dsid_ae068ee4aa9640159427cd941bef0238"
+    ],
+    "doc_hit": true,
+    "answer": "The default size limits for file uploads and total request size for the new multipart upload support on the OpenAI-compatible API endpoints are: maximum file size of 10MiB per file and a maximum total request size of 50MiB. These limits are configurable and can be overridden at the tenant or route level via API configuration. The feature is controlled by a feature flag (feature.enable_multipart_input) and includes strict Content-Type validation and payload limit enforcement.",
+    "error": null,
+    "seconds": 12.08,
+    "tool_calls": 5,
+    "tool_log": [
+      {
+        "command": "tree /topic_count -L 2",
+        "ok": false,
+        "seconds": 0.0,
+        "output_chars": 34,
+        "preview": "ERROR: Unsupported tree option: -L"
+      },
+      {
+        "command": "ls -R /topic_count",
+        "ok": true,
+        "seconds": 0.001,
+        "output_chars": 57381,
+        "preview": "{\"ok\": true, \"data\": {\"folders\": [{\"folder_id\": \"folder_b435d04aba676d10\", \"id\": \"folder_b435d04aba676d10\", \"parent_id\": \"folder_962776cf78d383fa\", \"parent_folder_id\": \"folder_962776cf78d383fa\", \"name\": \"r01_api-streaming-and-multipart-handling-enhancements\", \"description\": \"\", \"path\": \"/topic_count/r01_api-streaming-and-multipart-handling-enhancements\", \"kind\": \"physical\", \"source\": \"source\", \"sort_order\": 0, \"created_at\": \"2026-05-14 16:29:19\", \"updated_at\": \"2026-05-14 16:29:19\", \"file_count\""
+      },
+      {
+        "command": "grep -R 'default size limits' /topic_count/r01_api-streaming-and-multipart-handling-enhancements",
+        "ok": true,
+        "seconds": 0.0025,
+        "output_chars": 4468,
+        "preview": "{\"ok\": true, \"data\": [{\"reference_id\": \"ref_1\", \"file_ref\": \"file_90f09b89336b14e9\", \"external_id\": \"dsid_ae068ee4aa9640159427cd941bef0238\", \"title\": \"add multipart/form-data handling, strict content-type validation, and payload limit enforcement for API tool/file inputs\", \"snippet\": \"...size checks); 3) Enforce configurable limits: max_file_size (default 10MiB), max_total_request_size (default...\", \"folder_path\": \"/topic_count/r01_api-streaming-and-multipart-handling-enhancements/source_github/"
+      },
+      {
+        "command": "cat /topic_count/r01_api-streaming-and-multipart-handling-enhancements/source_github/type_github-pull-request/github/pr-18421-multipart-file-validation-limits.json --range 20-70",
+        "ok": true,
+        "seconds": 0.0013,
+        "output_chars": 536,
+        "preview": "{\"ok\": true, \"data\": {\"reference_id\": \"/topic_count/r01_api-streaming-and-multipart-handling-enhancements/source_github/type_github-pull-request/github/pr-18421-multipart-file-validation-limits.json\", \"file_ref\": \"file_90f09b89336b14e9\", \"start_line\": 20, \"end_line\": 11, \"text\": \"\", \"external_id\": \"dsid_ae068ee4aa9640159427cd941bef0238\", \"folder_path\": \"/topic_count/r01_api-streaming-and-multipart-handling-enhancements/source_github/type_github-pull-request\", \"source_path\": \"github/pr-18421-mult"
+      },
+      {
+        "command": "cat /topic_count/r01_api-streaming-and-multipart-handling-enhancements/source_github/type_github-pull-request/github/pr-18421-multipart-file-validation-limits.json --all",
+        "ok": true,
+        "seconds": 0.0021,
+        "output_chars": 5760,
+        "preview": "{\"ok\": true, \"data\": {\"reference_id\": \"/topic_count/r01_api-streaming-and-multipart-handling-enhancements/source_github/type_github-pull-request/github/pr-18421-multipart-file-validation-limits.json\", \"file_ref\": \"file_90f09b89336b14e9\", \"start_line\": 1, \"end_line\": 11, \"text\": \"add multipart/form-data handling, strict content-type validation, and payload limit enforcement for API tool/file inputs\\n\\nMotivation: users integrating tool/function calling and file uploads via the OpenAI-compatibilit"
+      }
+    ],
+    "raw_output": "{\"answer\":\"The default size limits for file uploads and total request size for the new multipart upload support on the OpenAI-compatible API endpoints are: maximum file size of 10MiB per file and a maximum total request size of 50MiB. These limits are configurable and can be overridden at the tenant or route level via API configuration. The feature is controlled by a feature flag (feature.enable_multipart_input) and includes strict Content-Type validation and payload limit enforcement.\",\"document_ids\":[\"dsid_ae068ee4aa9640159427cd941bef0238\"]}"
+  },
+  {
+    "question_id": "qst_0002",
+    "question": "What is the name of the new metric added so SRE can track when server-side streaming sessions get finalized due to hitting the time limit?",
+    "source_types": [
+      "github"
+    ],
+    "expected_doc_ids": [
+      "dsid_9550250a59e74f1bbd5612480b2e7100"
+    ],
+    "document_ids": [
+      "dsid_9550250a59e74f1bbd5612480b2e7100"
+    ],
+    "doc_hit": true,
+    "answer": "The name of the new metric added so SRE can track when server-side streaming sessions get finalized due to hitting the time limit is \"stream.timebox_finalized\".",
+    "error": null,
+    "seconds": 8.464,
+    "tool_calls": 3,
+    "tool_log": [
+      {
+        "command": "tree /topic_count",
+        "ok": true,
+        "seconds": 0.001,
+        "output_chars": 57381,
+        "preview": "{\"ok\": true, \"data\": {\"folders\": [{\"folder_id\": \"folder_b435d04aba676d10\", \"id\": \"folder_b435d04aba676d10\", \"parent_id\": \"folder_962776cf78d383fa\", \"parent_folder_id\": \"folder_962776cf78d383fa\", \"name\": \"r01_api-streaming-and-multipart-handling-enhancements\", \"description\": \"\", \"path\": \"/topic_count/r01_api-streaming-and-multipart-handling-enhancements\", \"kind\": \"physical\", \"source\": \"source\", \"sort_order\": 0, \"created_at\": \"2026-05-14 16:29:19\", \"updated_at\": \"2026-05-14 16:29:19\", \"file_count\""
+      },
+      {
+        "command": "grep -R 'time limit' /topic_count/r01_api-streaming-and-multipart-handling-enhancements/source_github/type_pull-request",
+        "ok": true,
+        "seconds": 0.002,
+        "output_chars": 4858,
+        "preview": "{\"ok\": true, \"data\": [{\"reference_id\": \"ref_2\", \"file_ref\": \"file_2686f50c82216c0e\", \"external_id\": \"dsid_9550250a59e74f1bbd5612480b2e7100\", \"title\": \"introduce-server-timebox-and-idempotent-cancel-fallbacks-for-streaming-compat\", \"snippet\": \"...we need a predictable server-side safety net that bounds resource residency time, ensures tool-call...\", \"folder_path\": \"/topic_count/r01_api-streaming-and-multipart-handling-enhancements/source_github/type_pull-request\", \"metadata\": {\"dataset_doc_uuid\":"
+      },
+      {
+        "command": "cat /topic_count/r01_api-streaming-and-multipart-handling-enhancements/source_github/type_pull-request/github/pr-129874-timebox-abort-idempotency-resume-openai-compat.json --all",
+        "ok": true,
+        "seconds": 0.002,
+        "output_chars": 4723,
+        "preview": "{\"ok\": true, \"data\": {\"reference_id\": \"/topic_count/r01_api-streaming-and-multipart-handling-enhancements/source_github/type_pull-request/github/pr-129874-timebox-abort-idempotency-resume-openai-compat.json\", \"file_ref\": \"file_2686f50c82216c0e\", \"start_line\": 1, \"end_line\": 18, \"text\": \"introduce-server-timebox-and-idempotent-cancel-fallbacks-for-streaming-compat\\n\\nContext: production customers observed cases where long lived streaming sessions (tool calls + structured output) were left in inde"
+      }
+    ],
+    "raw_output": "{\"answer\":\"The name of the new metric added so SRE can track when server-side streaming sessions get finalized due to hitting the time limit is \\\"stream.timebox_finalized\\\".\",\"document_ids\":[\"dsid_9550250a59e74f1bbd5612480b2e7100\"]}"
+  },
+  {
+    "question_id": "qst_0003",
+    "question": "What are the acceptance criteria for the project introducing an algorithm to generate interactive UI color states and a Kappa-style elevation scale for dense table and grid components?",
+    "source_types": [
+      "linear"
+    ],
+    "expected_doc_ids": [
+      "dsid_3fd6af404fae48e6b8ea5a57875ef78f"
+    ],
+    "document_ids": [
+      "dsid_3fd6af404fae48e6b8ea5a57875ef78f"
+    ],
+    "doc_hit": true,
+    "answer": "The acceptance criteria for the project introducing an algorithm to generate interactive UI color states and a Kappa-style elevation scale for dense table and grid components are as follows:\n\n1) Token spec: Produce a stable token spec file (design JSON) including base palette, interactive derivatives (e.g., color.interactive.primary.hover), and elevation.kappa.{0..6} with explicit shadow parameters.\n2) Implementation-ready: Frontend repository receives a tokens PR implementing variables; DataGrid and Table components consume new tokens behind a feature flag.\n3) Accessibility: Automated contrast checks pass for all interactive states against 3:1 where applicable and 4.5:1 for primary actionable text.\n4) Visual regression: Add per-component visual snapshots and tolerances; no regressions beyond approved deltas.\n5) Figma: Updated design kit with tokenized components and guidance notes.\n6) Rollout plan: Canary on internal analytics dashboards, staged rollout, full migration with fallback.\n\nThese criteria ensure the new tokens and elevation scale are robust, accessible, visually consistent, and seamlessly integrated into the design and frontend systems with a controlled rollout and testing approach.",
+    "error": null,
+    "seconds": 14.089,
+    "tool_calls": 2,
+    "tool_log": [
+      {
+        "command": "tree /topic_count",
+        "ok": true,
+        "seconds": 0.0024,
+        "output_chars": 57381,
+        "preview": "{\"ok\": true, \"data\": {\"folders\": [{\"folder_id\": \"folder_b435d04aba676d10\", \"id\": \"folder_b435d04aba676d10\", \"parent_id\": \"folder_962776cf78d383fa\", \"parent_folder_id\": \"folder_962776cf78d383fa\", \"name\": \"r01_api-streaming-and-multipart-handling-enhancements\", \"description\": \"\", \"path\": \"/topic_count/r01_api-streaming-and-multipart-handling-enhancements\", \"kind\": \"physical\", \"source\": \"source\", \"sort_order\": 0, \"created_at\": \"2026-05-14 16:29:19\", \"updated_at\": \"2026-05-14 16:29:19\", \"file_count\""
+      },
+      {
+        "command": "cat dsid_3fd6af404fae48e6b8ea5a57875ef78f --all",
+        "ok": true,
+        "seconds": 0.002,
+        "output_chars": 5292,
+        "preview": "{\"ok\": true, \"data\": {\"reference_id\": \"dsid_3fd6af404fae48e6b8ea5a57875ef78f\", \"file_ref\": \"file_65bc1687e9c9baee\", \"start_line\": 1, \"end_line\": 41, \"text\": \"Develop interactive tone derivatives and Kappa elevation scale for data grids\\n\\nObjective: Create a deterministic system for producing interactive color derivatives (hover/focus/pressed/disabled) from the base semantic palette and introduce a physics-inspired elevation scale (\\\"Kappa\\\") tuned for dense data surfaces such as DataGrid, compa"
+      }
+    ],
+    "raw_output": "{\"answer\":\"The acceptance criteria for the project introducing an algorithm to generate interactive UI color states and a Kappa-style elevation scale for dense table and grid components are as follows:\\n\\n1) Token spec: Produce a stable token spec file (design JSON) including base palette, interactive derivatives (e.g., color.interactive.primary.hover), and elevation.kappa.{0..6} with explicit shadow parameters.\\n2) Implementation-ready: Frontend repository receives a tokens PR implementing variables; DataGrid and Table components consume new tokens behind a feature flag.\\n3) Accessibility: Automated contrast checks pass for all interactive states against 3:1 where applicable and 4.5:1 for primary actionable text.\\n4) Visual regression: Add per-component visual snapshots and tolerances; no regressions beyond approved deltas.\\n5) Figma: Updated design kit with tokenized components and guidance notes.\\n6) Rollout plan: Canary on internal analytics dashboards, staged rollout, full migration with fallback.\\n\\nThese criteria ensure the new tokens and elevation scale are robust, accessible, visually consistent, and seamlessly integrated into the design and frontend systems with a controlled rollout and testing approach.\",\"document_ids\":[\"dsid_3fd6af404fae48e6b8ea5a57875ef78f\"]}"
+  },
+  {
+    "question_id": "qst_0004",
+    "question": "In the meeting about onboarding a SaaS product to Google Cloud Marketplace, what did the GCP team recommend for handling delays where a new subscription entitlement is not immediately available during the customer onboarding flow?",
+    "source_types": [
+      "fireflies"
+    ],
+    "expected_doc_ids": [
+      "dsid_6c4c1c875e704f09b4d791d64d7bc7e5"
+    ],
+    "document_ids": [
+      "dsid_6c4c1c875e704f09b4d791d64d7bc7e5"
+    ],
+    "doc_hit": true,
+    "answer": "In the meeting about onboarding a SaaS product to Google Cloud Marketplace, the GCP team recommended handling delays in the availability of a new subscription entitlement during the customer onboarding flow by making the onboarding user experience resilient to entitlement propagation delays. Specifically, they advised that the UI should not show a scary error like “you are not entitled” immediately. Instead, it should gracefully handle a \"pending\" state by showing messaging such as “we’re still syncing your subscription, retry in a few minutes” with an option to refresh. They suggested showing a timestamp of the last check to reassure the user that the system is actively trying to verify the entitlement and recommended providing clear instructions or support links if entitlement is not found. This approach avoids friction during the marketplace review and improves the user experience by managing expectations around short propagation delays.",
+    "error": null,
+    "seconds": 39.755,
+    "tool_calls": 10,
+    "tool_log": [
+      {
+        "command": "ls /topic_count",
+        "ok": true,
+        "seconds": 0.0018,
+        "output_chars": 3932,
+        "preview": "{\"ok\": true, \"data\": {\"folders\": [{\"folder_id\": \"folder_b435d04aba676d10\", \"id\": \"folder_b435d04aba676d10\", \"parent_id\": \"folder_962776cf78d383fa\", \"parent_folder_id\": \"folder_962776cf78d383fa\", \"name\": \"r01_api-streaming-and-multipart-handling-enhancements\", \"description\": \"\", \"path\": \"/topic_count/r01_api-streaming-and-multipart-handling-enhancements\", \"kind\": \"physical\", \"source\": \"source\", \"sort_order\": 0, \"created_at\": \"2026-05-14 16:29:19\", \"updated_at\": \"2026-05-14 16:29:19\", \"file_count\""
+      },
+      {
+        "command": "grep -R 'subscription entitlement not immediately available' /topic_count/r04_cloud-marketplace-onboarding-and-billing-integration",
+        "ok": true,
+        "seconds": 0.0045,
+        "output_chars": 4757,
+        "preview": "{\"ok\": true, \"data\": [{\"reference_id\": \"ref_3\", \"file_ref\": \"file_977186226c96a2ff\", \"external_id\": \"dsid_6c4c1c875e704f09b4d791d64d7bc7e5\", \"title\": \"GCP Marketplace onboarding + billing review (Redwood Inference)\", \"snippet\": \"...GCP Marketplace SKU dimensions and Cloud Commerce metering\\nEntitlement + account linking expectations\\nOnboarding UX expectations (subscription...\", \"folder_path\": \"/topic_count/r04_cloud-marketplace-onboarding-and-billing-integration/source_fireflies/type_meeting-tr"
+      },
+      {
+        "command": "ls /topic_count/r04_cloud-marketplace-onboarding-and-billing-integration",
+        "ok": true,
+        "seconds": 0.0011,
+        "output_chars": 524,
+        "preview": "{\"ok\": true, \"data\": {\"folders\": [{\"folder_id\": \"folder_0acfa0759538783f\", \"id\": \"folder_0acfa0759538783f\", \"parent_id\": \"folder_ebea72626b7305f5\", \"parent_folder_id\": \"folder_ebea72626b7305f5\", \"name\": \"source_fireflies\", \"description\": \"\", \"path\": \"/topic_count/r04_cloud-marketplace-onboarding-and-billing-integration/source_fireflies\", \"kind\": \"physical\", \"source\": \"source\", \"sort_order\": 0, \"created_at\": \"2026-05-14 16:29:19\", \"updated_at\": \"2026-05-14 16:29:19\", \"file_count\": 0, \"children_co"
+      },
+      {
+        "command": "ls /topic_count/r04_cloud-marketplace-onboarding-and-billing-integration/source_fireflies",
+        "ok": true,
+        "seconds": 0.0011,
+        "output_chars": 555,
+        "preview": "{\"ok\": true, \"data\": {\"folders\": [{\"folder_id\": \"folder_5f853c47fb937654\", \"id\": \"folder_5f853c47fb937654\", \"parent_id\": \"folder_0acfa0759538783f\", \"parent_folder_id\": \"folder_0acfa0759538783f\", \"name\": \"type_meeting-transcript\", \"description\": \"\", \"path\": \"/topic_count/r04_cloud-marketplace-onboarding-and-billing-integration/source_fireflies/type_meeting-transcript\", \"kind\": \"physical\", \"source\": \"source\", \"sort_order\": 0, \"created_at\": \"2026-05-14 16:29:19\", \"updated_at\": \"2026-05-14 16:29:19\""
+      },
+      {
+        "command": "ls /topic_count/r04_cloud-marketplace-onboarding-and-billing-integration/source_fireflies/type_meeting-transcript",
+        "ok": true,
+        "seconds": 0.0007,
+        "output_chars": 4593,
+        "preview": "{\"ok\": true, \"data\": {\"folders\": [], \"files\": [{\"file_ref\": \"file_977186226c96a2ff\", \"id\": \"dsid_6c4c1c875e704f09b4d791d64d7bc7e5\", \"document_id\": \"dsid_6c4c1c875e704f09b4d791d64d7bc7e5\", \"external_id\": \"dsid_6c4c1c875e704f09b4d791d64d7bc7e5\", \"name\": \"GCP Marketplace onboarding + billing review (Redwood Inference)\", \"title\": \"GCP Marketplace onboarding + billing review (Redwood Inference)\", \"description\": \"GCP Marketplace onboarding + billing review (Redwood Inference) (fireflies)\", \"status\": \""
+      },
+      {
+        "command": "head -60 /topic_count/r04_cloud-marketplace-onboarding-and-billing-integration/source_fireflies/type_meeting-transcript/dsid_6c4c1c875e704f09b4d791d64d7bc7e5",
+        "ok": false,
+        "seconds": 0.0001,
+        "output_chars": 32,
+        "preview": "ERROR: Unsupported command: head"
+      },
+      {
+        "command": "ls -R /topic_count/r04_cloud-marketplace-onboarding-and-billing-integration/source_fireflies/type_meeting-transcript",
+        "ok": true,
+        "seconds": 0.0014,
+        "output_chars": 4593,
+        "preview": "{\"ok\": true, \"data\": {\"folders\": [], \"files\": [{\"file_ref\": \"file_977186226c96a2ff\", \"id\": \"dsid_6c4c1c875e704f09b4d791d64d7bc7e5\", \"document_id\": \"dsid_6c4c1c875e704f09b4d791d64d7bc7e5\", \"external_id\": \"dsid_6c4c1c875e704f09b4d791d64d7bc7e5\", \"name\": \"GCP Marketplace onboarding + billing review (Redwood Inference)\", \"title\": \"GCP Marketplace onboarding + billing review (Redwood Inference)\", \"description\": \"GCP Marketplace onboarding + billing review (Redwood Inference) (fireflies)\", \"status\": \""
+      },
+      {
+        "command": "ls -l /topic_count/r04_cloud-marketplace-onboarding-and-billing-integration/source_fireflies/type_meeting-transcript",
+        "ok": false,
+        "seconds": 0.0,
+        "output_chars": 32,
+        "preview": "ERROR: Unsupported ls option: -l"
+      },
+      {
+        "command": "ls /topic_count/r04_cloud-marketplace-onboarding-and-billing-integration/source_fireflies/type_meeting-transcript",
+        "ok": true,
+        "seconds": 0.0008,
+        "output_chars": 4593,
+        "preview": "{\"ok\": true, \"data\": {\"folders\": [], \"files\": [{\"file_ref\": \"file_977186226c96a2ff\", \"id\": \"dsid_6c4c1c875e704f09b4d791d64d7bc7e5\", \"document_id\": \"dsid_6c4c1c875e704f09b4d791d64d7bc7e5\", \"external_id\": \"dsid_6c4c1c875e704f09b4d791d64d7bc7e5\", \"name\": \"GCP Marketplace onboarding + billing review (Redwood Inference)\", \"title\": \"GCP Marketplace onboarding + billing review (Redwood Inference)\", \"description\": \"GCP Marketplace onboarding + billing review (Redwood Inference) (fireflies)\", \"status\": \""
+      },
+      {
+        "command": "cat fireflies/2026-01-16-gcp-marketplace-onboarding-and-billing-review.json --all",
+        "ok": true,
+        "seconds": 0.0033,
+        "output_chars": 29419,
+        "preview": "{\"ok\": true, \"data\": {\"reference_id\": \"fireflies/2026-01-16-gcp-marketplace-onboarding-and-billing-review.json\", \"file_ref\": \"file_977186226c96a2ff\", \"start_line\": 1, \"end_line\": 347, \"text\": \"GCP Marketplace onboarding + billing review (Redwood Inference)\\n\\nRedwood and the GCP Marketplace team reviewed how Redwood’s new marketplace SKUs map to GCP billing dimensions (usage-based token/embedding meters vs subscription/commit dimensions), and what identifiers must be carried end-to-end (consumer"
+      }
+    ],
+    "raw_output": "{\"answer\":\"In the meeting about onboarding a SaaS product to Google Cloud Marketplace, the GCP team recommended handling delays in the availability of a new subscription entitlement during the customer onboarding flow by making the onboarding user experience resilient to entitlement propagation delays. Specifically, they advised that the UI should not show a scary error like “you are not entitled” immediately. Instead, it should gracefully handle a \\\"pending\\\" state by showing messaging such as “we’re still syncing your subscription, retry in a few minutes” with an option to refresh. They suggested showing a timestamp of the last check to reassure the user that the system is actively trying to verify the entitlement and recommended providing clear instructions or support links if entitlement is not found. This approach avoids friction during the marketplace review and improves the user experience by managing expectations around short propagation delays.\",\"document_ids\":[\"dsid_6c4c1c875e704f09b4d791d64d7bc7e5\"]}"
+  },
+  {
+    "question_id": "qst_0005",
+    "question": "What failover sequence and recovery targets did MedThink specify for handling an EU region outage, including any limits on how long traffic can shift to the US?",
+    "source_types": [
+      "gmail"
+    ],
+    "expected_doc_ids": [
+      "dsid_8e838ab6a98f4cbcb672d41f210ff89c"
+    ],
+    "document_ids": [
+      "dsid_8e838ab6a98f4cbcb672d41f210ff89c"
+    ],
+    "doc_hit": true,
+    "answer": "MedThink specified the following failover sequence and recovery targets for handling an EU region outage:\n- Preferred failover order: EU primary -> EU warm standby -> US emergency failover.\n- Cross-region failover to the US is allowed only for declared emergency windows with a maximum duration of 4 hours and must be pre-approved in the runbook.\n- Target Recovery Point Objective (RPO) is 15 minutes for active datasets.\n- Target Recovery Time Objective (RTO) is 30 minutes for critical APIs.\n\nAdditionally, patient clinical records (PHI) must remain in the EU region, but operational metadata pseudonymized and access controlled may replicate to the US. Backups of PHI can be stored in the US only if encrypted with customer-managed keys and access is tightly controlled. Audit evidence requirements include SOC 2 Type II reports, access logs, and key rotation logs. This information comes from a detailed post-call inventory email thread between Redwood Inference and MedThink Health, covering regional fallback priorities, data residency requirements, failover strategies, and compliance audit needs.",
+    "error": null,
+    "seconds": 15.691,
+    "tool_calls": 3,
+    "tool_log": [
+      {
+        "command": "ls -R /topic_count",
+        "ok": true,
+        "seconds": 0.001,
+        "output_chars": 57381,
+        "preview": "{\"ok\": true, \"data\": {\"folders\": [{\"folder_id\": \"folder_b435d04aba676d10\", \"id\": \"folder_b435d04aba676d10\", \"parent_id\": \"folder_962776cf78d383fa\", \"parent_folder_id\": \"folder_962776cf78d383fa\", \"name\": \"r01_api-streaming-and-multipart-handling-enhancements\", \"description\": \"\", \"path\": \"/topic_count/r01_api-streaming-and-multipart-handling-enhancements\", \"kind\": \"physical\", \"source\": \"source\", \"sort_order\": 0, \"created_at\": \"2026-05-14 16:29:19\", \"updated_at\": \"2026-05-14 16:29:19\", \"file_count\""
+      },
+      {
+        "command": "grep -R 'MedThink' /topic_count/r02_regional-failover-data-residency-and-compliance/source_gmail/type_email-thread",
+        "ok": true,
+        "seconds": 0.002,
+        "output_chars": 3854,
+        "preview": "{\"ok\": true, \"data\": [{\"reference_id\": \"ref_4\", \"file_ref\": \"file_f4e750618ee48513\", \"external_id\": \"dsid_8e838ab6a98f4cbcb672d41f210ff89c\", \"title\": \"Regional fallback priorities & logs — post-call inventory\", \"snippet\": \"...Thanks,\\nElena\\nDirector of Security & Compliance\\nMedThink Health\\nelena.ruiz@medthink.health\\n\\n\\nFrom: Rafael Mendes <rafael...\", \"folder_path\": \"/topic_count/r02_regional-failover-data-residency-and-compliance/source_gmail/type_email-thread\", \"metadata\": {\"dataset_doc_u"
+      },
+      {
+        "command": "cat /topic_count/r02_regional-failover-data-residency-and-compliance/source_gmail/type_email-thread/gmail/rafael_mendes/20280503-region-fallback-priority-ops-inventory.json --all",
+        "ok": true,
+        "seconds": 0.0032,
+        "output_chars": 10384,
+        "preview": "{\"ok\": true, \"data\": {\"reference_id\": \"/topic_count/r02_regional-failover-data-residency-and-compliance/source_gmail/type_email-thread/gmail/rafael_mendes/20280503-region-fallback-priority-ops-inventory.json\", \"file_ref\": \"file_f4e750618ee48513\", \"start_line\": 1, \"end_line\": 125, \"text\": \"Regional fallback priorities & logs — post-call inventory\\n\\nFrom: Rafael Mendes <rafael.mendes@redwoodinference.com>\\nTo: Elena Ruiz <elena.ruiz@medthink.health>\\nCc: Monica Patel <monica.patel@redwoodinferenc"
+      }
+    ],
+    "raw_output": "{\"answer\":\"MedThink specified the following failover sequence and recovery targets for handling an EU region outage:\\n- Preferred failover order: EU primary -> EU warm standby -> US emergency failover.\\n- Cross-region failover to the US is allowed only for declared emergency windows with a maximum duration of 4 hours and must be pre-approved in the runbook.\\n- Target Recovery Point Objective (RPO) is 15 minutes for active datasets.\\n- Target Recovery Time Objective (RTO) is 30 minutes for critical APIs.\\n\\nAdditionally, patient clinical records (PHI) must remain in the EU region, but operational metadata pseudonymized and access controlled may replicate to the US. Backups of PHI can be stored in the US only if encrypted with customer-managed keys and access is tightly controlled. Audit evidence requirements include SOC 2 Type II reports, access logs, and key rotation logs. This information comes from a detailed post-call inventory email thread between Redwood Inference and MedThink Health, covering regional fallback priorities, data residency requirements, failover strategies, and compliance audit needs.\",\"document_ids\":[\"dsid_8e838ab6a98f4cbcb672d41f210ff89c\"]}"
+  },
+  {
+    "question_id": "qst_0006",
+    "question": "In the draft spec about extending a routing policy engine for automated regional failover, what is the proposed priority order for evaluating different failure signals when deciding whether to shift traffic or fail over?",
+    "source_types": [
+      "google_drive"
+    ],
+    "expected_doc_ids": [
+      "dsid_184be937d34a412ab5e61366d54d8ed6"
+    ],
+    "document_ids": [
+      "dsid_184be937d34a412ab5e61366d54d8ed6"
+    ],
+    "doc_hit": true,
+    "answer": "The proposed priority order for evaluating different failure signals in the draft specification about extending a routing policy engine for automated regional failover is as follows:\n1) Reachability DOWN (authoritative) => FAILOVER (unless no healthy fallback)\n2) Errors (5xx) fast burn (high severity) => FAILOVER or PARTIAL_SHIFT depending on blast radius and capacity\n3) Tail latency burn (p99/p95) => PARTIAL_SHIFT first; escalate to FAILOVER if corroborated and sustained\n4) Capacity exhaustion / hard gate => HOLD + load shed (controller action), avoid shifting into constrained region\n5) Control plane degradation => HOLD (do not flip rapidly; prevent oscillation)",
+    "error": null,
+    "seconds": 16.638,
+    "tool_calls": 4,
+    "tool_log": [
+      {
+        "command": "ls -R /topic_count",
+        "ok": true,
+        "seconds": 0.0026,
+        "output_chars": 57381,
+        "preview": "{\"ok\": true, \"data\": {\"folders\": [{\"folder_id\": \"folder_b435d04aba676d10\", \"id\": \"folder_b435d04aba676d10\", \"parent_id\": \"folder_962776cf78d383fa\", \"parent_folder_id\": \"folder_962776cf78d383fa\", \"name\": \"r01_api-streaming-and-multipart-handling-enhancements\", \"description\": \"\", \"path\": \"/topic_count/r01_api-streaming-and-multipart-handling-enhancements\", \"kind\": \"physical\", \"source\": \"source\", \"sort_order\": 0, \"created_at\": \"2026-05-14 16:29:19\", \"updated_at\": \"2026-05-14 16:29:19\", \"file_count\""
+      },
+      {
+        "command": "grep -R 'priority order' /topic_count/r02_regional-failover-data-residency-and-compliance/source_google-drive/type_draft-specification",
+        "ok": true,
+        "seconds": 0.0019,
+        "output_chars": 4966,
+        "preview": "{\"ok\": true, \"data\": [{\"reference_id\": \"ref_5\", \"file_ref\": \"file_25ebacd20eb09ca7\", \"external_id\": \"dsid_184be937d34a412ab5e61366d54d8ed6\", \"title\": \"Draft Spec: Policy Engine Extensions for Regional Failover Automation\", \"snippet\": \"...C) Signal hierarchy evaluation (ADR-042)\\nPriority order (proposed canonical order for v1):\\n1) Reachability DOWN...\", \"folder_path\": \"/topic_count/r02_regional-failover-data-residency-and-compliance/source_google-drive/type_draft-specification\", \"metadata\": {\"d"
+      },
+      {
+        "command": "cat file_25ebacd20eb09ca7 --range 400-700",
+        "ok": true,
+        "seconds": 0.0027,
+        "output_chars": 422,
+        "preview": "{\"ok\": true, \"data\": {\"reference_id\": \"file_25ebacd20eb09ca7\", \"file_ref\": \"file_25ebacd20eb09ca7\", \"start_line\": 400, \"end_line\": 248, \"text\": \"\", \"external_id\": \"dsid_184be937d34a412ab5e61366d54d8ed6\", \"folder_path\": \"/topic_count/r02_regional-failover-data-residency-and-compliance/source_google-drive/type_draft-specification\", \"source_path\": \"google_drive/shared_drives/policy-engine-failover-extensions-draft.json\"}}"
+      },
+      {
+        "command": "cat file_25ebacd20eb09ca7 --all",
+        "ok": true,
+        "seconds": 0.002,
+        "output_chars": 13194,
+        "preview": "{\"ok\": true, \"data\": {\"reference_id\": \"file_25ebacd20eb09ca7\", \"file_ref\": \"file_25ebacd20eb09ca7\", \"start_line\": 1, \"end_line\": 248, \"text\": \"Draft Spec: Policy Engine Extensions for Regional Failover Automation\\n\\nContext / why this exists\\n- We’re upgrading regional failover automation as part of Reliability Program (Q1–Q2 2026). Today, routing policy evaluation has a few gaps:\\n  - Non-deterministic behavior in edge cases (e.g., multiple signals firing, partial signal availability, time-wind"
+      }
+    ],
+    "raw_output": "{\"answer\":\"The proposed priority order for evaluating different failure signals in the draft specification about extending a routing policy engine for automated regional failover is as follows:\\n1) Reachability DOWN (authoritative) => FAILOVER (unless no healthy fallback)\\n2) Errors (5xx) fast burn (high severity) => FAILOVER or PARTIAL_SHIFT depending on blast radius and capacity\\n3) Tail latency burn (p99/p95) => PARTIAL_SHIFT first; escalate to FAILOVER if corroborated and sustained\\n4) Capacity exhaustion / hard gate => HOLD + load shed (controller action), avoid shifting into constrained region\\n5) Control plane degradation => HOLD (do not flip rapidly; prevent oscillation)\",\"document_ids\":[\"dsid_184be937d34a412ab5e61366d54d8ed6\"]}"
+  },
+  {
+    "question_id": "qst_0007",
+    "question": "In a rolling investigation of a model regression on policy-related prompts after a recent deploy, what was the average triage rubric score change between the older baseline build and the newer optimized build in the first comparison run?",
+    "source_types": [
+      "google_drive"
+    ],
+    "expected_doc_ids": [
+      "dsid_72ec4a9962ba43e88acd61abbba1052d"
+    ],
+    "document_ids": [
+      "dsid_72ec4a9962ba43e88acd61abbba1052d"
+    ],
+    "doc_hit": true,
+    "answer": "The average triage rubric score change between the older baseline build (v2026-02-16-quant) and the newer optimized build (v2026-03-01-opt) in the first comparison run was a drop from 2.7 to 1.9, indicating a decrease of 0.8 in the average score for policy-related prompts.",
+    "error": null,
+    "seconds": 18.421,
+    "tool_calls": 3,
+    "tool_log": [
+      {
+        "command": "tree /topic_count",
+        "ok": true,
+        "seconds": 0.0033,
+        "output_chars": 57381,
+        "preview": "{\"ok\": true, \"data\": {\"folders\": [{\"folder_id\": \"folder_b435d04aba676d10\", \"id\": \"folder_b435d04aba676d10\", \"parent_id\": \"folder_962776cf78d383fa\", \"parent_folder_id\": \"folder_962776cf78d383fa\", \"name\": \"r01_api-streaming-and-multipart-handling-enhancements\", \"description\": \"\", \"path\": \"/topic_count/r01_api-streaming-and-multipart-handling-enhancements\", \"kind\": \"physical\", \"source\": \"source\", \"sort_order\": 0, \"created_at\": \"2026-05-14 16:29:19\", \"updated_at\": \"2026-05-14 16:29:19\", \"file_count\""
+      },
+      {
+        "command": "ls /topic_count/r03_bias-analysis-and-model-behavior-investigation/source_google-drive/type_doc",
+        "ok": true,
+        "seconds": 0.0012,
+        "output_chars": 4323,
+        "preview": "{\"ok\": true, \"data\": {\"folders\": [], \"files\": [{\"file_ref\": \"file_392c82ed4bd5d699\", \"id\": \"dsid_72ec4a9962ba43e88acd61abbba1052d\", \"document_id\": \"dsid_72ec4a9962ba43e88acd61abbba1052d\", \"external_id\": \"dsid_72ec4a9962ba43e88acd61abbba1052d\", \"name\": \"rolling-bias-bisection-log-jared\", \"title\": \"rolling-bias-bisection-log-jared\", \"description\": \"rolling-bias-bisection-log-jared (google_drive)\", \"status\": \"not_built\", \"pageNum\": null, \"createdAt\": \"2026-05-14 16:29:19\", \"folderId\": \"folder_6e6d0"
+      },
+      {
+        "command": "cat dsid_72ec4a9962ba43e88acd61abbba1052d --all",
+        "ok": true,
+        "seconds": 0.0028,
+        "output_chars": 7283,
+        "preview": "{\"ok\": true, \"data\": {\"reference_id\": \"dsid_72ec4a9962ba43e88acd61abbba1052d\", \"file_ref\": \"file_392c82ed4bd5d699\", \"start_line\": 1, \"end_line\": 84, \"text\": \"rolling-bias-bisection-log-jared\\n\\nPurpose: quick rolling log for a bias/regression bisection I ran across nightly samples. Personal scratchpad so expect fragments, TODOs, timestamped steps.\\n\\nSummary / TL;DR:\\n- Noticed subtle political-leaning amplification on query set A (user-generated prompts about policy).\\n- Change surface: v2026-0"
+      }
+    ],
+    "raw_output": "{\"answer\":\"The average triage rubric score change between the older baseline build (v2026-02-16-quant) and the newer optimized build (v2026-03-01-opt) in the first comparison run was a drop from 2.7 to 1.9, indicating a decrease of 0.8 in the average score for policy-related prompts.\",\"document_ids\":[\"dsid_72ec4a9962ba43e88acd61abbba1052d\"]}"
+  },
+  {
+    "question_id": "qst_0008",
+    "question": "In the internal shiproom runner notes, what is the target time-to-recover threshold for a verified rollback in staging?",
+    "source_types": [
+      "google_drive"
+    ],
+    "expected_doc_ids": [
+      "dsid_5fc2dba9f6ac4af2b49b4f546a4298d0"
+    ],
+    "document_ids": [
+      "dsid_5fc2dba9f6ac4af2b49b4f546a4298d0"
+    ],
+    "doc_hit": true,
+    "answer": "The target time-to-recover threshold for a verified rollback in staging, as mentioned in the internal shiproom runner notes, is less than 10 minutes (time-to-recover < 10m).",
+    "error": null,
+    "seconds": 7.442,
+    "tool_calls": 3,
+    "tool_log": [
+      {
+        "command": "ls -R /topic_count",
+        "ok": true,
+        "seconds": 0.0012,
+        "output_chars": 57381,
+        "preview": "{\"ok\": true, \"data\": {\"folders\": [{\"folder_id\": \"folder_b435d04aba676d10\", \"id\": \"folder_b435d04aba676d10\", \"parent_id\": \"folder_962776cf78d383fa\", \"parent_folder_id\": \"folder_962776cf78d383fa\", \"name\": \"r01_api-streaming-and-multipart-handling-enhancements\", \"description\": \"\", \"path\": \"/topic_count/r01_api-streaming-and-multipart-handling-enhancements\", \"kind\": \"physical\", \"source\": \"source\", \"sort_order\": 0, \"created_at\": \"2026-05-14 16:29:19\", \"updated_at\": \"2026-05-14 16:29:19\", \"file_count\""
+      },
+      {
+        "command": "grep -R 'time-to-recover threshold' /topic_count/r08_release-engineering-and-shiproom-operations/source_google-drive/type_doc",
+        "ok": true,
+        "seconds": 0.0008,
+        "output_chars": 4919,
+        "preview": "{\"ok\": true, \"data\": [{\"reference_id\": \"ref_6\", \"file_ref\": \"file_f54a0350712b2d14\", \"external_id\": \"dsid_5fc2dba9f6ac4af2b49b4f546a4298d0\", \"title\": \"Shiproom runner: personal prep log and sticky notes\", \"snippet\": \"...image rollback verified in staging (time-to-recover < 10m). Owner: me (Aisha) — pre-check: rehearse command...\", \"folder_path\": \"/topic_count/r08_release-engineering-and-shiproom-operations/source_google-drive/type_doc\", \"metadata\": {\"dataset_doc_uuid\": \"dsid_5fc2dba9f6ac4af2b49b"
+      },
+      {
+        "command": "cat /topic_count/r08_release-engineering-and-shiproom-operations/source_google-drive/type_doc/google_drive/users/shiproom-runner-personal-prep-log.json --all",
+        "ok": true,
+        "seconds": 0.0009,
+        "output_chars": 6514,
+        "preview": "{\"ok\": true, \"data\": {\"reference_id\": \"/topic_count/r08_release-engineering-and-shiproom-operations/source_google-drive/type_doc/google_drive/users/shiproom-runner-personal-prep-log.json\", \"file_ref\": \"file_f54a0350712b2d14\", \"start_line\": 1, \"end_line\": 87, \"text\": \"Shiproom runner: personal prep log and sticky notes\\n\\nPurpose: quick, scannable personal notes for running the shiproom and weekly readiness sync. Organized as prep items, live-run cues, and follow-up actions. Not a polished playbo"
+      }
+    ],
+    "raw_output": "{\"answer\":\"The target time-to-recover threshold for a verified rollback in staging, as mentioned in the internal shiproom runner notes, is less than 10 minutes (time-to-recover < 10m).\",\"document_ids\":[\"dsid_5fc2dba9f6ac4af2b49b4f546a4298d0\"]}"
+  },
+  {
+    "question_id": "qst_0009",
+    "question": "In the EdgePath evaluation email thread, what alternative Year 1 pricing package did Redwood propose instead of matching the competitor's 50 percent first-year discount and migration credit?",
+    "source_types": [
+      "gmail"
+    ],
+    "expected_doc_ids": [
+      "dsid_85deb10a652742baaf28af6149600001"
+    ],
+    "document_ids": [
+      "dsid_85deb10a652742baaf28af6149600001"
+    ],
+    "doc_hit": true,
+    "answer": "In the EdgePath evaluation email thread, Redwood proposed an alternative Year 1 pricing package instead of matching the competitor's 50 percent first-year discount and $60k migration credit. Redwood's alternative included approximately 40 percent off list on committed prepay buckets (applying to token spend covered by the bucket), a $50,000 one-time onboarding credit tied to migration milestones applied as an invoice credit, a seat/license option to add predictable monthly fees and cap variable spend, and a 99.9% latency SLO for hosted instances in the US region. This proposal aimed to reduce Year 1 cash outlay comparably to a 50 percent headline discount for the token spend covered, preserve sustainable unit economics for Redwood, and provide a meaningful migration credit plus an operational SLA to support reliability.",
+    "error": null,
+    "seconds": 12.725,
+    "tool_calls": 3,
+    "tool_log": [
+      {
+        "command": "tree /topic_count",
+        "ok": true,
+        "seconds": 0.003,
+        "output_chars": 57381,
+        "preview": "{\"ok\": true, \"data\": {\"folders\": [{\"folder_id\": \"folder_b435d04aba676d10\", \"id\": \"folder_b435d04aba676d10\", \"parent_id\": \"folder_962776cf78d383fa\", \"parent_folder_id\": \"folder_962776cf78d383fa\", \"name\": \"r01_api-streaming-and-multipart-handling-enhancements\", \"description\": \"\", \"path\": \"/topic_count/r01_api-streaming-and-multipart-handling-enhancements\", \"kind\": \"physical\", \"source\": \"source\", \"sort_order\": 0, \"created_at\": \"2026-05-14 16:29:19\", \"updated_at\": \"2026-05-14 16:29:19\", \"file_count\""
+      },
+      {
+        "command": "grep -R 'EdgePath' /topic_count/r05_commercial-negotiations-and-licensing-strategies/source_gmail/type_email-thread",
+        "ok": true,
+        "seconds": 0.0031,
+        "output_chars": 4062,
+        "preview": "{\"ok\": true, \"data\": [{\"reference_id\": \"ref_7\", \"file_ref\": \"file_b277735b50990fa0\", \"external_id\": \"dsid_85deb10a652742baaf28af6149600001\", \"title\": \"Licensing offsets & packaging for potential migration\", \"snippet\": \"...EdgePath_usage_Q2_2025.csv (summary)\\n\\n—Sarah\\nSarah Lin\\nHead of ML Platform, EdgePath\\n\\n---\\n\\nFrom: Avery...\", \"folder_path\": \"/topic_count/r05_commercial-negotiations-and-licensing-strategies/source_gmail/type_email-thread\", \"metadata\": {\"dataset_doc_uuid\": \"dsid_85deb10a"
+      },
+      {
+        "command": "cat /topic_count/r05_commercial-negotiations-and-licensing-strategies/source_gmail/type_email-thread/gmail/avery_johnson/20250803-license-offsets-and-migration-incentive.json --all",
+        "ok": true,
+        "seconds": 0.0012,
+        "output_chars": 8953,
+        "preview": "{\"ok\": true, \"data\": {\"reference_id\": \"/topic_count/r05_commercial-negotiations-and-licensing-strategies/source_gmail/type_email-thread/gmail/avery_johnson/20250803-license-offsets-and-migration-incentive.json\", \"file_ref\": \"file_b277735b50990fa0\", \"start_line\": 1, \"end_line\": 138, \"text\": \"Licensing offsets & packaging for potential migration\\n\\nFrom: Sarah Lin <sarah.lin@edgepath.ai>\\nTo: Avery Johnson <avery.johnson@redwood.com>\\nDate: Sun, 3 Aug 2025 09:12:00 -0700\\nSubject: Licensing/packag"
+      }
+    ],
+    "raw_output": "{\"answer\":\"In the EdgePath evaluation email thread, Redwood proposed an alternative Year 1 pricing package instead of matching the competitor's 50 percent first-year discount and $60k migration credit. Redwood's alternative included approximately 40 percent off list on committed prepay buckets (applying to token spend covered by the bucket), a $50,000 one-time onboarding credit tied to migration milestones applied as an invoice credit, a seat/license option to add predictable monthly fees and cap variable spend, and a 99.9% latency SLO for hosted instances in the US region. This proposal aimed to reduce Year 1 cash outlay comparably to a 50 percent headline discount for the token spend covered, preserve sustainable unit economics for Redwood, and provide a meaningful migration credit plus an operational SLA to support reliability.\",\"document_ids\":[\"dsid_85deb10a652742baaf28af6149600001\"]}"
+  },
+  {
+    "question_id": "qst_0010",
+    "question": "How does the new alerting approach group model-serving requests by the stages they pass through to reduce noisy alerts and speed up root cause analysis?",
+    "source_types": [
+      "github"
+    ],
+    "expected_doc_ids": [
+      "dsid_c1a6a71323c04c1ba5445aadea340362"
+    ],
+    "document_ids": [
+      "dsid_c1a6a71323c04c1ba5445aadea340362"
+    ],
+    "doc_hit": true,
+    "answer": "The new alerting approach reduces noisy alerts and speeds up root cause analysis by grouping model-serving requests into deterministic, stage-aware cohorts based on their 'stage footprint', which considers the stages the requests pass through (e.g., token counts per stage, KV-cache hit pattern, decode-batch size). A lightweight token_stage_cohort service computes a deterministic cohort key per invocation and stores short-lived cohort aggregates. An alert route-matrix generator consumes these cohort rollups to emit alert bindings that bias escalation toward the top-k most likely pipeline stages responsible for SLO violations for each route. This creates a route x stage alert matrix that attributes alerts more precisely to relevant stages. Additionally, a new dashboard displays cohort drift, stage heatmaps, and per-cohort cost/latency breakdowns, helping oncall engineers quickly validate root cause hypotheses. The system uses quiet-window attenuation to mitigate alert noise and is rolled out behind a feature flag with low-sensitivity defaults, improving observability and alert relevance while accelerating incident diagnosis.",
+    "error": null,
+    "seconds": 10.446,
+    "tool_calls": 3,
+    "tool_log": [
+      {
+        "command": "tree /topic_count",
+        "ok": true,
+        "seconds": 0.001,
+        "output_chars": 57381,
+        "preview": "{\"ok\": true, \"data\": {\"folders\": [{\"folder_id\": \"folder_b435d04aba676d10\", \"id\": \"folder_b435d04aba676d10\", \"parent_id\": \"folder_962776cf78d383fa\", \"parent_folder_id\": \"folder_962776cf78d383fa\", \"name\": \"r01_api-streaming-and-multipart-handling-enhancements\", \"description\": \"\", \"path\": \"/topic_count/r01_api-streaming-and-multipart-handling-enhancements\", \"kind\": \"physical\", \"source\": \"source\", \"sort_order\": 0, \"created_at\": \"2026-05-14 16:29:19\", \"updated_at\": \"2026-05-14 16:29:19\", \"file_count\""
+      },
+      {
+        "command": "grep -R 'stage cohorting' /topic_count/r07_observability-alerting-and-slo-attribution/source_github/type_github-pull-request",
+        "ok": true,
+        "seconds": 0.0026,
+        "output_chars": 4970,
+        "preview": "{\"ok\": true, \"data\": [{\"reference_id\": \"ref_8\", \"file_ref\": \"file_6fca9ec81c8141a3\", \"external_id\": \"dsid_c1a6a71323c04c1ba5445aadea340362\", \"title\": \"introduce-token-stage-cohorting-and-route-matrix-alerting\", \"snippet\": \"introduce-token-stage-cohorting-and-route-matrix-alerting\\n\\nContext: long-tail token cost and multi-stage...\", \"folder_path\": \"/topic_count/r07_observability-alerting-and-slo-attribution/source_github/type_github-pull-request\", \"metadata\": {\"dataset_doc_uuid\": \"dsid_c1a6a7132"
+      },
+      {
+        "command": "cat /topic_count/r07_observability-alerting-and-slo-attribution/source_github/type_github-pull-request/github/pr-867001-introduce-token-stage-cohorting-and-route-matrix-alerting.json --all",
+        "ok": true,
+        "seconds": 0.0016,
+        "output_chars": 3312,
+        "preview": "{\"ok\": true, \"data\": {\"reference_id\": \"/topic_count/r07_observability-alerting-and-slo-attribution/source_github/type_github-pull-request/github/pr-867001-introduce-token-stage-cohorting-and-route-matrix-alerting.json\", \"file_ref\": \"file_6fca9ec81c8141a3\", \"start_line\": 1, \"end_line\": 6, \"text\": \"introduce-token-stage-cohorting-and-route-matrix-alerting\\n\\nContext: long-tail token cost and multi-stage latency spikes frequently surface only when a request traverses several model-serving stages (t"
+      }
+    ],
+    "raw_output": "{\"answer\":\"The new alerting approach reduces noisy alerts and speeds up root cause analysis by grouping model-serving requests into deterministic, stage-aware cohorts based on their 'stage footprint', which considers the stages the requests pass through (e.g., token counts per stage, KV-cache hit pattern, decode-batch size). A lightweight token_stage_cohort service computes a deterministic cohort key per invocation and stores short-lived cohort aggregates. An alert route-matrix generator consumes these cohort rollups to emit alert bindings that bias escalation toward the top-k most likely pipeline stages responsible for SLO violations for each route. This creates a route x stage alert matrix that attributes alerts more precisely to relevant stages. Additionally, a new dashboard displays cohort drift, stage heatmaps, and per-cohort cost/latency breakdowns, helping oncall engineers quickly validate root cause hypotheses. The system uses quiet-window attenuation to mitigate alert noise and is rolled out behind a feature flag with low-sensitivity defaults, improving observability and alert relevance while accelerating incident diagnosis.\",\"document_ids\":[\"dsid_c1a6a71323c04c1ba5445aadea340362\"]}"
+  }
+]

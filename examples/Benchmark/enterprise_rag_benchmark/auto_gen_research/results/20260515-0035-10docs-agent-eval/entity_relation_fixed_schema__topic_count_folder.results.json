@@ -1,0 +1,478 @@
+[
+  {
+    "question_id": "qst_0001",
+    "question": "What are the default size limits for file uploads and total request size for the new multipart upload support on the OpenAI-compatible API endpoints?",
+    "source_types": [
+      "github"
+    ],
+    "expected_doc_ids": [
+      "dsid_ae068ee4aa9640159427cd941bef0238"
+    ],
+    "document_ids": [
+      "dsid_ae068ee4aa9640159427cd941bef0238"
+    ],
+    "doc_hit": true,
+    "answer": "The default size limits for file uploads and total request size for the new multipart upload support on the OpenAI-compatible API endpoints are as follows:\n- Maximum file size (max_file_size): 10 MiB per file\n- Maximum total request size (max_total_request_size): 50 MiB per request\n- Maximum parts count (max_parts_count): 20 parts per request\nThese limits are conservative defaults and can be overridden at the tenant or route level via API configuration. The multipart feature is behind a feature flag and includes strict content-type validation and error handling.",
+    "error": null,
+    "seconds": 8.721,
+    "tool_calls": 2,
+    "tool_log": [
+      {
+        "command": "ls -R /topic_count",
+        "ok": true,
+        "seconds": 0.0013,
+        "output_chars": 56122,
+        "preview": "{\"ok\": true, \"data\": {\"folders\": [{\"folder_id\": \"folder_b435d04aba676d10\", \"id\": \"folder_b435d04aba676d10\", \"parent_id\": \"folder_962776cf78d383fa\", \"parent_folder_id\": \"folder_962776cf78d383fa\", \"name\": \"r01_api-streaming-and-multipart-handling-enhancements\", \"description\": \"\", \"path\": \"/topic_count/r01_api-streaming-and-multipart-handling-enhancements\", \"kind\": \"physical\", \"source\": \"source\", \"sort_order\": 0, \"created_at\": \"2026-05-14 16:21:25\", \"updated_at\": \"2026-05-14 16:21:25\", \"file_count\""
+      },
+      {
+        "command": "cat /topic_count/r01_api-streaming-and-multipart-handling-enhancements/source_github/type_github-pull-request/github/pr-18421-multipart-file-validation-limits.json --all",
+        "ok": true,
+        "seconds": 0.0025,
+        "output_chars": 5760,
+        "preview": "{\"ok\": true, \"data\": {\"reference_id\": \"/topic_count/r01_api-streaming-and-multipart-handling-enhancements/source_github/type_github-pull-request/github/pr-18421-multipart-file-validation-limits.json\", \"file_ref\": \"file_90f09b89336b14e9\", \"start_line\": 1, \"end_line\": 11, \"text\": \"add multipart/form-data handling, strict content-type validation, and payload limit enforcement for API tool/file inputs\\n\\nMotivation: users integrating tool/function calling and file uploads via the OpenAI-compatibilit"
+      }
+    ],
+    "raw_output": "{\"answer\":\"The default size limits for file uploads and total request size for the new multipart upload support on the OpenAI-compatible API endpoints are as follows:\\n- Maximum file size (max_file_size): 10 MiB per file\\n- Maximum total request size (max_total_request_size): 50 MiB per request\\n- Maximum parts count (max_parts_count): 20 parts per request\\nThese limits are conservative defaults and can be overridden at the tenant or route level via API configuration. The multipart feature is behind a feature flag and includes strict content-type validation and error handling.\",\"document_ids\":[\"dsid_ae068ee4aa9640159427cd941bef0238\"]}"
+  },
+  {
+    "question_id": "qst_0002",
+    "question": "What is the name of the new metric added so SRE can track when server-side streaming sessions get finalized due to hitting the time limit?",
+    "source_types": [
+      "github"
+    ],
+    "expected_doc_ids": [
+      "dsid_9550250a59e74f1bbd5612480b2e7100"
+    ],
+    "document_ids": [
+      "dsid_9550250a59e74f1bbd5612480b2e7100"
+    ],
+    "doc_hit": true,
+    "answer": "The new metric added for SRE to track when server-side streaming sessions get finalized due to hitting the time limit is named 'stream.timebox_finalized'.",
+    "error": null,
+    "seconds": 16.251,
+    "tool_calls": 3,
+    "tool_log": [
+      {
+        "command": "ls -R /topic_count",
+        "ok": true,
+        "seconds": 0.0025,
+        "output_chars": 56122,
+        "preview": "{\"ok\": true, \"data\": {\"folders\": [{\"folder_id\": \"folder_b435d04aba676d10\", \"id\": \"folder_b435d04aba676d10\", \"parent_id\": \"folder_962776cf78d383fa\", \"parent_folder_id\": \"folder_962776cf78d383fa\", \"name\": \"r01_api-streaming-and-multipart-handling-enhancements\", \"description\": \"\", \"path\": \"/topic_count/r01_api-streaming-and-multipart-handling-enhancements\", \"kind\": \"physical\", \"source\": \"source\", \"sort_order\": 0, \"created_at\": \"2026-05-14 16:21:25\", \"updated_at\": \"2026-05-14 16:21:25\", \"file_count\""
+      },
+      {
+        "command": "grep -R 'metric added SRE streaming sessions time limit' /topic_count/r01_api-streaming-and-multipart-handling-enhancements/source_github",
+        "ok": true,
+        "seconds": 0.0032,
+        "output_chars": 4440,
+        "preview": "{\"ok\": true, \"data\": [{\"reference_id\": \"ref_1\", \"file_ref\": \"file_2686f50c82216c0e\", \"external_id\": \"dsid_9550250a59e74f1bbd5612480b2e7100\", \"title\": \"introduce-server-timebox-and-idempotent-cancel-fallbacks-for-streaming-compat\", \"snippet\": \"...production customers observed cases where long lived streaming sessions (tool calls + structured output) were left in...\", \"folder_path\": \"/topic_count/r01_api-streaming-and-multipart-handling-enhancements/source_github/type_pull-request\", \"metadata\": {\""
+      },
+      {
+        "command": "cat /topic_count/r01_api-streaming-and-multipart-handling-enhancements/source_github/type_pull-request/github/pr-129874-timebox-abort-idempotency-resume-openai-compat.json --all",
+        "ok": true,
+        "seconds": 0.0019,
+        "output_chars": 4723,
+        "preview": "{\"ok\": true, \"data\": {\"reference_id\": \"/topic_count/r01_api-streaming-and-multipart-handling-enhancements/source_github/type_pull-request/github/pr-129874-timebox-abort-idempotency-resume-openai-compat.json\", \"file_ref\": \"file_2686f50c82216c0e\", \"start_line\": 1, \"end_line\": 18, \"text\": \"introduce-server-timebox-and-idempotent-cancel-fallbacks-for-streaming-compat\\n\\nContext: production customers observed cases where long lived streaming sessions (tool calls + structured output) were left in inde"
+      }
+    ],
+    "raw_output": "{\"answer\":\"The new metric added for SRE to track when server-side streaming sessions get finalized due to hitting the time limit is named 'stream.timebox_finalized'.\",\"document_ids\":[\"dsid_9550250a59e74f1bbd5612480b2e7100\"]}"
+  },
+  {
+    "question_id": "qst_0003",
+    "question": "What are the acceptance criteria for the project introducing an algorithm to generate interactive UI color states and a Kappa-style elevation scale for dense table and grid components?",
+    "source_types": [
+      "linear"
+    ],
+    "expected_doc_ids": [
+      "dsid_3fd6af404fae48e6b8ea5a57875ef78f"
+    ],
+    "document_ids": [
+      "dsid_3fd6af404fae48e6b8ea5a57875ef78f"
+    ],
+    "doc_hit": true,
+    "answer": "The acceptance criteria for the project introducing an algorithm to generate interactive UI color states and a Kappa-style elevation scale for dense table and grid components are as follows:\n\n1. Token Spec: Produce a stable token spec file (design JSON) that includes the base palette, interactive derivatives (e.g., color.interactive.primary.hover), and elevation.kappa.{0..6} with explicit shadow parameters.\n2. Implementation-Ready: The frontend repository receives a tokens PR implementing variables; DataGrid and Table components consume new tokens behind a feature flag.\n3. Accessibility: Automated contrast checks must pass for all interactive states, meeting a minimum contrast ratio of 3:1 where applicable and 4.5:1 for primary actionable text.\n4. Visual Regression: Add per-component visual snapshots and tolerances; no regressions beyond approved deltas are allowed.\n5. Figma: Update the design kit with tokenized components and provide guidance notes.\n6. Rollout Plan: Canary deployment on internal analytics dashboards, followed by a staged rollout and full migration with a fallback mechanism.\n\nThese criteria ensure the new design tokens maintain accessibility standards, perform well visually, and have a well-managed rollout with fallback options. The implementation uses runtime CSS variables with a compiled fallback and includes a migration plan involving final token finalization, PRs, automated testing, QA/UAT, and telemetry for monitoring.",
+    "error": null,
+    "seconds": 20.753,
+    "tool_calls": 2,
+    "tool_log": [
+      {
+        "command": "ls -R /topic_count",
+        "ok": true,
+        "seconds": 0.002,
+        "output_chars": 56122,
+        "preview": "{\"ok\": true, \"data\": {\"folders\": [{\"folder_id\": \"folder_b435d04aba676d10\", \"id\": \"folder_b435d04aba676d10\", \"parent_id\": \"folder_962776cf78d383fa\", \"parent_folder_id\": \"folder_962776cf78d383fa\", \"name\": \"r01_api-streaming-and-multipart-handling-enhancements\", \"description\": \"\", \"path\": \"/topic_count/r01_api-streaming-and-multipart-handling-enhancements\", \"kind\": \"physical\", \"source\": \"source\", \"sort_order\": 0, \"created_at\": \"2026-05-14 16:21:25\", \"updated_at\": \"2026-05-14 16:21:25\", \"file_count\""
+      },
+      {
+        "command": "cat dsid_3fd6af404fae48e6b8ea5a57875ef78f --all",
+        "ok": true,
+        "seconds": 0.0018,
+        "output_chars": 5292,
+        "preview": "{\"ok\": true, \"data\": {\"reference_id\": \"dsid_3fd6af404fae48e6b8ea5a57875ef78f\", \"file_ref\": \"file_65bc1687e9c9baee\", \"start_line\": 1, \"end_line\": 41, \"text\": \"Develop interactive tone derivatives and Kappa elevation scale for data grids\\n\\nObjective: Create a deterministic system for producing interactive color derivatives (hover/focus/pressed/disabled) from the base semantic palette and introduce a physics-inspired elevation scale (\\\"Kappa\\\") tuned for dense data surfaces such as DataGrid, compa"
+      }
+    ],
+    "raw_output": "{\"answer\":\"The acceptance criteria for the project introducing an algorithm to generate interactive UI color states and a Kappa-style elevation scale for dense table and grid components are as follows:\\n\\n1. Token Spec: Produce a stable token spec file (design JSON) that includes the base palette, interactive derivatives (e.g., color.interactive.primary.hover), and elevation.kappa.{0..6} with explicit shadow parameters.\\n2. Implementation-Ready: The frontend repository receives a tokens PR implementing variables; DataGrid and Table components consume new tokens behind a feature flag.\\n3. Accessibility: Automated contrast checks must pass for all interactive states, meeting a minimum contrast ratio of 3:1 where applicable and 4.5:1 for primary actionable text.\\n4. Visual Regression: Add per-component visual snapshots and tolerances; no regressions beyond approved deltas are allowed.\\n5. Figma: Update the design kit with tokenized components and provide guidance notes.\\n6. Rollout Plan: Canary deployment on internal analytics dashboards, followed by a staged rollout and full migration with a fallback mechanism.\\n\\nThese criteria ensure the new design tokens maintain accessibility standards, perform well visually, and have a well-managed rollout with fallback options. The implementation uses runtime CSS variables with a compiled fallback and includes a migration plan involving final token finalization, PRs, automated testing, QA/UAT, and telemetry for monitoring.\",\"document_ids\":[\"dsid_3fd6af404fae48e6b8ea5a57875ef78f\"]}"
+  },
+  {
+    "question_id": "qst_0004",
+    "question": "In the meeting about onboarding a SaaS product to Google Cloud Marketplace, what did the GCP team recommend for handling delays where a new subscription entitlement is not immediately available during the customer onboarding flow?",
+    "source_types": [
+      "fireflies"
+    ],
+    "expected_doc_ids": [
+      "dsid_6c4c1c875e704f09b4d791d64d7bc7e5"
+    ],
+    "document_ids": [
+      "dsid_6c4c1c875e704f09b4d791d64d7bc7e5"
+    ],
+    "doc_hit": true,
+    "answer": "In the meeting about onboarding a SaaS product to Google Cloud Marketplace, the GCP team recommended handling delays where a new subscription entitlement is not immediately available during the customer onboarding flow by making the UI resilient to entitlement propagation delays. Specifically, they suggested handling “pending” status gracefully by not showing a scary error message like “you are not entitled,” but instead displaying a message such as “we’re still syncing your subscription, retry in a few minutes” with a refresh button. They emphasized providing a retry experience for pending entitlements and showing a timestamp like “last checked at” to reassure the user. This approach avoids dead ends during onboarding and reduces friction, especially for marketplace reviewers.",
+    "error": null,
+    "seconds": 20.527,
+    "tool_calls": 3,
+    "tool_log": [
+      {
+        "command": "tree /topic_count",
+        "ok": true,
+        "seconds": 0.0026,
+        "output_chars": 56122,
+        "preview": "{\"ok\": true, \"data\": {\"folders\": [{\"folder_id\": \"folder_b435d04aba676d10\", \"id\": \"folder_b435d04aba676d10\", \"parent_id\": \"folder_962776cf78d383fa\", \"parent_folder_id\": \"folder_962776cf78d383fa\", \"name\": \"r01_api-streaming-and-multipart-handling-enhancements\", \"description\": \"\", \"path\": \"/topic_count/r01_api-streaming-and-multipart-handling-enhancements\", \"kind\": \"physical\", \"source\": \"source\", \"sort_order\": 0, \"created_at\": \"2026-05-14 16:21:25\", \"updated_at\": \"2026-05-14 16:21:25\", \"file_count\""
+      },
+      {
+        "command": "grep -R 'delay' /topic_count/r04_cloud-marketplace-onboarding-and-billing-integration/source_fireflies/type_meeting-transcript",
+        "ok": true,
+        "seconds": 0.003,
+        "output_chars": 4417,
+        "preview": "{\"ok\": true, \"data\": [{\"reference_id\": \"ref_2\", \"file_ref\": \"file_977186226c96a2ff\", \"external_id\": \"dsid_6c4c1c875e704f09b4d791d64d7bc7e5\", \"title\": \"GCP Marketplace onboarding + billing review (Redwood Inference)\", \"snippet\": \"...It’s not usually super long, but there can be propagation delay. The UX expectation is...\", \"folder_path\": \"/topic_count/r04_cloud-marketplace-onboarding-and-billing-integration/source_fireflies/type_meeting-transcript\", \"metadata\": {\"dataset_doc_uuid\": \"dsid_6c4c1c87"
+      },
+      {
+        "command": "cat file_977186226c96a2ff --all",
+        "ok": true,
+        "seconds": 0.0011,
+        "output_chars": 29369,
+        "preview": "{\"ok\": true, \"data\": {\"reference_id\": \"file_977186226c96a2ff\", \"file_ref\": \"file_977186226c96a2ff\", \"start_line\": 1, \"end_line\": 347, \"text\": \"GCP Marketplace onboarding + billing review (Redwood Inference)\\n\\nRedwood and the GCP Marketplace team reviewed how Redwood’s new marketplace SKUs map to GCP billing dimensions (usage-based token/embedding meters vs subscription/commit dimensions), and what identifiers must be carried end-to-end (consumerId/entitlement) to ensure correct metering. GCP em"
+      }
+    ],
+    "raw_output": "{\"answer\":\"In the meeting about onboarding a SaaS product to Google Cloud Marketplace, the GCP team recommended handling delays where a new subscription entitlement is not immediately available during the customer onboarding flow by making the UI resilient to entitlement propagation delays. Specifically, they suggested handling “pending” status gracefully by not showing a scary error message like “you are not entitled,” but instead displaying a message such as “we’re still syncing your subscription, retry in a few minutes” with a refresh button. They emphasized providing a retry experience for pending entitlements and showing a timestamp like “last checked at” to reassure the user. This approach avoids dead ends during onboarding and reduces friction, especially for marketplace reviewers.\",\"document_ids\":[\"dsid_6c4c1c875e704f09b4d791d64d7bc7e5\"]}"
+  },
+  {
+    "question_id": "qst_0005",
+    "question": "What failover sequence and recovery targets did MedThink specify for handling an EU region outage, including any limits on how long traffic can shift to the US?",
+    "source_types": [
+      "gmail"
+    ],
+    "expected_doc_ids": [
+      "dsid_8e838ab6a98f4cbcb672d41f210ff89c"
+    ],
+    "document_ids": [
+      "dsid_8e838ab6a98f4cbcb672d41f210ff89c"
+    ],
+    "doc_hit": true,
+    "answer": "MedThink specified the following failover sequence and recovery targets for handling an EU region outage:\n\n- Preferred failover hierarchy: EU primary -> EU warm standby -> US emergency failover.\n- Cross-region failover to the US is permitted only during declared emergency windows with a maximum duration of 4 hours and must be pre-approved in the runbook.\n- Target Recovery Point Objective (RPO) is 15 minutes for active datasets.\n- Target Recovery Time Objective (RTO) is 30 minutes for critical APIs.\n\nThis sequence ensures that failover prioritizes staying within the EU region to comply with data residency requirements, with the US failover allowed strictly as an emergency measure for a limited time window (max 4 hours) to handle outages.\n\nDocument reference: dsid_8e838ab6a98f4cbcb672d41f210ff89c",
+    "error": null,
+    "seconds": 29.466,
+    "tool_calls": 3,
+    "tool_log": [
+      {
+        "command": "ls -R /topic_count",
+        "ok": true,
+        "seconds": 0.0026,
+        "output_chars": 56122,
+        "preview": "{\"ok\": true, \"data\": {\"folders\": [{\"folder_id\": \"folder_b435d04aba676d10\", \"id\": \"folder_b435d04aba676d10\", \"parent_id\": \"folder_962776cf78d383fa\", \"parent_folder_id\": \"folder_962776cf78d383fa\", \"name\": \"r01_api-streaming-and-multipart-handling-enhancements\", \"description\": \"\", \"path\": \"/topic_count/r01_api-streaming-and-multipart-handling-enhancements\", \"kind\": \"physical\", \"source\": \"source\", \"sort_order\": 0, \"created_at\": \"2026-05-14 16:21:25\", \"updated_at\": \"2026-05-14 16:21:25\", \"file_count\""
+      },
+      {
+        "command": "grep -R 'failover EU region' /topic_count/r02_regional-failover-data-residency-and-compliance/source_gmail/type_email-thread",
+        "ok": true,
+        "seconds": 0.0028,
+        "output_chars": 3980,
+        "preview": "{\"ok\": true, \"data\": [{\"reference_id\": \"ref_3\", \"file_ref\": \"file_f4e750618ee48513\", \"external_id\": \"dsid_8e838ab6a98f4cbcb672d41f210ff89c\", \"title\": \"Regional fallback priorities & logs — post-call inventory\", \"snippet\": \"...2) Failover order and cross-region replication:\\n- Preferred failover hierarchy: EU primary -> EU warm standby -> US...\", \"folder_path\": \"/topic_count/r02_regional-failover-data-residency-and-compliance/source_gmail/type_email-thread\", \"metadata\": {\"dataset_doc_uuid\": \"dsid"
+      },
+      {
+        "command": "cat dsid_8e838ab6a98f4cbcb672d41f210ff89c --all",
+        "ok": true,
+        "seconds": 0.0027,
+        "output_chars": 10253,
+        "preview": "{\"ok\": true, \"data\": {\"reference_id\": \"dsid_8e838ab6a98f4cbcb672d41f210ff89c\", \"file_ref\": \"file_f4e750618ee48513\", \"start_line\": 1, \"end_line\": 125, \"text\": \"Regional fallback priorities & logs — post-call inventory\\n\\nFrom: Rafael Mendes <rafael.mendes@redwoodinference.com>\\nTo: Elena Ruiz <elena.ruiz@medthink.health>\\nCc: Monica Patel <monica.patel@redwoodinference.com>, Stephanie Nguyen <stephanie.nguyen@redwoodinference.com>\\nDate: Fri, 3 May 2028 15:22:00 -0700\\nSubject: Regional fallback "
+      }
+    ],
+    "raw_output": "{\"answer\":\"MedThink specified the following failover sequence and recovery targets for handling an EU region outage:\\n\\n- Preferred failover hierarchy: EU primary -> EU warm standby -> US emergency failover.\\n- Cross-region failover to the US is permitted only during declared emergency windows with a maximum duration of 4 hours and must be pre-approved in the runbook.\\n- Target Recovery Point Objective (RPO) is 15 minutes for active datasets.\\n- Target Recovery Time Objective (RTO) is 30 minutes for critical APIs.\\n\\nThis sequence ensures that failover prioritizes staying within the EU region to comply with data residency requirements, with the US failover allowed strictly as an emergency measure for a limited time window (max 4 hours) to handle outages.\\n\\nDocument reference: dsid_8e838ab6a98f4cbcb672d41f210ff89c\",\"document_ids\":[\"dsid_8e838ab6a98f4cbcb672d41f210ff89c\"]}"
+  },
+  {
+    "question_id": "qst_0006",
+    "question": "In the draft spec about extending a routing policy engine for automated regional failover, what is the proposed priority order for evaluating different failure signals when deciding whether to shift traffic or fail over?",
+    "source_types": [
+      "google_drive"
+    ],
+    "expected_doc_ids": [
+      "dsid_184be937d34a412ab5e61366d54d8ed6"
+    ],
+    "document_ids": [
+      "dsid_184be937d34a412ab5e61366d54d8ed6"
+    ],
+    "doc_hit": true,
+    "answer": "The proposed priority order for evaluating different failure signals when deciding whether to shift traffic or fail over in the draft spec for extending a routing policy engine for automated regional failover is as follows:\n\n1) Reachability DOWN (authoritative) => FAILOVER (unless no healthy fallback)\n2) Errors (5xx) fast burn (high severity) => FAILOVER or PARTIAL_SHIFT depending on blast radius and capacity\n3) Tail latency burn (p99/p95) => PARTIAL_SHIFT first; escalate to FAILOVER if corroborated and sustained\n4) Capacity exhaustion / hard gate => HOLD + load shed (controller action), avoid shifting into constrained region\n5) Control plane degradation => HOLD (do not flip rapidly; prevent oscillation)\n\nAdditional notes clarify that \"No healthy fallback\" means every eligible fallback region fails capacity_hard_gate OR reachability is down OR stale beyond threshold, and if no healthy fallback exists, the decision should be HOLD with a hint allowing degrade (controller can activate load shedding / retry-after).",
+    "error": null,
+    "seconds": 42.831,
+    "tool_calls": 13,
+    "tool_log": [
+      {
+        "command": "ls /topic_count",
+        "ok": true,
+        "seconds": 0.0014,
+        "output_chars": 3932,
+        "preview": "{\"ok\": true, \"data\": {\"folders\": [{\"folder_id\": \"folder_b435d04aba676d10\", \"id\": \"folder_b435d04aba676d10\", \"parent_id\": \"folder_962776cf78d383fa\", \"parent_folder_id\": \"folder_962776cf78d383fa\", \"name\": \"r01_api-streaming-and-multipart-handling-enhancements\", \"description\": \"\", \"path\": \"/topic_count/r01_api-streaming-and-multipart-handling-enhancements\", \"kind\": \"physical\", \"source\": \"source\", \"sort_order\": 0, \"created_at\": \"2026-05-14 16:21:25\", \"updated_at\": \"2026-05-14 16:21:25\", \"file_count\""
+      },
+      {
+        "command": "ls /topic_count/r02_regional-failover-data-residency-and-compliance",
+        "ok": true,
+        "seconds": 0.0011,
+        "output_chars": 988,
+        "preview": "{\"ok\": true, \"data\": {\"folders\": [{\"folder_id\": \"folder_d0c44a0f48f09ba5\", \"id\": \"folder_d0c44a0f48f09ba5\", \"parent_id\": \"folder_c8d284273641009d\", \"parent_folder_id\": \"folder_c8d284273641009d\", \"name\": \"source_gmail\", \"description\": \"\", \"path\": \"/topic_count/r02_regional-failover-data-residency-and-compliance/source_gmail\", \"kind\": \"physical\", \"source\": \"source\", \"sort_order\": 0, \"created_at\": \"2026-05-14 16:21:25\", \"updated_at\": \"2026-05-14 16:21:25\", \"file_count\": 0, \"children_count\": 1}, {\"f"
+      },
+      {
+        "command": "ls /topic_count/r02_regional-failover-data-residency-and-compliance/source_google-drive",
+        "ok": true,
+        "seconds": 0.0013,
+        "output_chars": 555,
+        "preview": "{\"ok\": true, \"data\": {\"folders\": [{\"folder_id\": \"folder_ddd315fd8bbf843d\", \"id\": \"folder_ddd315fd8bbf843d\", \"parent_id\": \"folder_ff2284818b7192a5\", \"parent_folder_id\": \"folder_ff2284818b7192a5\", \"name\": \"type_draft-specification\", \"description\": \"\", \"path\": \"/topic_count/r02_regional-failover-data-residency-and-compliance/source_google-drive/type_draft-specification\", \"kind\": \"physical\", \"source\": \"source\", \"sort_order\": 0, \"created_at\": \"2026-05-14 16:21:25\", \"updated_at\": \"2026-05-14 16:21:25\""
+      },
+      {
+        "command": "ls /topic_count/r02_regional-failover-data-residency-and-compliance/source_google-drive/type_draft-specification",
+        "ok": true,
+        "seconds": 0.0015,
+        "output_chars": 4831,
+        "preview": "{\"ok\": true, \"data\": {\"folders\": [], \"files\": [{\"file_ref\": \"file_25ebacd20eb09ca7\", \"id\": \"dsid_184be937d34a412ab5e61366d54d8ed6\", \"document_id\": \"dsid_184be937d34a412ab5e61366d54d8ed6\", \"external_id\": \"dsid_184be937d34a412ab5e61366d54d8ed6\", \"name\": \"Draft Spec: Policy Engine Extensions for Regional Failover Automation\", \"title\": \"Draft Spec: Policy Engine Extensions for Regional Failover Automation\", \"description\": \"Draft Spec: Policy Engine Extensions for Regional Failover Automation (google"
+      },
+      {
+        "command": "grep -R 'priority order' /topic_count/r02_regional-failover-data-residency-and-compliance/source_google-drive/type_draft-specification",
+        "ok": true,
+        "seconds": 0.0022,
+        "output_chars": 4964,
+        "preview": "{\"ok\": true, \"data\": [{\"reference_id\": \"ref_4\", \"file_ref\": \"file_25ebacd20eb09ca7\", \"external_id\": \"dsid_184be937d34a412ab5e61366d54d8ed6\", \"title\": \"Draft Spec: Policy Engine Extensions for Regional Failover Automation\", \"snippet\": \"...C) Signal hierarchy evaluation (ADR-042)\\nPriority order (proposed canonical order for v1):\\n1) Reachability DOWN...\", \"folder_path\": \"/topic_count/r02_regional-failover-data-residency-and-compliance/source_google-drive/type_draft-specification\", \"metadata\": {\"d"
+      },
+      {
+        "command": "cat /topic_count/r02_regional-failover-data-residency-and-compliance/source_google-drive/type_draft-specification --list",
+        "ok": false,
+        "seconds": 0.0001,
+        "output_chars": 37,
+        "preview": "ERROR: Unsupported cat option: --list"
+      },
+      {
+        "command": "ls -l /topic_count/r02_regional-failover-data-residency-and-compliance/source_google-drive/type_draft-specification",
+        "ok": false,
+        "seconds": 0.0,
+        "output_chars": 32,
+        "preview": "ERROR: Unsupported ls option: -l"
+      },
+      {
+        "command": "cat /topic_count/r02_regional-failover-data-residency-and-compliance/source_google-drive/type_draft-specification/Draft\\ Spec:\\ Policy\\ Engine\\ Extensions\\ for\\ Regional\\ Failover\\ Automation --range 440-580",
+        "ok": true,
+        "seconds": 0.0027,
+        "output_chars": 580,
+        "preview": "{\"ok\": true, \"data\": {\"reference_id\": \"/topic_count/r02_regional-failover-data-residency-and-compliance/source_google-drive/type_draft-specification/Draft Spec: Policy Engine Extensions for Regional Failover Automation\", \"file_ref\": \"file_25ebacd20eb09ca7\", \"start_line\": 440, \"end_line\": 248, \"text\": \"\", \"external_id\": \"dsid_184be937d34a412ab5e61366d54d8ed6\", \"folder_path\": \"/topic_count/r02_regional-failover-data-residency-and-compliance/source_google-drive/type_draft-specification\", \"source_pa"
+      },
+      {
+        "command": "cat /topic_count/r02_regional-failover-data-residency-and-compliance/source_google-drive/type_draft-specification/Draft\\ Spec:\\ Policy\\ Engine\\ Extensions\\ for\\ Regional\\ Failover\\ Automation --range 430-480",
+        "ok": true,
+        "seconds": 0.0022,
+        "output_chars": 580,
+        "preview": "{\"ok\": true, \"data\": {\"reference_id\": \"/topic_count/r02_regional-failover-data-residency-and-compliance/source_google-drive/type_draft-specification/Draft Spec: Policy Engine Extensions for Regional Failover Automation\", \"file_ref\": \"file_25ebacd20eb09ca7\", \"start_line\": 430, \"end_line\": 248, \"text\": \"\", \"external_id\": \"dsid_184be937d34a412ab5e61366d54d8ed6\", \"folder_path\": \"/topic_count/r02_regional-failover-data-residency-and-compliance/source_google-drive/type_draft-specification\", \"source_pa"
+      },
+      {
+        "command": "cat /topic_count/r02_regional-failover-data-residency-and-compliance/source_google-drive/type_draft-specification/Draft\\ Spec:\\ Policy\\ Engine\\ Extensions\\ for\\ Regional\\ Failover\\ Automation --range 300-400",
+        "ok": true,
+        "seconds": 0.0025,
+        "output_chars": 580,
+        "preview": "{\"ok\": true, \"data\": {\"reference_id\": \"/topic_count/r02_regional-failover-data-residency-and-compliance/source_google-drive/type_draft-specification/Draft Spec: Policy Engine Extensions for Regional Failover Automation\", \"file_ref\": \"file_25ebacd20eb09ca7\", \"start_line\": 300, \"end_line\": 248, \"text\": \"\", \"external_id\": \"dsid_184be937d34a412ab5e61366d54d8ed6\", \"folder_path\": \"/topic_count/r02_regional-failover-data-residency-and-compliance/source_google-drive/type_draft-specification\", \"source_pa"
+      },
+      {
+        "command": "grep -A 10 'Priority order' /topic_count/r02_regional-failover-data-residency-and-compliance/source_google-drive/type_draft-specification/Draft\\ Spec:\\ Policy\\ Engine\\ Extensions\\ for\\ Regional\\ Failover\\ Automation",
+        "ok": false,
+        "seconds": 0.0001,
+        "output_chars": 34,
+        "preview": "ERROR: Unsupported grep option: -A"
+      },
+      {
+        "command": "grep 'Priority order' /topic_count/r02_regional-failover-data-residency-and-compliance/source_google-drive/type_draft-specification/Draft\\ Spec:\\ Policy\\ Engine\\ Extensions\\ for\\ Regional\\ Failover\\ Automation",
+        "ok": true,
+        "seconds": 0.0029,
+        "output_chars": 752,
+        "preview": "{\"ok\": true, \"data\": [{\"reference_id\": \"/topic_count/r02_regional-failover-data-residency-and-compliance/source_google-drive/type_draft-specification/Draft Spec: Policy Engine Extensions for Regional Failover Automation\", \"file_ref\": \"file_25ebacd20eb09ca7\", \"start_line\": 107, \"end_line\": 109, \"text\": \"C) Signal hierarchy evaluation (ADR-042)\\nPriority order (proposed canonical order for v1):\\n1) Reachability DOWN (authoritative) => FAILOVER (unless no healthy fallback)\", \"external_id\": \"dsid_18"
+      },
+      {
+        "command": "cat /topic_count/r02_regional-failover-data-residency-and-compliance/source_google-drive/type_draft-specification/Draft\\ Spec:\\ Policy\\ Engine\\ Extensions\\ for\\ Regional\\ Failover\\ Automation --range 100-130",
+        "ok": true,
+        "seconds": 0.0023,
+        "output_chars": 2147,
+        "preview": "{\"ok\": true, \"data\": {\"reference_id\": \"/topic_count/r02_regional-failover-data-residency-and-compliance/source_google-drive/type_draft-specification/Draft Spec: Policy Engine Extensions for Regional Failover Automation\", \"file_ref\": \"file_25ebacd20eb09ca7\", \"start_line\": 100, \"end_line\": 130, \"text\": \"\\nB) Deterministic evaluation mode (required)\\n- Add an “evaluation_mode” field:\\n  - recommend: compute decision + evidence; do not mark as executable\\n  - enforce: compute decision; include expli"
+      }
+    ],
+    "raw_output": "{\"answer\":\"The proposed priority order for evaluating different failure signals when deciding whether to shift traffic or fail over in the draft spec for extending a routing policy engine for automated regional failover is as follows:\\n\\n1) Reachability DOWN (authoritative) => FAILOVER (unless no healthy fallback)\\n2) Errors (5xx) fast burn (high severity) => FAILOVER or PARTIAL_SHIFT depending on blast radius and capacity\\n3) Tail latency burn (p99/p95) => PARTIAL_SHIFT first; escalate to FAILOVER if corroborated and sustained\\n4) Capacity exhaustion / hard gate => HOLD + load shed (controller action), avoid shifting into constrained region\\n5) Control plane degradation => HOLD (do not flip rapidly; prevent oscillation)\\n\\nAdditional notes clarify that \\\"No healthy fallback\\\" means every eligible fallback region fails capacity_hard_gate OR reachability is down OR stale beyond threshold, and if no healthy fallback exists, the decision should be HOLD with a hint allowing degrade (controller can activate load shedding / retry-after).\",\"document_ids\":[\"dsid_184be937d34a412ab5e61366d54d8ed6\"]}"
+  },
+  {
+    "question_id": "qst_0007",
+    "question": "In a rolling investigation of a model regression on policy-related prompts after a recent deploy, what was the average triage rubric score change between the older baseline build and the newer optimized build in the first comparison run?",
+    "source_types": [
+      "google_drive"
+    ],
+    "expected_doc_ids": [
+      "dsid_72ec4a9962ba43e88acd61abbba1052d"
+    ],
+    "document_ids": [
+      "dsid_72ec4a9962ba43e88acd61abbba1052d"
+    ],
+    "doc_hit": true,
+    "answer": "In the first comparison run of the rolling investigation of the model regression on policy-related prompts after a recent deploy (comparing model versions v2026-02-16-quant baseline and v2026-03-01-opt new optimized build), the average triage rubric score changed from 2.7 for the older baseline build to 1.9 for the newer optimized build, indicating a decrease of 0.8 points in rubric score on the policy prompts. This regression was largely attributed to tokenization normalization changes and kernel scheduling effects.",
+    "error": null,
+    "seconds": 14.429,
+    "tool_calls": 3,
+    "tool_log": [
+      {
+        "command": "tree /topic_count",
+        "ok": true,
+        "seconds": 0.0026,
+        "output_chars": 56122,
+        "preview": "{\"ok\": true, \"data\": {\"folders\": [{\"folder_id\": \"folder_b435d04aba676d10\", \"id\": \"folder_b435d04aba676d10\", \"parent_id\": \"folder_962776cf78d383fa\", \"parent_folder_id\": \"folder_962776cf78d383fa\", \"name\": \"r01_api-streaming-and-multipart-handling-enhancements\", \"description\": \"\", \"path\": \"/topic_count/r01_api-streaming-and-multipart-handling-enhancements\", \"kind\": \"physical\", \"source\": \"source\", \"sort_order\": 0, \"created_at\": \"2026-05-14 16:21:25\", \"updated_at\": \"2026-05-14 16:21:25\", \"file_count\""
+      },
+      {
+        "command": "ls /topic_count/r03_bias-analysis-and-model-behavior-investigation/source_google-drive/type_doc",
+        "ok": true,
+        "seconds": 0.0014,
+        "output_chars": 4365,
+        "preview": "{\"ok\": true, \"data\": {\"folders\": [], \"files\": [{\"file_ref\": \"file_392c82ed4bd5d699\", \"id\": \"dsid_72ec4a9962ba43e88acd61abbba1052d\", \"document_id\": \"dsid_72ec4a9962ba43e88acd61abbba1052d\", \"external_id\": \"dsid_72ec4a9962ba43e88acd61abbba1052d\", \"name\": \"rolling-bias-bisection-log-jared\", \"title\": \"rolling-bias-bisection-log-jared\", \"description\": \"rolling-bias-bisection-log-jared (google_drive)\", \"status\": \"not_built\", \"pageNum\": null, \"createdAt\": \"2026-05-14 16:21:25\", \"folderId\": \"folder_6e6d0"
+      },
+      {
+        "command": "cat /topic_count/r03_bias-analysis-and-model-behavior-investigation/source_google-drive/type_doc/rolling-bias-bisection-log-jared --all",
+        "ok": true,
+        "seconds": 0.0027,
+        "output_chars": 7371,
+        "preview": "{\"ok\": true, \"data\": {\"reference_id\": \"/topic_count/r03_bias-analysis-and-model-behavior-investigation/source_google-drive/type_doc/rolling-bias-bisection-log-jared\", \"file_ref\": \"file_392c82ed4bd5d699\", \"start_line\": 1, \"end_line\": 84, \"text\": \"rolling-bias-bisection-log-jared\\n\\nPurpose: quick rolling log for a bias/regression bisection I ran across nightly samples. Personal scratchpad so expect fragments, TODOs, timestamped steps.\\n\\nSummary / TL;DR:\\n- Noticed subtle political-leaning amplif"
+      }
+    ],
+    "raw_output": "{\"answer\":\"In the first comparison run of the rolling investigation of the model regression on policy-related prompts after a recent deploy (comparing model versions v2026-02-16-quant baseline and v2026-03-01-opt new optimized build), the average triage rubric score changed from 2.7 for the older baseline build to 1.9 for the newer optimized build, indicating a decrease of 0.8 points in rubric score on the policy prompts. This regression was largely attributed to tokenization normalization changes and kernel scheduling effects.\",\"document_ids\":[\"dsid_72ec4a9962ba43e88acd61abbba1052d\"]}"
+  },
+  {
+    "question_id": "qst_0008",
+    "question": "In the internal shiproom runner notes, what is the target time-to-recover threshold for a verified rollback in staging?",
+    "source_types": [
+      "google_drive"
+    ],
+    "expected_doc_ids": [
+      "dsid_5fc2dba9f6ac4af2b49b4f546a4298d0"
+    ],
+    "document_ids": [
+      "dsid_5fc2dba9f6ac4af2b49b4f546a4298d0"
+    ],
+    "doc_hit": true,
+    "answer": "In the internal shiproom runner notes, the target time-to-recover threshold for a verified rollback in staging is less than 10 minutes (< 10m).",
+    "error": null,
+    "seconds": 9.585,
+    "tool_calls": 3,
+    "tool_log": [
+      {
+        "command": "ls -R /topic_count",
+        "ok": true,
+        "seconds": 0.0026,
+        "output_chars": 56122,
+        "preview": "{\"ok\": true, \"data\": {\"folders\": [{\"folder_id\": \"folder_b435d04aba676d10\", \"id\": \"folder_b435d04aba676d10\", \"parent_id\": \"folder_962776cf78d383fa\", \"parent_folder_id\": \"folder_962776cf78d383fa\", \"name\": \"r01_api-streaming-and-multipart-handling-enhancements\", \"description\": \"\", \"path\": \"/topic_count/r01_api-streaming-and-multipart-handling-enhancements\", \"kind\": \"physical\", \"source\": \"source\", \"sort_order\": 0, \"created_at\": \"2026-05-14 16:21:25\", \"updated_at\": \"2026-05-14 16:21:25\", \"file_count\""
+      },
+      {
+        "command": "grep -R 'time-to-recover threshold rollback staging' /topic_count/r08_release-engineering-and-shiproom-operations/source_google-drive/type_doc",
+        "ok": true,
+        "seconds": 0.0029,
+        "output_chars": 4823,
+        "preview": "{\"ok\": true, \"data\": [{\"reference_id\": \"ref_5\", \"file_ref\": \"file_f54a0350712b2d14\", \"external_id\": \"dsid_5fc2dba9f6ac4af2b49b4f546a4298d0\", \"title\": \"Shiproom runner: personal prep log and sticky notes\", \"snippet\": \"...Observability on-call.\\n- Rollback plan: image rollback verified in staging (time-to-recover < 10m). Owner: me...\", \"folder_path\": \"/topic_count/r08_release-engineering-and-shiproom-operations/source_google-drive/type_doc\", \"metadata\": {\"dataset_doc_uuid\": \"dsid_5fc2dba9f6ac4af2b"
+      },
+      {
+        "command": "cat /topic_count/r08_release-engineering-and-shiproom-operations/source_google-drive/type_doc/google_drive/users/shiproom-runner-personal-prep-log.json --all",
+        "ok": true,
+        "seconds": 0.0026,
+        "output_chars": 6514,
+        "preview": "{\"ok\": true, \"data\": {\"reference_id\": \"/topic_count/r08_release-engineering-and-shiproom-operations/source_google-drive/type_doc/google_drive/users/shiproom-runner-personal-prep-log.json\", \"file_ref\": \"file_f54a0350712b2d14\", \"start_line\": 1, \"end_line\": 87, \"text\": \"Shiproom runner: personal prep log and sticky notes\\n\\nPurpose: quick, scannable personal notes for running the shiproom and weekly readiness sync. Organized as prep items, live-run cues, and follow-up actions. Not a polished playbo"
+      }
+    ],
+    "raw_output": "{\"answer\":\"In the internal shiproom runner notes, the target time-to-recover threshold for a verified rollback in staging is less than 10 minutes (< 10m).\",\"document_ids\":[\"dsid_5fc2dba9f6ac4af2b49b4f546a4298d0\"]}"
+  },
+  {
+    "question_id": "qst_0009",
+    "question": "In the EdgePath evaluation email thread, what alternative Year 1 pricing package did Redwood propose instead of matching the competitor's 50 percent first-year discount and migration credit?",
+    "source_types": [
+      "gmail"
+    ],
+    "expected_doc_ids": [
+      "dsid_85deb10a652742baaf28af6149600001"
+    ],
+    "document_ids": [
+      "dsid_85deb10a652742baaf28af6149600001"
+    ],
+    "doc_hit": true,
+    "answer": "Redwood proposed an alternative Year 1 pricing package that includes a 12-month commitment with an effective discount of approximately 40% off list price on committed prepay buckets covering token spend. Additionally, Redwood offered a $50,000 one-time onboarding allowance credit tied to migration milestones, a seat/license option to add predictable monthly fees that cap variable spend and further reduce effective unit cost for covered traffic, and an operational concession of a 99.9% latency SLO for hosted instances in the US region with an included remediation runbook. This alternative aims to materially reduce Year 1 outlay comparable to a 50% headline discount on covered token spend while preserving sustainable unit economics and providing a meaningful migration credit plus operational SLA advantage.",
+    "error": null,
+    "seconds": 14.273,
+    "tool_calls": 3,
+    "tool_log": [
+      {
+        "command": "ls -R /topic_count",
+        "ok": true,
+        "seconds": 0.0023,
+        "output_chars": 56122,
+        "preview": "{\"ok\": true, \"data\": {\"folders\": [{\"folder_id\": \"folder_b435d04aba676d10\", \"id\": \"folder_b435d04aba676d10\", \"parent_id\": \"folder_962776cf78d383fa\", \"parent_folder_id\": \"folder_962776cf78d383fa\", \"name\": \"r01_api-streaming-and-multipart-handling-enhancements\", \"description\": \"\", \"path\": \"/topic_count/r01_api-streaming-and-multipart-handling-enhancements\", \"kind\": \"physical\", \"source\": \"source\", \"sort_order\": 0, \"created_at\": \"2026-05-14 16:21:25\", \"updated_at\": \"2026-05-14 16:21:25\", \"file_count\""
+      },
+      {
+        "command": "grep -R 'EdgePath' /topic_count/r05_commercial-negotiations-and-licensing-strategies/source_gmail/type_email-thread",
+        "ok": true,
+        "seconds": 0.0022,
+        "output_chars": 3960,
+        "preview": "{\"ok\": true, \"data\": [{\"reference_id\": \"ref_6\", \"file_ref\": \"file_b277735b50990fa0\", \"external_id\": \"dsid_85deb10a652742baaf28af6149600001\", \"title\": \"Licensing offsets & packaging for potential migration\", \"snippet\": \"...EdgePath_usage_Q2_2025.csv (summary)\\n\\n—Sarah\\nSarah Lin\\nHead of ML Platform, EdgePath\\n\\n---\\n\\nFrom: Avery...\", \"folder_path\": \"/topic_count/r05_commercial-negotiations-and-licensing-strategies/source_gmail/type_email-thread\", \"metadata\": {\"dataset_doc_uuid\": \"dsid_85deb10a"
+      },
+      {
+        "command": "cat dsid_85deb10a652742baaf28af6149600001 --all",
+        "ok": true,
+        "seconds": 0.0028,
+        "output_chars": 8820,
+        "preview": "{\"ok\": true, \"data\": {\"reference_id\": \"dsid_85deb10a652742baaf28af6149600001\", \"file_ref\": \"file_b277735b50990fa0\", \"start_line\": 1, \"end_line\": 138, \"text\": \"Licensing offsets & packaging for potential migration\\n\\nFrom: Sarah Lin <sarah.lin@edgepath.ai>\\nTo: Avery Johnson <avery.johnson@redwood.com>\\nDate: Sun, 3 Aug 2025 09:12:00 -0700\\nSubject: Licensing/packaging questions ahead of our evaluation\\n\\nHi Avery,\\n\\nThanks again for the demo last week — the latency profile looked promising. We’"
+      }
+    ],
+    "raw_output": "{\"answer\":\"Redwood proposed an alternative Year 1 pricing package that includes a 12-month commitment with an effective discount of approximately 40% off list price on committed prepay buckets covering token spend. Additionally, Redwood offered a $50,000 one-time onboarding allowance credit tied to migration milestones, a seat/license option to add predictable monthly fees that cap variable spend and further reduce effective unit cost for covered traffic, and an operational concession of a 99.9% latency SLO for hosted instances in the US region with an included remediation runbook. This alternative aims to materially reduce Year 1 outlay comparable to a 50% headline discount on covered token spend while preserving sustainable unit economics and providing a meaningful migration credit plus operational SLA advantage.\",\"document_ids\":[\"dsid_85deb10a652742baaf28af6149600001\"]}"
+  },
+  {
+    "question_id": "qst_0010",
+    "question": "How does the new alerting approach group model-serving requests by the stages they pass through to reduce noisy alerts and speed up root cause analysis?",
+    "source_types": [
+      "github"
+    ],
+    "expected_doc_ids": [
+      "dsid_c1a6a71323c04c1ba5445aadea340362"
+    ],
+    "document_ids": [
+      "dsid_c1a6a71323c04c1ba5445aadea340362"
+    ],
+    "doc_hit": true,
+    "answer": "The new alerting approach groups model-serving requests by the stages they pass through (e.g., tokenization, encoder, decode, fallback) by using a token_stage_cohort service that computes a deterministic cohort key per invocation based on stage-level metrics such as token counts per stage, kv-cache hit patterns, and decode-batch size. This grouping allows the system to aggregate requests into stage-aware cohorts. An alert route-matrix generator then consumes these cohort rollups and emits alert bindings that bias alert escalation towards the top stages most likely responsible for the SLO violations. This method reduces noisy alerts by focusing on the stages causing issues and speeds up root cause analysis through a dedicated dashboard that visualizes cohort drift, stage heatmaps, and per-cohort cost/latency breakdowns. The system is rolled out behind a feature flag with low sensitivity and quiet-window attenuation to mitigate alert noise and ensure stability across model version rollouts by namespacing cohort keys with the model-major-version. Testing includes extensive unit, integration, and synthetic replay tests to validate the approach.",
+    "error": null,
+    "seconds": 24.388,
+    "tool_calls": 3,
+    "tool_log": [
+      {
+        "command": "tree /topic_count",
+        "ok": true,
+        "seconds": 0.001,
+        "output_chars": 56122,
+        "preview": "{\"ok\": true, \"data\": {\"folders\": [{\"folder_id\": \"folder_b435d04aba676d10\", \"id\": \"folder_b435d04aba676d10\", \"parent_id\": \"folder_962776cf78d383fa\", \"parent_folder_id\": \"folder_962776cf78d383fa\", \"name\": \"r01_api-streaming-and-multipart-handling-enhancements\", \"description\": \"\", \"path\": \"/topic_count/r01_api-streaming-and-multipart-handling-enhancements\", \"kind\": \"physical\", \"source\": \"source\", \"sort_order\": 0, \"created_at\": \"2026-05-14 16:21:25\", \"updated_at\": \"2026-05-14 16:21:25\", \"file_count\""
+      },
+      {
+        "command": "ls /topic_count/r07_observability-alerting-and-slo-attribution/source_github/type_github-pull-request",
+        "ok": true,
+        "seconds": 0.0011,
+        "output_chars": 4566,
+        "preview": "{\"ok\": true, \"data\": {\"folders\": [], \"files\": [{\"file_ref\": \"file_6fca9ec81c8141a3\", \"id\": \"dsid_c1a6a71323c04c1ba5445aadea340362\", \"document_id\": \"dsid_c1a6a71323c04c1ba5445aadea340362\", \"external_id\": \"dsid_c1a6a71323c04c1ba5445aadea340362\", \"name\": \"introduce-token-stage-cohorting-and-route-matrix-alerting\", \"title\": \"introduce-token-stage-cohorting-and-route-matrix-alerting\", \"description\": \"introduce-token-stage-cohorting-and-route-matrix-alerting (github)\", \"status\": \"not_built\", \"pageNum\""
+      },
+      {
+        "command": "cat file_6fca9ec81c8141a3 --all",
+        "ok": true,
+        "seconds": 0.0014,
+        "output_chars": 3155,
+        "preview": "{\"ok\": true, \"data\": {\"reference_id\": \"file_6fca9ec81c8141a3\", \"file_ref\": \"file_6fca9ec81c8141a3\", \"start_line\": 1, \"end_line\": 6, \"text\": \"introduce-token-stage-cohorting-and-route-matrix-alerting\\n\\nContext: long-tail token cost and multi-stage latency spikes frequently surface only when a request traverses several model-serving stages (tokenization, encoder, decode, fallback). Existing alerts were per-route and per-quantile but lacked a compact way to group requests by 'stage footprint' and "
+      }
+    ],
+    "raw_output": "{\"answer\":\"The new alerting approach groups model-serving requests by the stages they pass through (e.g., tokenization, encoder, decode, fallback) by using a token_stage_cohort service that computes a deterministic cohort key per invocation based on stage-level metrics such as token counts per stage, kv-cache hit patterns, and decode-batch size. This grouping allows the system to aggregate requests into stage-aware cohorts. An alert route-matrix generator then consumes these cohort rollups and emits alert bindings that bias alert escalation towards the top stages most likely responsible for the SLO violations. This method reduces noisy alerts by focusing on the stages causing issues and speeds up root cause analysis through a dedicated dashboard that visualizes cohort drift, stage heatmaps, and per-cohort cost/latency breakdowns. The system is rolled out behind a feature flag with low sensitivity and quiet-window attenuation to mitigate alert noise and ensure stability across model version rollouts by namespacing cohort keys with the model-major-version. Testing includes extensive unit, integration, and synthetic replay tests to validate the approach.\",\"document_ids\":[\"dsid_c1a6a71323c04c1ba5445aadea340362\"]}"
+  }
+]

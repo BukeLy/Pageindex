@@ -1,0 +1,44 @@
+{
+  "topic_count_folder": {
+    "cluster_counts": {
+      "API Streaming and Multipart Handling Enhancements": 2,
+      "Design and Frontend UI Enhancements": 1,
+      "Cloud Marketplace Onboarding and Billing Integration": 1,
+      "Regional Failover, Data Residency, and Compliance": 2,
+      "Bias Analysis and Model Behavior Investigation": 1,
+      "Release Engineering and Shiproom Operations": 1,
+      "Commercial Negotiations and Licensing Strategies": 1,
+      "Observability, Alerting, and SLO Attribution": 1
+    },
+    "ranked_clusters": {
+      "API Streaming and Multipart Handling Enhancements": 1,
+      "Regional Failover, Data Residency, and Compliance": 2,
+      "Bias Analysis and Model Behavior Investigation": 3,
+      "Cloud Marketplace Onboarding and Billing Integration": 4,
+      "Commercial Negotiations and Licensing Strategies": 5,
+      "Design and Frontend UI Enhancements": 6,
+      "Observability, Alerting, and SLO Attribution": 7,
+      "Release Engineering and Shiproom Operations": 8
+    }
+  },
+  "entropy_folder": {
+    "field_entropy": {
+      "topic_cluster": 2.9219,
+      "primary_topic": 3.3219,
+      "source_type": 2.171,
+      "doc_type": 2.9219,
+      "time_period": 2.9219,
+      "product_or_system": 3.1219,
+      "communication_channel": 2.9219
+    },
+    "field_order": [
+      "primary_topic",
+      "product_or_system",
+      "communication_channel",
+      "doc_type",
+      "time_period",
+      "topic_cluster",
+      "source_type"
+    ]
+  }
+}

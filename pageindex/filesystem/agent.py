@@ -4,6 +4,8 @@ import asyncio
 import concurrent.futures
 import json
 import os
+import time
+from typing import Any
 
 from .commands import PIFSCommandError, PIFSCommandExecutor
 from .core import PageIndexFileSystem
@@ -46,6 +48,7 @@ def run_pifs_agent(
     root: str = "/",
     max_turns: int = 20,
     verbose: bool = False,
+    tool_log: list[dict[str, Any]] | None = None,
 ) -> str:
     try:
         from agents import Agent, OpenAIChatCompletionsModel, Runner, function_tool, set_tracing_disabled
@@ -79,10 +82,23 @@ def run_pifs_agent(
     @function_tool
     def bash(command: str) -> str:
         """Run one allowed PageIndex FileSystem shell command."""
+        started = time.time()
+        ok = True
         try:
             output = executor.execute(command)
         except PIFSCommandError as exc:
+            ok = False
             output = f"ERROR: {exc}"
+        if tool_log is not None:
+            tool_log.append(
+                {
+                    "command": command,
+                    "ok": ok,
+                    "seconds": round(time.time() - started, 4),
+                    "output_chars": len(output),
+                    "preview": output[:500],
+                }
+            )
         if verbose:
             print(f"\n[pifs bash] {command}\n{output[:1000]}", flush=True)
         return output

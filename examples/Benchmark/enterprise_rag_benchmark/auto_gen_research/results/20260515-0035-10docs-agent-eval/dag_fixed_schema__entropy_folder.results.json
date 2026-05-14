@@ -1,0 +1,436 @@
+[
+  {
+    "question_id": "qst_0001",
+    "question": "What are the default size limits for file uploads and total request size for the new multipart upload support on the OpenAI-compatible API endpoints?",
+    "source_types": [
+      "github"
+    ],
+    "expected_doc_ids": [
+      "dsid_ae068ee4aa9640159427cd941bef0238"
+    ],
+    "document_ids": [
+      "dsid_ae068ee4aa9640159427cd941bef0238"
+    ],
+    "doc_hit": true,
+    "answer": "The default size limits for the new multipart upload support on the OpenAI-compatible API endpoints are 10 MiB per file and 50 MiB total request size. These limits are configurable at the tenant or route level via API configuration. This feature is behind a feature flag and provides strict content-type validation along with payload size limits per file and per request, ensuring predictable error handling for unsupported or oversized uploads.",
+    "error": null,
+    "seconds": 20.101,
+    "tool_calls": 5,
+    "tool_log": [
+      {
+        "command": "ls -R /entropy",
+        "ok": true,
+        "seconds": 0.002,
+        "output_chars": 74869,
+        "preview": "{\"ok\": true, \"data\": {\"folders\": [{\"folder_id\": \"folder_23ca48b00b4f10e4\", \"id\": \"folder_23ca48b00b4f10e4\", \"parent_id\": \"folder_b0e45472e2d46e4e\", \"parent_folder_id\": \"folder_b0e45472e2d46e4e\", \"name\": \"primary-topic=bias-regression-bisection\", \"description\": \"\", \"path\": \"/entropy/primary-topic=bias-regression-bisection\", \"kind\": \"physical\", \"source\": \"source\", \"sort_order\": 0, \"created_at\": \"2026-05-14 16:31:54\", \"updated_at\": \"2026-05-14 16:31:54\", \"file_count\": 0, \"children_count\": 1}, {\"fol"
+      },
+      {
+        "command": "grep -R 'default size limits' /entropy/primary-topic=multipart-form-data-handling-and-validation/product-or-system=redwood-api-openai-compatibility-endpoints",
+        "ok": true,
+        "seconds": 0.0025,
+        "output_chars": 4592,
+        "preview": "{\"ok\": true, \"data\": [{\"reference_id\": \"ref_1\", \"file_ref\": \"file_90f09b89336b14e9\", \"external_id\": \"dsid_ae068ee4aa9640159427cd941bef0238\", \"title\": \"add multipart/form-data handling, strict content-type validation, and payload limit enforcement for API tool/file inputs\", \"snippet\": \"...size checks); 3) Enforce configurable limits: max_file_size (default 10MiB), max_total_request_size (default...\", \"folder_path\": \"/entropy/primary-topic=multipart-form-data-handling-and-validation/product-or-sys"
+      },
+      {
+        "command": "ls /entropy/primary-topic=multipart-form-data-handling-and-validation/product-or-system=redwood-api-openai-compatibility-endpoints/communication-channel=github-pull-request/doc-type=github-pull-request/time-period=2026-02-to-2026-03",
+        "ok": true,
+        "seconds": 0.0011,
+        "output_chars": 4464,
+        "preview": "{\"ok\": true, \"data\": {\"folders\": [], \"files\": [{\"file_ref\": \"file_90f09b89336b14e9\", \"id\": \"dsid_ae068ee4aa9640159427cd941bef0238\", \"document_id\": \"dsid_ae068ee4aa9640159427cd941bef0238\", \"external_id\": \"dsid_ae068ee4aa9640159427cd941bef0238\", \"name\": \"add multipart/form-data handling, strict content-type validation, and payload limit enforcement for API tool/file inputs\", \"title\": \"add multipart/form-data handling, strict content-type validation, and payload limit enforcement for API tool/file "
+      },
+      {
+        "command": "head -40 /entropy/primary-topic=multipart-form-data-handling-and-validation/product-or-system=redwood-api-openai-compatibility-endpoints/communication-channel=github-pull-request/doc-type=github-pull-request/time-period=2026-02-to-2026-03/file_90f09b89336b14e9",
+        "ok": false,
+        "seconds": 0.0003,
+        "output_chars": 32,
+        "preview": "ERROR: Unsupported command: head"
+      },
+      {
+        "command": "cat file_90f09b89336b14e9 --all",
+        "ok": true,
+        "seconds": 0.0011,
+        "output_chars": 5746,
+        "preview": "{\"ok\": true, \"data\": {\"reference_id\": \"file_90f09b89336b14e9\", \"file_ref\": \"file_90f09b89336b14e9\", \"start_line\": 1, \"end_line\": 11, \"text\": \"add multipart/form-data handling, strict content-type validation, and payload limit enforcement for API tool/file inputs\\n\\nMotivation: users integrating tool/function calling and file uploads via the OpenAI-compatibility endpoints were sending a wide variety of content-types and very large multipart requests which caused inconsistent runtime behavior, hig"
+      }
+    ],
+    "raw_output": "{\"answer\":\"The default size limits for the new multipart upload support on the OpenAI-compatible API endpoints are 10 MiB per file and 50 MiB total request size. These limits are configurable at the tenant or route level via API configuration. This feature is behind a feature flag and provides strict content-type validation along with payload size limits per file and per request, ensuring predictable error handling for unsupported or oversized uploads.\",\"document_ids\":[\"dsid_ae068ee4aa9640159427cd941bef0238\"]}"
+  },
+  {
+    "question_id": "qst_0002",
+    "question": "What is the name of the new metric added so SRE can track when server-side streaming sessions get finalized due to hitting the time limit?",
+    "source_types": [
+      "github"
+    ],
+    "expected_doc_ids": [
+      "dsid_9550250a59e74f1bbd5612480b2e7100"
+    ],
+    "document_ids": [
+      "dsid_9550250a59e74f1bbd5612480b2e7100"
+    ],
+    "doc_hit": true,
+    "answer": "The new metric added so SRE can track when server-side streaming sessions get finalized due to hitting the time limit is called 'stream.timebox_finalized'.",
+    "error": null,
+    "seconds": 12.382,
+    "tool_calls": 3,
+    "tool_log": [
+      {
+        "command": "tree /entropy",
+        "ok": true,
+        "seconds": 0.0012,
+        "output_chars": 74869,
+        "preview": "{\"ok\": true, \"data\": {\"folders\": [{\"folder_id\": \"folder_23ca48b00b4f10e4\", \"id\": \"folder_23ca48b00b4f10e4\", \"parent_id\": \"folder_b0e45472e2d46e4e\", \"parent_folder_id\": \"folder_b0e45472e2d46e4e\", \"name\": \"primary-topic=bias-regression-bisection\", \"description\": \"\", \"path\": \"/entropy/primary-topic=bias-regression-bisection\", \"kind\": \"physical\", \"source\": \"source\", \"sort_order\": 0, \"created_at\": \"2026-05-14 16:31:54\", \"updated_at\": \"2026-05-14 16:31:54\", \"file_count\": 0, \"children_count\": 1}, {\"fol"
+      },
+      {
+        "command": "grep -R 'metric' /entropy/primary-topic=server-side-streaming-timebox-and-idempotent-cancel-fallback",
+        "ok": true,
+        "seconds": 0.0009,
+        "output_chars": 5003,
+        "preview": "{\"ok\": true, \"data\": [{\"reference_id\": \"ref_2\", \"file_ref\": \"file_2686f50c82216c0e\", \"external_id\": \"dsid_9550250a59e74f1bbd5612480b2e7100\", \"title\": \"introduce-server-timebox-and-idempotent-cancel-fallbacks-for-streaming-compat\", \"snippet\": \"...Default is 30s in the flags; added metric 'stream.timebox_finalized' with labels route/model; will...\", \"folder_path\": \"/entropy/primary-topic=server-side-streaming-timebox-and-idempotent-cancel-fallback/product-or-system=redwood-streaming-runtime-and-op"
+      },
+      {
+        "command": "cat file_2686f50c82216c0e --all",
+        "ok": true,
+        "seconds": 0.0026,
+        "output_chars": 4723,
+        "preview": "{\"ok\": true, \"data\": {\"reference_id\": \"file_2686f50c82216c0e\", \"file_ref\": \"file_2686f50c82216c0e\", \"start_line\": 1, \"end_line\": 18, \"text\": \"introduce-server-timebox-and-idempotent-cancel-fallbacks-for-streaming-compat\\n\\nContext: production customers observed cases where long lived streaming sessions (tool calls + structured output) were left in indeterminate states after a client network disconnect or a client-initiated Cancel. Motivation: we need a predictable server-side safety net that bou"
+      }
+    ],
+    "raw_output": "{\"answer\":\"The new metric added so SRE can track when server-side streaming sessions get finalized due to hitting the time limit is called 'stream.timebox_finalized'.\",\"document_ids\":[\"dsid_9550250a59e74f1bbd5612480b2e7100\"]}"
+  },
+  {
+    "question_id": "qst_0003",
+    "question": "What are the acceptance criteria for the project introducing an algorithm to generate interactive UI color states and a Kappa-style elevation scale for dense table and grid components?",
+    "source_types": [
+      "linear"
+    ],
+    "expected_doc_ids": [
+      "dsid_3fd6af404fae48e6b8ea5a57875ef78f"
+    ],
+    "document_ids": [
+      "dsid_3fd6af404fae48e6b8ea5a57875ef78f"
+    ],
+    "doc_hit": true,
+    "answer": "The acceptance criteria for the project introducing an algorithm to generate interactive UI color states and a Kappa-style elevation scale for dense table and grid components are:\n\n1. Token spec: Produce a stable token spec file (design JSON) including the base palette, interactive derivatives (e.g., color.interactive.primary.hover), and elevation.kappa.{0..6} with explicit shadow parameters.\n2. Implementation-ready: Frontend repository receives a tokens PR implementing the variables; DataGrid and Table components consume new tokens behind a feature flag.\n3. Accessibility: Automated contrast checks pass for all interactive states against a 3:1 ratio where applicable and 4.5:1 for primary actionable text.\n4. Visual regression: Add per-component visual snapshots and tolerances; ensure no regressions beyond approved deltas.\n5. Figma: Provide an updated design kit with tokenized components and guidance notes.\n6. Rollout plan: Implement a canary on internal analytics dashboards, followed by staged rollout and a full migration with a fallback.\n\nAdditional context includes using algorithmic derivation to reduce token sprawl with deterministic tuning, prioritizing subtle penumbra in the Kappa elevation scale for dense rows, and implementing runtime CSS variables with compiled fallbacks. The migration plan unfolds through finalizing tokens, feature-flagged token PR, updates to DataGrid/Table, automated tests, QA/UAT, and a two-week canary release.",
+    "error": null,
+    "seconds": 19.739,
+    "tool_calls": 2,
+    "tool_log": [
+      {
+        "command": "ls -R /entropy",
+        "ok": true,
+        "seconds": 0.003,
+        "output_chars": 74869,
+        "preview": "{\"ok\": true, \"data\": {\"folders\": [{\"folder_id\": \"folder_23ca48b00b4f10e4\", \"id\": \"folder_23ca48b00b4f10e4\", \"parent_id\": \"folder_b0e45472e2d46e4e\", \"parent_folder_id\": \"folder_b0e45472e2d46e4e\", \"name\": \"primary-topic=bias-regression-bisection\", \"description\": \"\", \"path\": \"/entropy/primary-topic=bias-regression-bisection\", \"kind\": \"physical\", \"source\": \"source\", \"sort_order\": 0, \"created_at\": \"2026-05-14 16:31:54\", \"updated_at\": \"2026-05-14 16:31:54\", \"file_count\": 0, \"children_count\": 1}, {\"fol"
+      },
+      {
+        "command": "cat dsid_3fd6af404fae48e6b8ea5a57875ef78f --all",
+        "ok": true,
+        "seconds": 0.0031,
+        "output_chars": 5444,
+        "preview": "{\"ok\": true, \"data\": {\"reference_id\": \"dsid_3fd6af404fae48e6b8ea5a57875ef78f\", \"file_ref\": \"file_65bc1687e9c9baee\", \"start_line\": 1, \"end_line\": 41, \"text\": \"Develop interactive tone derivatives and Kappa elevation scale for data grids\\n\\nObjective: Create a deterministic system for producing interactive color derivatives (hover/focus/pressed/disabled) from the base semantic palette and introduce a physics-inspired elevation scale (\\\"Kappa\\\") tuned for dense data surfaces such as DataGrid, compa"
+      }
+    ],
+    "raw_output": "{\"answer\":\"The acceptance criteria for the project introducing an algorithm to generate interactive UI color states and a Kappa-style elevation scale for dense table and grid components are:\\n\\n1. Token spec: Produce a stable token spec file (design JSON) including the base palette, interactive derivatives (e.g., color.interactive.primary.hover), and elevation.kappa.{0..6} with explicit shadow parameters.\\n2. Implementation-ready: Frontend repository receives a tokens PR implementing the variables; DataGrid and Table components consume new tokens behind a feature flag.\\n3. Accessibility: Automated contrast checks pass for all interactive states against a 3:1 ratio where applicable and 4.5:1 for primary actionable text.\\n4. Visual regression: Add per-component visual snapshots and tolerances; ensure no regressions beyond approved deltas.\\n5. Figma: Provide an updated design kit with tokenized components and guidance notes.\\n6. Rollout plan: Implement a canary on internal analytics dashboards, followed by staged rollout and a full migration with a fallback.\\n\\nAdditional context includes using algorithmic derivation to reduce token sprawl with deterministic tuning, prioritizing subtle penumbra in the Kappa elevation scale for dense rows, and implementing runtime CSS variables with compiled fallbacks. The migration plan unfolds through finalizing tokens, feature-flagged token PR, updates to DataGrid/Table, automated tests, QA/UAT, and a two-week canary release.\",\"document_ids\":[\"dsid_3fd6af404fae48e6b8ea5a57875ef78f\"]}"
+  },
+  {
+    "question_id": "qst_0004",
+    "question": "In the meeting about onboarding a SaaS product to Google Cloud Marketplace, what did the GCP team recommend for handling delays where a new subscription entitlement is not immediately available during the customer onboarding flow?",
+    "source_types": [
+      "fireflies"
+    ],
+    "expected_doc_ids": [
+      "dsid_6c4c1c875e704f09b4d791d64d7bc7e5"
+    ],
+    "document_ids": [
+      "dsid_6c4c1c875e704f09b4d791d64d7bc7e5"
+    ],
+    "doc_hit": true,
+    "answer": "In the meeting about onboarding a SaaS product to Google Cloud Marketplace, the GCP team recommended handling delays where a new subscription entitlement is not immediately available during the customer onboarding flow by managing the UX gracefully. Specifically, the UX should avoid showing a scary error like \"you are not entitled.\" Instead, it should display a friendly message such as \"we're still syncing your subscription, retry in a few minutes,\" with possibly a refresh button. They suggested showing a retry experience with a timestamp like \"last checked at\" to reassure the user that the system is actively checking entitlement status. This approach helps prevent friction in the onboarding process and meets marketplace reviewer expectations for providing clear instructions and support.",
+    "error": null,
+    "seconds": 19.764,
+    "tool_calls": 3,
+    "tool_log": [
+      {
+        "command": "ls -R /entropy",
+        "ok": true,
+        "seconds": 0.0016,
+        "output_chars": 74869,
+        "preview": "{\"ok\": true, \"data\": {\"folders\": [{\"folder_id\": \"folder_23ca48b00b4f10e4\", \"id\": \"folder_23ca48b00b4f10e4\", \"parent_id\": \"folder_b0e45472e2d46e4e\", \"parent_folder_id\": \"folder_b0e45472e2d46e4e\", \"name\": \"primary-topic=bias-regression-bisection\", \"description\": \"\", \"path\": \"/entropy/primary-topic=bias-regression-bisection\", \"kind\": \"physical\", \"source\": \"source\", \"sort_order\": 0, \"created_at\": \"2026-05-14 16:31:54\", \"updated_at\": \"2026-05-14 16:31:54\", \"file_count\": 0, \"children_count\": 1}, {\"fol"
+      },
+      {
+        "command": "grep -R 'subscription entitlement delay' /entropy/primary-topic=gcp-marketplace-onboarding-and-billing-integration",
+        "ok": true,
+        "seconds": 0.0025,
+        "output_chars": 4894,
+        "preview": "{\"ok\": true, \"data\": [{\"reference_id\": \"ref_3\", \"file_ref\": \"file_977186226c96a2ff\", \"external_id\": \"dsid_6c4c1c875e704f09b4d791d64d7bc7e5\", \"title\": \"GCP Marketplace onboarding + billing review (Redwood Inference)\", \"snippet\": \"...GCP Marketplace SKU dimensions and Cloud Commerce metering\\nEntitlement + account linking expectations\\nOnboarding UX expectations (subscription...\", \"folder_path\": \"/entropy/primary-topic=gcp-marketplace-onboarding-and-billing-integration/product-or-system=redwood-in"
+      },
+      {
+        "command": "cat file_977186226c96a2ff --all",
+        "ok": true,
+        "seconds": 0.0026,
+        "output_chars": 29506,
+        "preview": "{\"ok\": true, \"data\": {\"reference_id\": \"file_977186226c96a2ff\", \"file_ref\": \"file_977186226c96a2ff\", \"start_line\": 1, \"end_line\": 347, \"text\": \"GCP Marketplace onboarding + billing review (Redwood Inference)\\n\\nRedwood and the GCP Marketplace team reviewed how Redwood’s new marketplace SKUs map to GCP billing dimensions (usage-based token/embedding meters vs subscription/commit dimensions), and what identifiers must be carried end-to-end (consumerId/entitlement) to ensure correct metering. GCP em"
+      }
+    ],
+    "raw_output": "{\"answer\":\"In the meeting about onboarding a SaaS product to Google Cloud Marketplace, the GCP team recommended handling delays where a new subscription entitlement is not immediately available during the customer onboarding flow by managing the UX gracefully. Specifically, the UX should avoid showing a scary error like \\\"you are not entitled.\\\" Instead, it should display a friendly message such as \\\"we're still syncing your subscription, retry in a few minutes,\\\" with possibly a refresh button. They suggested showing a retry experience with a timestamp like \\\"last checked at\\\" to reassure the user that the system is actively checking entitlement status. This approach helps prevent friction in the onboarding process and meets marketplace reviewer expectations for providing clear instructions and support.\",\"document_ids\":[\"dsid_6c4c1c875e704f09b4d791d64d7bc7e5\"]}"
+  },
+  {
+    "question_id": "qst_0005",
+    "question": "What failover sequence and recovery targets did MedThink specify for handling an EU region outage, including any limits on how long traffic can shift to the US?",
+    "source_types": [
+      "gmail"
+    ],
+    "expected_doc_ids": [
+      "dsid_8e838ab6a98f4cbcb672d41f210ff89c"
+    ],
+    "document_ids": [
+      "dsid_8e838ab6a98f4cbcb672d41f210ff89c"
+    ],
+    "doc_hit": true,
+    "answer": "MedThink specified the following failover sequence and recovery targets for handling an EU region outage:\n- Preferred failover order: EU primary -> EU warm standby -> US emergency failover.\n- Cross-region failover to the US is allowed only for declared emergency windows, with a maximum allowed duration of 4 hours, and must be pre-approved in the runbook.\n- Target Recovery Point Objective (RPO) is 15 minutes for active datasets.\n- Target Recovery Time Objective (RTO) is 30 minutes for critical APIs.\n\nThese details limit traffic shifting to the US to emergency scenarios with a strict maximum duration of 4 hours, ensuring that the primary and warm standby in the EU are preferred for failover. This is aligned with their compliance requirement to keep patient clinical records (PHI) in the EU except for emergency situations under tight controls.",
+    "error": null,
+    "seconds": 11.157,
+    "tool_calls": 3,
+    "tool_log": [
+      {
+        "command": "tree /entropy",
+        "ok": true,
+        "seconds": 0.0028,
+        "output_chars": 74869,
+        "preview": "{\"ok\": true, \"data\": {\"folders\": [{\"folder_id\": \"folder_23ca48b00b4f10e4\", \"id\": \"folder_23ca48b00b4f10e4\", \"parent_id\": \"folder_b0e45472e2d46e4e\", \"parent_folder_id\": \"folder_b0e45472e2d46e4e\", \"name\": \"primary-topic=bias-regression-bisection\", \"description\": \"\", \"path\": \"/entropy/primary-topic=bias-regression-bisection\", \"kind\": \"physical\", \"source\": \"source\", \"sort_order\": 0, \"created_at\": \"2026-05-14 16:31:54\", \"updated_at\": \"2026-05-14 16:31:54\", \"file_count\": 0, \"children_count\": 1}, {\"fol"
+      },
+      {
+        "command": "grep -R 'MedThink failover EU' /entropy",
+        "ok": true,
+        "seconds": 0.0009,
+        "output_chars": 3924,
+        "preview": "{\"ok\": true, \"data\": [{\"reference_id\": \"ref_4\", \"file_ref\": \"file_f4e750618ee48513\", \"external_id\": \"dsid_8e838ab6a98f4cbcb672d41f210ff89c\", \"title\": \"Regional fallback priorities & logs — post-call inventory\", \"snippet\": \"...2) Failover order and cross-region replication:\\n- Preferred failover hierarchy: EU primary -> EU warm standby -> US...\", \"folder_path\": \"/entropy/primary-topic=regional-fallback-priorities-and-logs/product-or-system=redwood-inference-platform/communication-channel=email/do"
+      },
+      {
+        "command": "cat file_f4e750618ee48513 --all",
+        "ok": true,
+        "seconds": 0.0028,
+        "output_chars": 10318,
+        "preview": "{\"ok\": true, \"data\": {\"reference_id\": \"file_f4e750618ee48513\", \"file_ref\": \"file_f4e750618ee48513\", \"start_line\": 1, \"end_line\": 125, \"text\": \"Regional fallback priorities & logs — post-call inventory\\n\\nFrom: Rafael Mendes <rafael.mendes@redwoodinference.com>\\nTo: Elena Ruiz <elena.ruiz@medthink.health>\\nCc: Monica Patel <monica.patel@redwoodinference.com>, Stephanie Nguyen <stephanie.nguyen@redwoodinference.com>\\nDate: Fri, 3 May 2028 15:22:00 -0700\\nSubject: Regional fallback priorities & log"
+      }
+    ],
+    "raw_output": "{\"answer\":\"MedThink specified the following failover sequence and recovery targets for handling an EU region outage:\\n- Preferred failover order: EU primary -> EU warm standby -> US emergency failover.\\n- Cross-region failover to the US is allowed only for declared emergency windows, with a maximum allowed duration of 4 hours, and must be pre-approved in the runbook.\\n- Target Recovery Point Objective (RPO) is 15 minutes for active datasets.\\n- Target Recovery Time Objective (RTO) is 30 minutes for critical APIs.\\n\\nThese details limit traffic shifting to the US to emergency scenarios with a strict maximum duration of 4 hours, ensuring that the primary and warm standby in the EU are preferred for failover. This is aligned with their compliance requirement to keep patient clinical records (PHI) in the EU except for emergency situations under tight controls.\",\"document_ids\":[\"dsid_8e838ab6a98f4cbcb672d41f210ff89c\"]}"
+  },
+  {
+    "question_id": "qst_0006",
+    "question": "In the draft spec about extending a routing policy engine for automated regional failover, what is the proposed priority order for evaluating different failure signals when deciding whether to shift traffic or fail over?",
+    "source_types": [
+      "google_drive"
+    ],
+    "expected_doc_ids": [
+      "dsid_184be937d34a412ab5e61366d54d8ed6"
+    ],
+    "document_ids": [
+      "dsid_184be937d34a412ab5e61366d54d8ed6"
+    ],
+    "doc_hit": true,
+    "answer": "In the draft specification about extending a routing policy engine for automated regional failover, the proposed priority order for evaluating different failure signals when deciding whether to shift traffic or fail over is as follows:\n\n1) Reachability DOWN (authoritative) => FAILOVER (unless no healthy fallback)\n2) Errors (5xx) fast burn (high severity) => FAILOVER or PARTIAL_SHIFT depending on blast radius and capacity\n3) Tail latency burn (p99/p95) => PARTIAL_SHIFT first; escalate to FAILOVER if corroborated and sustained\n4) Capacity exhaustion / hard gate => HOLD + load shed (controller action), avoid shifting into constrained region\n5) Control plane degradation => HOLD (do not flip rapidly; prevent oscillation)\n\nThis hierarchical ordering ensures deterministic, auditable, and safe failover decisions. The engine treats authoritative Reachability DOWN signals with highest priority, followed by error burn signals, tail latency metrics, capacity constraints, and finally control plane health, with appropriate actions ranging from failover to holding and load shedding.",
+    "error": null,
+    "seconds": 14.027,
+    "tool_calls": 3,
+    "tool_log": [
+      {
+        "command": "tree /entropy -L 2",
+        "ok": false,
+        "seconds": 0.0001,
+        "output_chars": 34,
+        "preview": "ERROR: Unsupported tree option: -L"
+      },
+      {
+        "command": "ls -R /entropy",
+        "ok": true,
+        "seconds": 0.0032,
+        "output_chars": 74869,
+        "preview": "{\"ok\": true, \"data\": {\"folders\": [{\"folder_id\": \"folder_23ca48b00b4f10e4\", \"id\": \"folder_23ca48b00b4f10e4\", \"parent_id\": \"folder_b0e45472e2d46e4e\", \"parent_folder_id\": \"folder_b0e45472e2d46e4e\", \"name\": \"primary-topic=bias-regression-bisection\", \"description\": \"\", \"path\": \"/entropy/primary-topic=bias-regression-bisection\", \"kind\": \"physical\", \"source\": \"source\", \"sort_order\": 0, \"created_at\": \"2026-05-14 16:31:54\", \"updated_at\": \"2026-05-14 16:31:54\", \"file_count\": 0, \"children_count\": 1}, {\"fol"
+      },
+      {
+        "command": "cat dsid_184be937d34a412ab5e61366d54d8ed6 --all",
+        "ok": true,
+        "seconds": 0.0025,
+        "output_chars": 13355,
+        "preview": "{\"ok\": true, \"data\": {\"reference_id\": \"dsid_184be937d34a412ab5e61366d54d8ed6\", \"file_ref\": \"file_25ebacd20eb09ca7\", \"start_line\": 1, \"end_line\": 248, \"text\": \"Draft Spec: Policy Engine Extensions for Regional Failover Automation\\n\\nContext / why this exists\\n- We’re upgrading regional failover automation as part of Reliability Program (Q1–Q2 2026). Today, routing policy evaluation has a few gaps:\\n  - Non-deterministic behavior in edge cases (e.g., multiple signals firing, partial signal availab"
+      }
+    ],
+    "raw_output": "{\"answer\":\"In the draft specification about extending a routing policy engine for automated regional failover, the proposed priority order for evaluating different failure signals when deciding whether to shift traffic or fail over is as follows:\\n\\n1) Reachability DOWN (authoritative) => FAILOVER (unless no healthy fallback)\\n2) Errors (5xx) fast burn (high severity) => FAILOVER or PARTIAL_SHIFT depending on blast radius and capacity\\n3) Tail latency burn (p99/p95) => PARTIAL_SHIFT first; escalate to FAILOVER if corroborated and sustained\\n4) Capacity exhaustion / hard gate => HOLD + load shed (controller action), avoid shifting into constrained region\\n5) Control plane degradation => HOLD (do not flip rapidly; prevent oscillation)\\n\\nThis hierarchical ordering ensures deterministic, auditable, and safe failover decisions. The engine treats authoritative Reachability DOWN signals with highest priority, followed by error burn signals, tail latency metrics, capacity constraints, and finally control plane health, with appropriate actions ranging from failover to holding and load shedding.\",\"document_ids\":[\"dsid_184be937d34a412ab5e61366d54d8ed6\"]}"
+  },
+  {
+    "question_id": "qst_0007",
+    "question": "In a rolling investigation of a model regression on policy-related prompts after a recent deploy, what was the average triage rubric score change between the older baseline build and the newer optimized build in the first comparison run?",
+    "source_types": [
+      "google_drive"
+    ],
+    "expected_doc_ids": [
+      "dsid_72ec4a9962ba43e88acd61abbba1052d"
+    ],
+    "document_ids": [
+      "dsid_72ec4a9962ba43e88acd61abbba1052d"
+    ],
+    "doc_hit": true,
+    "answer": "The average triage rubric score change between the older baseline build (v2026-02-16-quant) and the newer optimized build (v2026-03-01-opt) in the first comparison run was a drop from 2.7 to 1.9, indicating a decrease of 0.8 points on the rubric scale (worse performance on policy-related prompts).",
+    "error": null,
+    "seconds": 15.854,
+    "tool_calls": 3,
+    "tool_log": [
+      {
+        "command": "tree /entropy",
+        "ok": true,
+        "seconds": 0.0031,
+        "output_chars": 74869,
+        "preview": "{\"ok\": true, \"data\": {\"folders\": [{\"folder_id\": \"folder_23ca48b00b4f10e4\", \"id\": \"folder_23ca48b00b4f10e4\", \"parent_id\": \"folder_b0e45472e2d46e4e\", \"parent_folder_id\": \"folder_b0e45472e2d46e4e\", \"name\": \"primary-topic=bias-regression-bisection\", \"description\": \"\", \"path\": \"/entropy/primary-topic=bias-regression-bisection\", \"kind\": \"physical\", \"source\": \"source\", \"sort_order\": 0, \"created_at\": \"2026-05-14 16:31:54\", \"updated_at\": \"2026-05-14 16:31:54\", \"file_count\": 0, \"children_count\": 1}, {\"fol"
+      },
+      {
+        "command": "ls /entropy/primary-topic=bias-regression-bisection/product-or-system=applied-ml-model-deployment-versions-v2026-02-16-quant-and-v/communication-channel=google-drive-document-with-linked-slack-discussion/doc-type=doc/time-period=2026-03-10-to-2026-03-12",
+        "ok": true,
+        "seconds": 0.0013,
+        "output_chars": 4481,
+        "preview": "{\"ok\": true, \"data\": {\"folders\": [], \"files\": [{\"file_ref\": \"file_392c82ed4bd5d699\", \"id\": \"dsid_72ec4a9962ba43e88acd61abbba1052d\", \"document_id\": \"dsid_72ec4a9962ba43e88acd61abbba1052d\", \"external_id\": \"dsid_72ec4a9962ba43e88acd61abbba1052d\", \"name\": \"rolling-bias-bisection-log-jared\", \"title\": \"rolling-bias-bisection-log-jared\", \"description\": \"rolling-bias-bisection-log-jared (google_drive)\", \"status\": \"not_built\", \"pageNum\": null, \"createdAt\": \"2026-05-14 16:31:54\", \"folderId\": \"folder_f6dcb"
+      },
+      {
+        "command": "cat google_drive/users/rolling-bias-bisection-log-jared.json --all",
+        "ok": true,
+        "seconds": 0.0025,
+        "output_chars": 7460,
+        "preview": "{\"ok\": true, \"data\": {\"reference_id\": \"google_drive/users/rolling-bias-bisection-log-jared.json\", \"file_ref\": \"file_392c82ed4bd5d699\", \"start_line\": 1, \"end_line\": 84, \"text\": \"rolling-bias-bisection-log-jared\\n\\nPurpose: quick rolling log for a bias/regression bisection I ran across nightly samples. Personal scratchpad so expect fragments, TODOs, timestamped steps.\\n\\nSummary / TL;DR:\\n- Noticed subtle political-leaning amplification on query set A (user-generated prompts about policy).\\n- Chan"
+      }
+    ],
+    "raw_output": "{\"answer\":\"The average triage rubric score change between the older baseline build (v2026-02-16-quant) and the newer optimized build (v2026-03-01-opt) in the first comparison run was a drop from 2.7 to 1.9, indicating a decrease of 0.8 points on the rubric scale (worse performance on policy-related prompts).\",\"document_ids\":[\"dsid_72ec4a9962ba43e88acd61abbba1052d\"]}"
+  },
+  {
+    "question_id": "qst_0008",
+    "question": "In the internal shiproom runner notes, what is the target time-to-recover threshold for a verified rollback in staging?",
+    "source_types": [
+      "google_drive"
+    ],
+    "expected_doc_ids": [
+      "dsid_5fc2dba9f6ac4af2b49b4f546a4298d0"
+    ],
+    "document_ids": [
+      "dsid_5fc2dba9f6ac4af2b49b4f546a4298d0"
+    ],
+    "doc_hit": true,
+    "answer": "The target time-to-recover threshold for a verified rollback in staging, according to the internal shiproom runner notes, is less than 10 minutes (< 10m).",
+    "error": null,
+    "seconds": 20.701,
+    "tool_calls": 3,
+    "tool_log": [
+      {
+        "command": "ls -R /entropy",
+        "ok": true,
+        "seconds": 0.0037,
+        "output_chars": 74869,
+        "preview": "{\"ok\": true, \"data\": {\"folders\": [{\"folder_id\": \"folder_23ca48b00b4f10e4\", \"id\": \"folder_23ca48b00b4f10e4\", \"parent_id\": \"folder_b0e45472e2d46e4e\", \"parent_folder_id\": \"folder_b0e45472e2d46e4e\", \"name\": \"primary-topic=bias-regression-bisection\", \"description\": \"\", \"path\": \"/entropy/primary-topic=bias-regression-bisection\", \"kind\": \"physical\", \"source\": \"source\", \"sort_order\": 0, \"created_at\": \"2026-05-14 16:31:54\", \"updated_at\": \"2026-05-14 16:31:54\", \"file_count\": 0, \"children_count\": 1}, {\"fol"
+      },
+      {
+        "command": "grep -R 'target time-to-recover' /entropy/primary-topic=shiproom-runner-personal-prep-and-checklist",
+        "ok": true,
+        "seconds": 0.0022,
+        "output_chars": 5091,
+        "preview": "{\"ok\": true, \"data\": [{\"reference_id\": \"ref_5\", \"file_ref\": \"file_f54a0350712b2d14\", \"external_id\": \"dsid_5fc2dba9f6ac4af2b49b4f546a4298d0\", \"title\": \"Shiproom runner: personal prep log and sticky notes\", \"snippet\": \"...image rollback verified in staging (time-to-recover < 10m). Owner: me (Aisha) — pre-check: rehearse command...\", \"folder_path\": \"/entropy/primary-topic=shiproom-runner-personal-prep-and-checklist/product-or-system=rwx-v2-quant-model-rollout-and-dedicated-pool-infrastructure/commu"
+      },
+      {
+        "command": "cat dsid_5fc2dba9f6ac4af2b49b4f546a4298d0 --all",
+        "ok": true,
+        "seconds": 0.0028,
+        "output_chars": 6576,
+        "preview": "{\"ok\": true, \"data\": {\"reference_id\": \"dsid_5fc2dba9f6ac4af2b49b4f546a4298d0\", \"file_ref\": \"file_f54a0350712b2d14\", \"start_line\": 1, \"end_line\": 87, \"text\": \"Shiproom runner: personal prep log and sticky notes\\n\\nPurpose: quick, scannable personal notes for running the shiproom and weekly readiness sync. Organized as prep items, live-run cues, and follow-up actions. Not a polished playbook — my sticky running list + prompts to escalate.\\n\\nDAY-BEFORE / 24-48H CHECKS (quick hits)\\n- Validate Dedi"
+      }
+    ],
+    "raw_output": "{\"answer\":\"The target time-to-recover threshold for a verified rollback in staging, according to the internal shiproom runner notes, is less than 10 minutes (< 10m).\",\"document_ids\":[\"dsid_5fc2dba9f6ac4af2b49b4f546a4298d0\"]}"
+  },
+  {
+    "question_id": "qst_0009",
+    "question": "In the EdgePath evaluation email thread, what alternative Year 1 pricing package did Redwood propose instead of matching the competitor's 50 percent first-year discount and migration credit?",
+    "source_types": [
+      "gmail"
+    ],
+    "expected_doc_ids": [
+      "dsid_85deb10a652742baaf28af6149600001"
+    ],
+    "document_ids": [
+      "dsid_85deb10a652742baaf28af6149600001"
+    ],
+    "doc_hit": true,
+    "answer": "Redwood proposed an alternative Year 1 pricing package instead of matching the competitor's 50 percent first-year discount and migration credit. The alternative included a 12-month commitment with an effective Year 1 discount of approximately 40% off list on committed prepay buckets (applying to token spend covered by the bucket), a $50,000 one-time onboarding credit tied to migration milestones, a seat/license option to add predictable monthly seat fees to cap variable spend (which further reduces effective unit costs), and an operational concession of a 99.9% latency SLO for hosted instances in the US region including a remediation runbook in the SOW. This approach lowers Year 1 outlay comparably to a 50% headline discount on token spend covered by the prepay, preserves sustainable unit economics for Redwood, and offers a meaningful migration credit plus operational SLA to support reliability.",
+    "error": null,
+    "seconds": 43.665,
+    "tool_calls": 4,
+    "tool_log": [
+      {
+        "command": "ls -R /entropy",
+        "ok": true,
+        "seconds": 0.0036,
+        "output_chars": 74869,
+        "preview": "{\"ok\": true, \"data\": {\"folders\": [{\"folder_id\": \"folder_23ca48b00b4f10e4\", \"id\": \"folder_23ca48b00b4f10e4\", \"parent_id\": \"folder_b0e45472e2d46e4e\", \"parent_folder_id\": \"folder_b0e45472e2d46e4e\", \"name\": \"primary-topic=bias-regression-bisection\", \"description\": \"\", \"path\": \"/entropy/primary-topic=bias-regression-bisection\", \"kind\": \"physical\", \"source\": \"source\", \"sort_order\": 0, \"created_at\": \"2026-05-14 16:31:54\", \"updated_at\": \"2026-05-14 16:31:54\", \"file_count\": 0, \"children_count\": 1}, {\"fol"
+      },
+      {
+        "command": "grep -R 'EdgePath' /entropy/primary-topic=licensing-offsets-and-packaging-for-migration/product-or-system=redwood-inference-platform/communication-channel=email/doc-type=email-thread/time-period=august-2025",
+        "ok": true,
+        "seconds": 0.0009,
+        "output_chars": 4153,
+        "preview": "{\"ok\": true, \"data\": [{\"reference_id\": \"ref_6\", \"file_ref\": \"file_b277735b50990fa0\", \"external_id\": \"dsid_85deb10a652742baaf28af6149600001\", \"title\": \"Licensing offsets & packaging for potential migration\", \"snippet\": \"...EdgePath_usage_Q2_2025.csv (summary)\\n\\n—Sarah\\nSarah Lin\\nHead of ML Platform, EdgePath\\n\\n---\\n\\nFrom: Avery...\", \"folder_path\": \"/entropy/primary-topic=licensing-offsets-and-packaging-for-migration/product-or-system=redwood-inference-platform/communication-channel=email/doc-"
+      },
+      {
+        "command": "ls /entropy/primary-topic=licensing-offsets-and-packaging-for-migration/product-or-system=redwood-inference-platform/communication-channel=email/doc-type=email-thread/time-period=august-2025",
+        "ok": true,
+        "seconds": 0.0014,
+        "output_chars": 4023,
+        "preview": "{\"ok\": true, \"data\": {\"folders\": [], \"files\": [{\"file_ref\": \"file_b277735b50990fa0\", \"id\": \"dsid_85deb10a652742baaf28af6149600001\", \"document_id\": \"dsid_85deb10a652742baaf28af6149600001\", \"external_id\": \"dsid_85deb10a652742baaf28af6149600001\", \"name\": \"Licensing offsets & packaging for potential migration\", \"title\": \"Licensing offsets & packaging for potential migration\", \"description\": \"Licensing offsets & packaging for potential migration (gmail)\", \"status\": \"not_built\", \"pageNum\": null, \"crea"
+      },
+      {
+        "command": "cat file_b277735b50990fa0 --all",
+        "ok": true,
+        "seconds": 0.0026,
+        "output_chars": 8895,
+        "preview": "{\"ok\": true, \"data\": {\"reference_id\": \"file_b277735b50990fa0\", \"file_ref\": \"file_b277735b50990fa0\", \"start_line\": 1, \"end_line\": 138, \"text\": \"Licensing offsets & packaging for potential migration\\n\\nFrom: Sarah Lin <sarah.lin@edgepath.ai>\\nTo: Avery Johnson <avery.johnson@redwood.com>\\nDate: Sun, 3 Aug 2025 09:12:00 -0700\\nSubject: Licensing/packaging questions ahead of our evaluation\\n\\nHi Avery,\\n\\nThanks again for the demo last week — the latency profile looked promising. We’re running a par"
+      }
+    ],
+    "raw_output": "{\"answer\":\"Redwood proposed an alternative Year 1 pricing package instead of matching the competitor's 50 percent first-year discount and migration credit. The alternative included a 12-month commitment with an effective Year 1 discount of approximately 40% off list on committed prepay buckets (applying to token spend covered by the bucket), a $50,000 one-time onboarding credit tied to migration milestones, a seat/license option to add predictable monthly seat fees to cap variable spend (which further reduces effective unit costs), and an operational concession of a 99.9% latency SLO for hosted instances in the US region including a remediation runbook in the SOW. This approach lowers Year 1 outlay comparably to a 50% headline discount on token spend covered by the prepay, preserves sustainable unit economics for Redwood, and offers a meaningful migration credit plus operational SLA to support reliability.\",\"document_ids\":[\"dsid_85deb10a652742baaf28af6149600001\"]}"
+  },
+  {
+    "question_id": "qst_0010",
+    "question": "How does the new alerting approach group model-serving requests by the stages they pass through to reduce noisy alerts and speed up root cause analysis?",
+    "source_types": [
+      "github"
+    ],
+    "expected_doc_ids": [
+      "dsid_c1a6a71323c04c1ba5445aadea340362"
+    ],
+    "document_ids": [
+      "dsid_c1a6a71323c04c1ba5445aadea340362"
+    ],
+    "doc_hit": true,
+    "answer": "The new alerting approach groups model-serving requests by the stages they pass through (such as tokenization, encoder, decode, fallback) to reduce noisy alerts and speed up root cause analysis by introducing a token_stage_cohort service. This service computes a deterministic cohort key per invocation based on stage-level metrics like token counts per stage, KV-cache hit patterns, and decode-batch size. It stores short-lived cohort aggregates that capture the 'stage footprint' of requests. An alert route-matrix generator then consumes these cohort rollups and emits alert bindings that bias escalation to the top-k most likely pipeline stages responsible for SLO violations. This grouping allows alerts to be compactly attributed to specific stages, reducing alert noise and helping oncall engineers quickly validate root causes. Additionally, a dedicated dashboard visualizes cohort drift, stage heatmaps, and cost/latency breakdowns per cohort to assist in analysis. The system is rolled out safely behind a feature flag with low-sensitivity defaults and quiet-window attenuation to avoid increasing noise, with thorough testing including synthetic replay. Cohort keys are namespaced with the model major version to maintain stability across model rollouts.",
+    "error": null,
+    "seconds": 25.518,
+    "tool_calls": 3,
+    "tool_log": [
+      {
+        "command": "tree /entropy",
+        "ok": true,
+        "seconds": 0.0032,
+        "output_chars": 74869,
+        "preview": "{\"ok\": true, \"data\": {\"folders\": [{\"folder_id\": \"folder_23ca48b00b4f10e4\", \"id\": \"folder_23ca48b00b4f10e4\", \"parent_id\": \"folder_b0e45472e2d46e4e\", \"parent_folder_id\": \"folder_b0e45472e2d46e4e\", \"name\": \"primary-topic=bias-regression-bisection\", \"description\": \"\", \"path\": \"/entropy/primary-topic=bias-regression-bisection\", \"kind\": \"physical\", \"source\": \"source\", \"sort_order\": 0, \"created_at\": \"2026-05-14 16:31:54\", \"updated_at\": \"2026-05-14 16:31:54\", \"file_count\": 0, \"children_count\": 1}, {\"fol"
+      },
+      {
+        "command": "grep -R 'group model-serving requests by the stages' /entropy/primary-topic=token-stage-cohorting-and-route-matrix-alerting/",
+        "ok": true,
+        "seconds": 0.0027,
+        "output_chars": 5126,
+        "preview": "{\"ok\": true, \"data\": [{\"reference_id\": \"ref_7\", \"file_ref\": \"file_6fca9ec81c8141a3\", \"external_id\": \"dsid_c1a6a71323c04c1ba5445aadea340362\", \"title\": \"introduce-token-stage-cohorting-and-route-matrix-alerting\", \"snippet\": \"...only when a request traverses several model-serving stages (tokenization, encoder, decode, fallback). Existing alerts were...\", \"folder_path\": \"/entropy/primary-topic=token-stage-cohorting-and-route-matrix-alerting/product-or-system=redwood-observability-system/communicatio"
+      },
+      {
+        "command": "cat dsid_c1a6a71323c04c1ba5445aadea340362 --all",
+        "ok": true,
+        "seconds": 0.0024,
+        "output_chars": 3308,
+        "preview": "{\"ok\": true, \"data\": {\"reference_id\": \"dsid_c1a6a71323c04c1ba5445aadea340362\", \"file_ref\": \"file_6fca9ec81c8141a3\", \"start_line\": 1, \"end_line\": 6, \"text\": \"introduce-token-stage-cohorting-and-route-matrix-alerting\\n\\nContext: long-tail token cost and multi-stage latency spikes frequently surface only when a request traverses several model-serving stages (tokenization, encoder, decode, fallback). Existing alerts were per-route and per-quantile but lacked a compact way to group requests by 'stage"
+      }
+    ],
+    "raw_output": "{\"answer\":\"The new alerting approach groups model-serving requests by the stages they pass through (such as tokenization, encoder, decode, fallback) to reduce noisy alerts and speed up root cause analysis by introducing a token_stage_cohort service. This service computes a deterministic cohort key per invocation based on stage-level metrics like token counts per stage, KV-cache hit patterns, and decode-batch size. It stores short-lived cohort aggregates that capture the 'stage footprint' of requests. An alert route-matrix generator then consumes these cohort rollups and emits alert bindings that bias escalation to the top-k most likely pipeline stages responsible for SLO violations. This grouping allows alerts to be compactly attributed to specific stages, reducing alert noise and helping oncall engineers quickly validate root causes. Additionally, a dedicated dashboard visualizes cohort drift, stage heatmaps, and cost/latency breakdowns per cohort to assist in analysis. The system is rolled out safely behind a feature flag with low-sensitivity defaults and quiet-window attenuation to avoid increasing noise, with thorough testing including synthetic replay. Cohort keys are namespaced with the model major version to maintain stability across model rollouts.\",\"document_ids\":[\"dsid_c1a6a71323c04c1ba5445aadea340362\"]}"
+  }
+]
