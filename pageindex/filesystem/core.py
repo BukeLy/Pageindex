@@ -301,7 +301,7 @@ class PageIndexFileSystem:
 
     @staticmethod
     def _fts_query(query: str) -> str:
-        terms = re.findall(r"[\w.-]+", query)
+        terms = re.findall(r"[A-Za-z0-9_]+", query)
         return " ".join(terms)
 
     @staticmethod

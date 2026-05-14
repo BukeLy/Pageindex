@@ -200,6 +200,28 @@ class EnterpriseRAGFileSystemTest(unittest.TestCase):
                 ],
             )
 
+    def test_search_handles_punctuation_heavy_enterprise_identifiers(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            from pageindex.filesystem import PageIndexFileSystem
+
+            filesystem = PageIndexFileSystem(workspace=Path(tmp) / "workspace")
+            filesystem.register_file(
+                storage_uri="file:///tmp/thread.json",
+                source_path="slack/eng/auth-proxy-thread.json",
+                folder_path="/slack/eng",
+                external_id="dsid_auth_proxy",
+                title="auth-proxy stream tool-call retry",
+                metadata={"channel": "eng", "source_type": "slack"},
+                content=(
+                    "auth-proxy returned 401 during streaming+tool-call paths. "
+                    "Tracking private.bundle_verification.succeeded separately."
+                ),
+            )
+
+            results = filesystem.search("auth-proxy private.bundle_verification.succeeded")
+
+            self.assertEqual([result.external_id for result in results], ["dsid_auth_proxy"])
+
 
 if __name__ == "__main__":
     unittest.main()
