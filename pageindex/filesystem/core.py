@@ -279,6 +279,8 @@ class PageIndexFileSystem:
 
     def open(self, reference_id: str, location: str) -> OpenResult:
         file_ref = self._resolve_reference(reference_id)
+        if str(location).strip().lower() in {"all", "full", "*"}:
+            return self._open_all(reference_id, file_ref)
         start, end = self._parse_line_range(location)
         return self._open_lines(reference_id, file_ref, start, end)
 
@@ -393,6 +395,17 @@ class PageIndexFileSystem:
             file_ref=file_ref,
             start_line=start,
             end_line=end,
+            text=text,
+        )
+
+    def _open_all(self, reference_id: str, file_ref: str) -> OpenResult:
+        text = self._read_text(file_ref)
+        line_count = len(text.splitlines())
+        return OpenResult(
+            reference_id=reference_id,
+            file_ref=file_ref,
+            start_line=1,
+            end_line=line_count,
             text=text,
         )
 

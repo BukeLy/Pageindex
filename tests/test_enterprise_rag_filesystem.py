@@ -252,6 +252,47 @@ class EnterpriseRAGFileSystemTest(unittest.TestCase):
                 ["dsid_multipart_upload"],
             )
 
+    def test_open_all_returns_full_leaf_document(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            from pageindex.filesystem import PageIndexFileSystem
+
+            filesystem = PageIndexFileSystem(workspace=Path(tmp) / "workspace")
+            file_ref = filesystem.register_file(
+                storage_uri="file:///tmp/full.json",
+                source_path="github/redwood/full.json",
+                external_id="dsid_full_leaf",
+                title="Full leaf document",
+                content="\n".join(f"line {i}" for i in range(1, 121)),
+            )
+
+            opened = filesystem.open(file_ref, "all")
+
+            self.assertEqual(opened.start_line, 1)
+            self.assertEqual(opened.end_line, 120)
+            self.assertIn("line 1", opened.text)
+            self.assertIn("line 120", opened.text)
+
+    def test_enterprise_rag_context_uses_full_leaf_documents(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            from examples.enterprise_rag_benchmark.run_smoke import build_context
+            from pageindex.filesystem import PageIndexFileSystem
+
+            filesystem = PageIndexFileSystem(workspace=Path(tmp) / "workspace")
+            long_prefix = "prefix " * 1200
+            answer_tail = "FINAL_ANSWER_AFTER_CONTEXT_WINDOW"
+            filesystem.register_file(
+                storage_uri="file:///tmp/full.json",
+                source_path="github/redwood/full.json",
+                external_id="dsid_full_context",
+                title="Full context document",
+                content=long_prefix + "\n" + answer_tail,
+            )
+
+            candidate = filesystem.search("prefix", limit=1)[0]
+            context = build_context(filesystem, [candidate], max_docs=1)
+
+            self.assertIn(answer_tail, context)
+
     def test_tree_search_uses_folder_and_virtual_nodes_before_leaf_files(self):
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)

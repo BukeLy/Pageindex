@@ -255,7 +255,7 @@ def build_context(
     chunks = []
     for i, candidate in enumerate(candidates[:max_docs], 1):
         try:
-            opened = fs.open(candidate.reference_id, "1:80")
+            opened = fs.open(candidate.reference_id, "all")
             body = opened.text
         except Exception:
             body = candidate.snippet
@@ -267,7 +267,7 @@ def build_context(
                     f"title: {candidate.title}",
                     f"folder: {candidate.folder_path}",
                     "content:",
-                    body[:6000],
+                    body,
                 ]
             )
         )
