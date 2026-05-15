@@ -31,10 +31,16 @@ from examples.Benchmark.enterprise_rag_benchmark.enterprise_rag import (
     load_questions,
 )
 from examples.Benchmark.enterprise_rag_benchmark.run_enterprise_rag_pifs_agent import (
+    PIFSAgentAnswer,
     parse_agent_json,
 )
 from pageindex.filesystem import PageIndexFileSystem
-from pageindex.filesystem.agent import AGENT_STREAM_MODE_CHOICES, run_pifs_agent
+from pageindex.filesystem.agent import (
+    AGENT_STREAM_MODE_CHOICES,
+    REASONING_EFFORT_CHOICES,
+    REASONING_SUMMARY_CHOICES,
+    run_pifs_agent,
+)
 
 
 METADATA_STRATEGIES = ["entity_relation_fixed_schema", "dag_fixed_schema"]
@@ -153,6 +159,8 @@ def main() -> int:
                 skip_agent=args.skip_agent,
                 verbose=args.verbose,
                 stream_mode=args.stream_mode,
+                reasoning_effort=args.reasoning_effort,
+                reasoning_summary=args.reasoning_summary,
             )
             combo_summary = summarize_combo(combo, combo_results)
             combo_summary.update(
@@ -160,6 +168,9 @@ def main() -> int:
                     "metadata_strategy": metadata_strategy,
                     "folder_strategy": folder_strategy,
                     "workspace": str(workspace),
+                    "stream_mode": args.stream_mode,
+                    "reasoning_effort": args.reasoning_effort,
+                    "reasoning_summary": args.reasoning_summary,
                 }
             )
             write_json(results_dir / f"{combo}.results.json", combo_results)
@@ -175,6 +186,9 @@ def main() -> int:
         "model": args.agent_model,
         "generation_model": args.generation_model,
         "base_url": os.environ.get("OPENAI_BASE_URL"),
+        "stream_mode": args.stream_mode,
+        "reasoning_effort": args.reasoning_effort,
+        "reasoning_summary": args.reasoning_summary,
         "cluster_cache": str(cluster_cache_path),
         "results": sorted(
             all_results,
@@ -211,6 +225,18 @@ def parse_args() -> argparse.Namespace:
         default=os.environ.get("PIFS_AGENT_STREAM_MODE", "off"),
         choices=AGENT_STREAM_MODE_CHOICES,
         help="Stream agent internals: off, tools, model output/think, all, or aliases like think/debug.",
+    )
+    parser.add_argument(
+        "--reasoning-effort",
+        default=os.environ.get("PIFS_AGENT_REASONING_EFFORT"),
+        choices=REASONING_EFFORT_CHOICES,
+        help="Enable reasoning for models that support it: none, minimal, low, medium, high, or xhigh.",
+    )
+    parser.add_argument(
+        "--reasoning-summary",
+        default=os.environ.get("PIFS_AGENT_REASONING_SUMMARY"),
+        choices=REASONING_SUMMARY_CHOICES,
+        help="Request visible reasoning summary deltas when supported: auto, concise, detailed, or none.",
     )
     parser.add_argument("--reset", action="store_true")
     args = parser.parse_args()
@@ -836,6 +862,8 @@ def evaluate_combo(
     skip_agent: bool,
     verbose: bool,
     stream_mode: str,
+    reasoning_effort: str | None,
+    reasoning_summary: str | None,
 ) -> list[dict[str, Any]]:
     results = []
     for question in questions:
@@ -858,6 +886,9 @@ def evaluate_combo(
                     max_turns=max_turns,
                     verbose=verbose,
                     stream_mode=stream_mode,
+                    reasoning_effort=reasoning_effort,
+                    reasoning_summary=reasoning_summary,
+                    output_type=PIFSAgentAnswer,
                     tool_log=tool_log,
                     agent_log=agent_log,
                 )
@@ -912,9 +943,7 @@ use `grep -R` inside the most relevant folder. Use root `grep -R ... /` only if
 folder-scoped search fails. Open full leaf documents with `cat --all` before
 answering.
 
-Return final output as a single JSON object only:
-{{"answer":"...","document_ids":["dsid_..."]}}
-
+Use the configured structured output schema.
 Only include document_ids that appeared in tool output as external_id/document_id.
 """.strip()
 

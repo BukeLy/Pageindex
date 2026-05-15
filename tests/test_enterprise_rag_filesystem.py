@@ -449,6 +449,45 @@ class EnterpriseRAGFileSystemTest(unittest.TestCase):
             self.assertEqual(stat["data"]["external_id"], "dsid_cli_audit")
             self.assertIn("audit logging", opened["data"]["text"])
 
+    def test_pifs_command_executor_supports_safe_and_chains(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            from pageindex.filesystem import PIFSCommandExecutor, PageIndexFileSystem
+
+            filesystem = PageIndexFileSystem(workspace=Path(tmp) / "workspace")
+            filesystem.register_file(
+                storage_uri="file:///tmp/pr.json",
+                source_path="github/redwood/pr-audit.json",
+                folder_path="/github/redwood",
+                external_id="dsid_chain_audit",
+                title="Audit logging PR",
+                metadata={"repo": "redwood"},
+                content="first line\nThe PR adds audit logging and literal alpha && beta wording.",
+            )
+            filesystem.register_file(
+                storage_uri="file:///tmp/pr2.json",
+                source_path="github/redwood/pr-audit-2.json",
+                folder_path="/github/redwood",
+                external_id="dsid_chain_audit_2",
+                title="Audit logging follow-up",
+                metadata={"repo": "redwood"},
+                content="The follow-up adds audit logging export notes.",
+            )
+            executor = PIFSCommandExecutor(filesystem, json_output=True)
+
+            chained = executor.execute('ls / && grep -R "audit logging" /github')
+            listing, grepped = [json.loads(line) for line in chained.splitlines()]
+            quoted = json.loads(executor.execute('grep -R "alpha && beta" /github'))
+            piped_listing = json.loads(executor.execute("ls / | grep github"))
+            headed = json.loads(executor.execute('grep -R "audit logging" /github | head -n 1'))
+            sed = json.loads(executor.execute("cat dsid_chain_audit --all | sed -n '1,1p'"))
+
+            self.assertIn("/github", [folder["path"] for folder in listing["data"]["folders"]])
+            self.assertGreaterEqual(len(grepped["data"]), 2)
+            self.assertEqual(quoted["data"][0]["external_id"], "dsid_chain_audit")
+            self.assertEqual(piped_listing["data"]["folders"][0]["path"], "/github")
+            self.assertEqual(len(headed["data"]), 1)
+            self.assertEqual(sed["data"]["text"], "first line")
+
     def test_pifs_command_executor_allows_metadata_comparison_dsl(self):
         with tempfile.TemporaryDirectory() as tmp:
             from pageindex.filesystem import PIFSCommandExecutor, PageIndexFileSystem
@@ -603,6 +642,10 @@ class EnterpriseRAGFileSystemTest(unittest.TestCase):
                 executor.execute("rm -rf /")
             with self.assertRaises(PIFSCommandError):
                 executor.execute("ls / | cat")
+            with self.assertRaises(PIFSCommandError):
+                executor.execute("ls / & cat")
+            with self.assertRaises(PIFSCommandError):
+                executor.execute("ls / || cat")
 
     def test_pifs_cli_module_outputs_json(self):
         with tempfile.TemporaryDirectory() as tmp:

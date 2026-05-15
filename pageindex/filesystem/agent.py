@@ -6,6 +6,7 @@ import json
 import os
 import sys
 import time
+from dataclasses import asdict, is_dataclass
 from typing import Any, TextIO
 
 from .commands import PIFSCommandError, PIFSCommandExecutor
@@ -32,6 +33,10 @@ Allowed commands:
 Metadata filters use JSON DSL, for example:
 {"$and":[{"repo":"redwood"},{"year":{"$gte":2024}}]}.
 
+You may combine multiple allowed commands with &&. Do not use ;, redirects,
+||, background execution, or subshell syntax. Pipes are allowed only
+for these in-memory filters: head, tail, grep, sed -n '<start>,<end>p'.
+
 Start by inspecting the relevant source folder. For retrieval questions, run at
 least one grep using the full natural-language question or the longest
 distinctive phrase before falling back to broad keyword searches. Do not drop
@@ -56,6 +61,58 @@ STREAM_MODE_ALIASES = {
     "debug": "all",
 }
 AGENT_STREAM_MODE_CHOICES = sorted(item for item in STREAM_MODE_ALIASES if item)
+REASONING_EFFORT_CHOICES = ["none", "minimal", "low", "medium", "high", "xhigh"]
+REASONING_SUMMARY_CHOICES = ["none", "auto", "concise", "detailed"]
+
+
+def should_use_openai_compatible_chat_model(base_url: str | None) -> bool:
+    if not base_url:
+        return False
+    normalized = base_url.strip().rstrip("/")
+    return normalized not in {"https://api.openai.com", "https://api.openai.com/v1"}
+
+
+def normalize_reasoning_effort(reasoning_effort: str | None) -> str | None:
+    if reasoning_effort is None or not reasoning_effort.strip():
+        return None
+    effort = reasoning_effort.strip().lower()
+    if effort not in REASONING_EFFORT_CHOICES:
+        allowed = ", ".join(REASONING_EFFORT_CHOICES)
+        raise ValueError(f"Unknown reasoning effort: {reasoning_effort!r}. Allowed: {allowed}")
+    return effort
+
+
+def normalize_reasoning_summary(reasoning_summary: str | None) -> str | None:
+    if reasoning_summary is None or not reasoning_summary.strip():
+        return None
+    summary = reasoning_summary.strip().lower()
+    if summary not in REASONING_SUMMARY_CHOICES:
+        allowed = ", ".join(REASONING_SUMMARY_CHOICES)
+        raise ValueError(f"Unknown reasoning summary: {reasoning_summary!r}. Allowed: {allowed}")
+    return None if summary == "none" else summary
+
+
+def build_agent_model_settings(
+    *,
+    reasoning_effort: str | None = None,
+    reasoning_summary: str | None = None,
+) -> Any | None:
+    effort = normalize_reasoning_effort(reasoning_effort)
+    summary = normalize_reasoning_summary(reasoning_summary)
+    if effort is None and summary is None:
+        return None
+    if effort not in {None, "none"} and summary is None:
+        summary = "auto"
+
+    from agents import ModelSettings
+    from openai.types.shared import Reasoning
+
+    reasoning_kwargs = {}
+    if effort is not None:
+        reasoning_kwargs["effort"] = effort
+    if summary is not None:
+        reasoning_kwargs["summary"] = summary
+    return ModelSettings(reasoning=Reasoning(**reasoning_kwargs), verbosity="low")
 
 
 def normalize_agent_stream_mode(stream_mode: str | None) -> str:
@@ -64,6 +121,20 @@ def normalize_agent_stream_mode(stream_mode: str | None) -> str:
         allowed = ", ".join(sorted({"off", "tools", "model", "all"}))
         raise ValueError(f"Unknown PIFS agent stream mode: {stream_mode!r}. Allowed: {allowed}")
     return mode
+
+
+def serialize_agent_final_output(value: Any) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value
+    if hasattr(value, "model_dump_json"):
+        return value.model_dump_json()
+    if is_dataclass(value):
+        return json.dumps(asdict(value), ensure_ascii=False)
+    if isinstance(value, (dict, list)):
+        return json.dumps(value, ensure_ascii=False)
+    return str(value)
 
 
 class PIFSAgentStreamObserver:
@@ -161,6 +232,9 @@ def run_pifs_agent(
     max_turns: int = 20,
     verbose: bool = False,
     stream_mode: str = "off",
+    reasoning_effort: str | None = None,
+    reasoning_summary: str | None = None,
+    output_type: type[Any] | None = None,
     tool_log: list[dict[str, Any]] | None = None,
     agent_log: list[dict[str, Any]] | None = None,
 ) -> str:
@@ -196,7 +270,7 @@ def run_pifs_agent(
 
     @function_tool
     def bash(command: str) -> str:
-        """Run one allowed PageIndex FileSystem shell command."""
+        """Run allowed PageIndex FileSystem shell commands, optionally chained with &&."""
         started = time.time()
         ok = True
         try:
@@ -218,22 +292,32 @@ def run_pifs_agent(
             print(f"\n[pifs bash] {command}\n{output[:1000]}", flush=True)
         return output
 
+    model_settings = build_agent_model_settings(
+        reasoning_effort=reasoning_effort,
+        reasoning_summary=reasoning_summary,
+    )
+    base_url = os.environ.get("OPENAI_BASE_URL")
     model_config = model
-    if os.environ.get("OPENAI_BASE_URL"):
+    if should_use_openai_compatible_chat_model(base_url):
         model_config = OpenAIChatCompletionsModel(
             model=model,
             openai_client=AsyncOpenAI(
                 api_key=os.environ.get("OPENAI_API_KEY"),
-                base_url=os.environ.get("OPENAI_BASE_URL"),
+                base_url=base_url,
             ),
         )
 
-    agent = Agent(
-        name="PageIndexFileSystem",
-        instructions=AGENT_SYSTEM_PROMPT + "\n\n" + initial_context,
-        tools=[bash],
-        model=model_config,
-    )
+    agent_kwargs: dict[str, Any] = {
+        "name": "PageIndexFileSystem",
+        "instructions": AGENT_SYSTEM_PROMPT + "\n\n" + initial_context,
+        "tools": [bash],
+        "model": model_config,
+    }
+    if model_settings is not None:
+        agent_kwargs["model_settings"] = model_settings
+    if output_type is not None:
+        agent_kwargs["output_type"] = output_type
+    agent = Agent(**agent_kwargs)
 
     async def _run() -> str:
         stream_log = agent_log if normalized_stream_mode != "off" else None
@@ -243,11 +327,11 @@ def run_pifs_agent(
         try:
             async for event in streamed_run.stream_events():
                 observer.handle_event(event)
-            final_output = "" if not streamed_run.final_output else str(streamed_run.final_output)
+            final_output = serialize_agent_final_output(streamed_run.final_output)
             return final_output
         finally:
             if not final_output and streamed_run.final_output:
-                final_output = str(streamed_run.final_output)
+                final_output = serialize_agent_final_output(streamed_run.final_output)
             observer.finish(final_output)
 
     try:

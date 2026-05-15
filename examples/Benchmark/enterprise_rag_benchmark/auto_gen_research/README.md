@@ -44,7 +44,7 @@ uv run python run_auto_gen_research.py --reset --skip-agent --target-docs 100
 Stream model output and exposed reasoning/think deltas during agent evaluation:
 
 ```bash
-uv run python run_auto_gen_research.py --reuse-generated-only --target-docs 100 --stream-mode model
+uv run python run_auto_gen_research.py --reuse-generated-only --target-docs 100 --stream-mode model --reasoning-effort medium --reasoning-summary detailed
 ```
 
 Use `--stream-mode all` to show both model output/think and PIFS shell tool

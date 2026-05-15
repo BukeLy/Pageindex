@@ -2,10 +2,24 @@ import io
 import unittest
 from types import SimpleNamespace
 
+from pydantic import BaseModel, ConfigDict
+
 from pageindex.filesystem.agent import (
     PIFSAgentStreamObserver,
+    build_agent_model_settings,
     normalize_agent_stream_mode,
+    normalize_reasoning_effort,
+    normalize_reasoning_summary,
+    serialize_agent_final_output,
+    should_use_openai_compatible_chat_model,
 )
+
+
+class StructuredAnswer(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    answer: str
+    document_ids: list[str]
 
 
 class PIFSAgentStreamTest(unittest.TestCase):
@@ -59,6 +73,40 @@ class PIFSAgentStreamTest(unittest.TestCase):
         self.assertEqual(normalize_agent_stream_mode(""), "off")
         with self.assertRaises(ValueError):
             normalize_agent_stream_mode("nope")
+
+    def test_reasoning_settings_enable_effort_and_summary(self):
+        settings = build_agent_model_settings(
+            reasoning_effort="medium",
+            reasoning_summary="detailed",
+        )
+
+        self.assertIsNotNone(settings)
+        self.assertEqual(settings.reasoning.effort, "medium")
+        self.assertEqual(settings.reasoning.summary, "detailed")
+        self.assertEqual(settings.verbosity, "low")
+
+    def test_reasoning_effort_defaults_to_visible_summary(self):
+        settings = build_agent_model_settings(reasoning_effort="low")
+
+        self.assertIsNotNone(settings)
+        self.assertEqual(settings.reasoning.effort, "low")
+        self.assertEqual(settings.reasoning.summary, "auto")
+
+    def test_reasoning_and_base_url_normalization(self):
+        self.assertEqual(normalize_reasoning_effort("xhigh"), "xhigh")
+        self.assertIsNone(normalize_reasoning_summary("none"))
+        self.assertFalse(should_use_openai_compatible_chat_model(None))
+        self.assertFalse(should_use_openai_compatible_chat_model("https://api.openai.com/v1/"))
+        self.assertTrue(should_use_openai_compatible_chat_model("https://example.test/v1"))
+        with self.assertRaises(ValueError):
+            normalize_reasoning_effort("maximum")
+
+    def test_structured_agent_output_serializes_to_json(self):
+        output = serialize_agent_final_output(
+            StructuredAnswer(answer="done", document_ids=["dsid_1"])
+        )
+
+        self.assertEqual(output, '{"answer":"done","document_ids":["dsid_1"]}')
 
 
 if __name__ == "__main__":

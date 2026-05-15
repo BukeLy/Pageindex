@@ -14,16 +14,31 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from dotenv import load_dotenv
+from pydantic import BaseModel, ConfigDict, Field
 
 from examples.Benchmark.enterprise_rag_benchmark.enterprise_rag import (
     EnterpriseRAGQuestion,
     load_questions,
 )
 from pageindex.filesystem import PageIndexFileSystem
-from pageindex.filesystem.agent import AGENT_STREAM_MODE_CHOICES, run_pifs_agent
+from pageindex.filesystem.agent import (
+    AGENT_STREAM_MODE_CHOICES,
+    REASONING_EFFORT_CHOICES,
+    REASONING_SUMMARY_CHOICES,
+    run_pifs_agent,
+)
 
 
 DEFAULT_QUESTION_IDS = ["qst_0001", "qst_0002", "qst_0004", "qst_0011", "qst_0012"]
+
+
+class PIFSAgentAnswer(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    answer: str = Field(description="Final answer based only on opened PageIndex FileSystem documents.")
+    document_ids: list[str] = Field(
+        description="EnterpriseRAG document ids copied from tool output external_id/document_id fields."
+    )
 
 
 def main() -> int:
@@ -60,6 +75,8 @@ def main() -> int:
             skip_agent=args.skip_agent,
             verbose=args.verbose,
             stream_mode=args.stream_mode,
+            reasoning_effort=args.reasoning_effort,
+            reasoning_summary=args.reasoning_summary,
         )
         results.append(result)
         print(
@@ -89,6 +106,9 @@ def main() -> int:
         "dataset_root": str(dataset_root),
         "model": args.model,
         "base_url": os.environ.get("OPENAI_BASE_URL"),
+        "stream_mode": args.stream_mode,
+        "reasoning_effort": args.reasoning_effort,
+        "reasoning_summary": args.reasoning_summary,
         "doc_hit_rate": (
             sum(1 for result in results if result["doc_hit"]) / len(results) if results else 0
         ),
@@ -118,6 +138,18 @@ def parse_args() -> argparse.Namespace:
         choices=AGENT_STREAM_MODE_CHOICES,
         help="Stream agent internals: off, tools, model output/think, all, or aliases like think/debug.",
     )
+    parser.add_argument(
+        "--reasoning-effort",
+        default=os.environ.get("PIFS_AGENT_REASONING_EFFORT"),
+        choices=REASONING_EFFORT_CHOICES,
+        help="Enable reasoning for models that support it: none, minimal, low, medium, high, or xhigh.",
+    )
+    parser.add_argument(
+        "--reasoning-summary",
+        default=os.environ.get("PIFS_AGENT_REASONING_SUMMARY"),
+        choices=REASONING_SUMMARY_CHOICES,
+        help="Request visible reasoning summary deltas when supported: auto, concise, detailed, or none.",
+    )
     return parser.parse_args()
 
 
@@ -145,6 +177,8 @@ def run_question(
     skip_agent: bool,
     verbose: bool,
     stream_mode: str,
+    reasoning_effort: str | None,
+    reasoning_summary: str | None,
 ) -> dict[str, Any]:
     prompt = agent_prompt(question)
     raw_output = ""
@@ -162,6 +196,9 @@ def run_question(
                 root="/",
                 verbose=verbose,
                 stream_mode=stream_mode,
+                reasoning_effort=reasoning_effort,
+                reasoning_summary=reasoning_summary,
+                output_type=PIFSAgentAnswer,
                 agent_log=agent_log,
             )
             parsed = parse_agent_json(raw_output)
@@ -195,9 +232,7 @@ before answering. Your first content search should use the complete Question
 text with `grep -R` in the source folder; refine only if the top results do not
 contain enough evidence.
 
-Return final output as a single JSON object only:
-{{"answer":"...","document_ids":["dsid_..."]}}
-
+Use the configured structured output schema.
 Only include document_ids that appeared in tool output as external_id/document_id.
 """.strip()
 
