@@ -26,9 +26,9 @@ class PIFSAgentStreamTest(unittest.TestCase):
         observer.finish()
 
         printed = output.getvalue()
-        self.assertIn("[pifs think summary]", printed)
+        self.assertIn("[llm think summary]", printed)
         self.assertIn("look up folder", printed)
-        self.assertIn("[pifs output]", printed)
+        self.assertIn("[llm output]", printed)
         self.assertIn('{"answer":"done"}', printed.replace("\n", ""))
         self.assertEqual(
             stream_log,

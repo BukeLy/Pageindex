@@ -105,7 +105,7 @@ class PIFSAgentStreamObserver:
 
     def finish(self, final_output: Any = None) -> None:
         if self.wants_model_stream and not self.has_output_text and final_output:
-            self._emit("output", str(final_output), "[pifs output]")
+            self._emit("output", str(final_output), "[llm output]")
         if self._printed_section is not None:
             print(file=self.output, flush=True)
             self._printed_section = None
@@ -121,11 +121,11 @@ class PIFSAgentStreamObserver:
         if not isinstance(delta, str) or not delta:
             return
         if event_type == "response.output_text.delta":
-            self._emit("output", delta, "[pifs output]")
+            self._emit("output", delta, "[llm output]")
         elif event_type == "response.reasoning_text.delta":
-            self._emit("think", delta, "[pifs think]")
+            self._emit("think", delta, "[llm think]")
         elif event_type == "response.reasoning_summary_text.delta":
-            self._emit("think_summary", delta, "[pifs think summary]")
+            self._emit("think_summary", delta, "[llm think summary]")
         elif event_type == "response.function_call_arguments.delta":
             self._emit("tool_args", delta, "[pifs tool args]")
 
