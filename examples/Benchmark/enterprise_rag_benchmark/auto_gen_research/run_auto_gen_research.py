@@ -34,7 +34,7 @@ from examples.Benchmark.enterprise_rag_benchmark.run_enterprise_rag_pifs_agent i
     parse_agent_json,
 )
 from pageindex.filesystem import PageIndexFileSystem
-from pageindex.filesystem.agent import run_pifs_agent
+from pageindex.filesystem.agent import AGENT_STREAM_MODE_CHOICES, run_pifs_agent
 
 
 METADATA_STRATEGIES = ["entity_relation_fixed_schema", "dag_fixed_schema"]
@@ -152,6 +152,7 @@ def main() -> int:
                 max_turns=args.max_turns,
                 skip_agent=args.skip_agent,
                 verbose=args.verbose,
+                stream_mode=args.stream_mode,
             )
             combo_summary = summarize_combo(combo, combo_results)
             combo_summary.update(
@@ -205,6 +206,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--reuse-generated-only", action="store_true")
     parser.add_argument("--skip-agent", action="store_true")
     parser.add_argument("--verbose", action="store_true")
+    parser.add_argument(
+        "--stream-mode",
+        default=os.environ.get("PIFS_AGENT_STREAM_MODE", "off"),
+        choices=AGENT_STREAM_MODE_CHOICES,
+        help="Stream agent internals: off, tools, model output/think, all, or aliases like think/debug.",
+    )
     parser.add_argument("--reset", action="store_true")
     args = parser.parse_args()
     if not args.run_name:
@@ -828,11 +835,13 @@ def evaluate_combo(
     max_turns: int,
     skip_agent: bool,
     verbose: bool,
+    stream_mode: str,
 ) -> list[dict[str, Any]]:
     results = []
     for question in questions:
         started = time.time()
         tool_log: list[dict[str, Any]] = []
+        agent_log: list[dict[str, Any]] = []
         raw_output = ""
         error = None
         skipped = False
@@ -848,7 +857,9 @@ def evaluate_combo(
                     root="/",
                     max_turns=max_turns,
                     verbose=verbose,
+                    stream_mode=stream_mode,
                     tool_log=tool_log,
+                    agent_log=agent_log,
                 )
                 parsed = parse_agent_json(raw_output)
             except Exception as exc:  # noqa: BLE001 - experiments record failures.
@@ -869,6 +880,7 @@ def evaluate_combo(
                 "seconds": round(time.time() - started, 3),
                 "tool_calls": len(tool_log),
                 "tool_log": tool_log,
+                "agent_log": agent_log,
                 "raw_output": raw_output,
             }
         )

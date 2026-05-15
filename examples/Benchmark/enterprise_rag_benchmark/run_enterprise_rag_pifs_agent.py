@@ -20,7 +20,7 @@ from examples.Benchmark.enterprise_rag_benchmark.enterprise_rag import (
     load_questions,
 )
 from pageindex.filesystem import PageIndexFileSystem
-from pageindex.filesystem.agent import run_pifs_agent
+from pageindex.filesystem.agent import AGENT_STREAM_MODE_CHOICES, run_pifs_agent
 
 
 DEFAULT_QUESTION_IDS = ["qst_0001", "qst_0002", "qst_0004", "qst_0011", "qst_0012"]
@@ -59,6 +59,7 @@ def main() -> int:
             model=args.model,
             skip_agent=args.skip_agent,
             verbose=args.verbose,
+            stream_mode=args.stream_mode,
         )
         results.append(result)
         print(
@@ -111,6 +112,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--base-url", default=os.environ.get("OPENAI_BASE_URL"))
     parser.add_argument("--skip-agent", action="store_true")
     parser.add_argument("--verbose", action="store_true")
+    parser.add_argument(
+        "--stream-mode",
+        default=os.environ.get("PIFS_AGENT_STREAM_MODE", "off"),
+        choices=AGENT_STREAM_MODE_CHOICES,
+        help="Stream agent internals: off, tools, model output/think, all, or aliases like think/debug.",
+    )
     return parser.parse_args()
 
 
@@ -137,16 +144,26 @@ def run_question(
     model: str,
     skip_agent: bool,
     verbose: bool,
+    stream_mode: str,
 ) -> dict[str, Any]:
     prompt = agent_prompt(question)
     raw_output = ""
     error = None
+    agent_log: list[dict[str, Any]] = []
     parsed = {"answer": "", "document_ids": []}
     if skip_agent:
         error = "skipped"
     else:
         try:
-            raw_output = run_pifs_agent(filesystem, prompt, model=model, root="/", verbose=verbose)
+            raw_output = run_pifs_agent(
+                filesystem,
+                prompt,
+                model=model,
+                root="/",
+                verbose=verbose,
+                stream_mode=stream_mode,
+                agent_log=agent_log,
+            )
             parsed = parse_agent_json(raw_output)
         except Exception as exc:  # noqa: BLE001 - benchmark runner records failures.
             error = f"{type(exc).__name__}: {exc}"
@@ -161,6 +178,7 @@ def run_question(
         "document_ids": document_ids,
         "doc_hit": bool(expected.intersection(document_ids)),
         "raw_output": raw_output,
+        "agent_log": agent_log,
         "error": error,
     }
 

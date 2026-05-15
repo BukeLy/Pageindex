@@ -32,14 +32,23 @@ Matrix:
 Run:
 
 ```bash
-python run_auto_gen_research.py --reset
+uv run python run_auto_gen_research.py --reset
 ```
 
 Generate and register a 100-document corpus without running the agent loop:
 
 ```bash
-python run_auto_gen_research.py --reset --skip-agent --target-docs 100
+uv run python run_auto_gen_research.py --reset --skip-agent --target-docs 100
 ```
+
+Stream model output and exposed reasoning/think deltas during agent evaluation:
+
+```bash
+uv run python run_auto_gen_research.py --reuse-generated-only --target-docs 100 --stream-mode model
+```
+
+Use `--stream-mode all` to show both model output/think and PIFS shell tool
+calls.
 
 By default the script selects questions in benchmark order until the number of
 unique `expected_doc_ids` reaches `--target-docs` (default `10`). It then uses
