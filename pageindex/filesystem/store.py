@@ -9,7 +9,7 @@ from typing import Any, Iterable, Optional
 
 from .types import FileEntry, MetadataField
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 
 class SQLiteFileSystemStore:
@@ -39,6 +39,10 @@ class SQLiteFileSystemStore:
                 version = 1
             if version < 2:
                 self._migrate_to_v2(conn)
+                conn.execute("PRAGMA user_version = 2")
+                version = 2
+            if version < 3:
+                self._migrate_to_v3(conn)
                 conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
 
     def _migrate_to_v1(self, conn: sqlite3.Connection) -> None:
@@ -71,9 +75,8 @@ class SQLiteFileSystemStore:
                 name TEXT NOT NULL,
                 path TEXT NOT NULL UNIQUE,
                 description TEXT NOT NULL DEFAULT '',
-                kind TEXT NOT NULL DEFAULT 'physical',
-                source TEXT NOT NULL DEFAULT 'source',
-                sort_order INTEGER NOT NULL DEFAULT 0,
+                kind TEXT NOT NULL DEFAULT 'manual',
+                metadata_json TEXT NOT NULL DEFAULT '{}',
                 created_at TEXT DEFAULT CURRENT_TIMESTAMP,
                 updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY(parent_id) REFERENCES folders(folder_id)
@@ -82,11 +85,9 @@ class SQLiteFileSystemStore:
             CREATE TABLE IF NOT EXISTS file_folders (
                 file_ref TEXT NOT NULL,
                 folder_id TEXT NOT NULL,
-                membership_kind TEXT NOT NULL DEFAULT 'primary',
-                reason TEXT,
-                confidence REAL,
+                metadata_json TEXT NOT NULL DEFAULT '{}',
                 created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-                PRIMARY KEY (file_ref, folder_id, membership_kind),
+                PRIMARY KEY (file_ref, folder_id),
                 FOREIGN KEY(file_ref) REFERENCES files(file_ref) ON DELETE CASCADE,
                 FOREIGN KEY(folder_id) REFERENCES folders(folder_id) ON DELETE CASCADE
             );
@@ -137,7 +138,6 @@ class SQLiteFileSystemStore:
             CREATE INDEX IF NOT EXISTS idx_folders_path ON folders(path);
             CREATE INDEX IF NOT EXISTS idx_folders_parent_id ON folders(parent_id);
             CREATE INDEX IF NOT EXISTS idx_file_folders_folder ON file_folders(folder_id);
-            CREATE INDEX IF NOT EXISTS idx_file_folders_kind ON file_folders(membership_kind);
             CREATE INDEX IF NOT EXISTS idx_metadata_fields_name ON metadata_fields(name);
             CREATE INDEX IF NOT EXISTS idx_metadata_values_field_text ON metadata_values(field_id, value_text);
             CREATE INDEX IF NOT EXISTS idx_metadata_values_field_number ON metadata_values(field_id, value_number);
@@ -158,8 +158,6 @@ class SQLiteFileSystemStore:
             columns = self._columns(conn, "folders")
             if "description" not in columns:
                 conn.execute("ALTER TABLE folders ADD COLUMN description TEXT NOT NULL DEFAULT ''")
-            if "sort_order" not in columns:
-                conn.execute("ALTER TABLE folders ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0")
         if "metadata_fields" in self._tables(conn):
             conn.execute(
                 """
@@ -168,6 +166,57 @@ class SQLiteFileSystemStore:
                 WHERE type NOT IN ('string', 'number', 'boolean')
                 """
             )
+
+    def _migrate_to_v3(self, conn: sqlite3.Connection) -> None:
+        if "folders" in self._tables(conn):
+            columns = self._columns(conn, "folders")
+            if "metadata_json" not in columns:
+                conn.execute("ALTER TABLE folders ADD COLUMN metadata_json TEXT NOT NULL DEFAULT '{}'")
+        if "file_folders" in self._tables(conn):
+            columns = self._columns(conn, "file_folders")
+            if "membership_kind" in columns or "metadata_json" not in columns:
+                conn.execute("DROP INDEX IF EXISTS idx_file_folders_kind")
+                conn.execute("DROP INDEX IF EXISTS idx_file_folders_folder")
+                conn.execute(
+                    """
+                    CREATE TABLE file_folders_v3 (
+                        file_ref TEXT NOT NULL,
+                        folder_id TEXT NOT NULL,
+                        metadata_json TEXT NOT NULL DEFAULT '{}',
+                        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                        PRIMARY KEY (file_ref, folder_id),
+                        FOREIGN KEY(file_ref) REFERENCES files(file_ref) ON DELETE CASCADE,
+                        FOREIGN KEY(folder_id) REFERENCES folders(folder_id) ON DELETE CASCADE
+                    )
+                    """
+                )
+                conn.execute(
+                    """
+                    INSERT OR IGNORE INTO file_folders_v3(file_ref, folder_id, metadata_json, created_at)
+                    SELECT file_ref, folder_id, '{}', MIN(created_at)
+                    FROM file_folders
+                    GROUP BY file_ref, folder_id
+                    """
+                )
+                conn.execute("DROP TABLE file_folders")
+                conn.execute("ALTER TABLE file_folders_v3 RENAME TO file_folders")
+            elif "metadata_json" not in columns:
+                conn.execute("ALTER TABLE file_folders ADD COLUMN metadata_json TEXT NOT NULL DEFAULT '{}'")
+        else:
+            conn.execute(
+                """
+                CREATE TABLE file_folders (
+                    file_ref TEXT NOT NULL,
+                    folder_id TEXT NOT NULL,
+                    metadata_json TEXT NOT NULL DEFAULT '{}',
+                    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                    PRIMARY KEY (file_ref, folder_id),
+                    FOREIGN KEY(file_ref) REFERENCES files(file_ref) ON DELETE CASCADE,
+                    FOREIGN KEY(folder_id) REFERENCES folders(folder_id) ON DELETE CASCADE
+                )
+                """
+            )
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_file_folders_folder ON file_folders(folder_id)")
 
     def _migrate_legacy_tables(self, conn: sqlite3.Connection) -> None:
         tables = self._tables(conn)
@@ -197,9 +246,8 @@ class SQLiteFileSystemStore:
             folder_id = self.ensure_folder(conn, row["folder_path"] or "/")
             conn.execute(
                 """
-                INSERT OR IGNORE INTO file_folders(
-                    file_ref, folder_id, membership_kind, reason, confidence
-                ) VALUES (?, ?, 'primary', 'legacy_folder_path', 1.0)
+                INSERT OR IGNORE INTO file_folders(file_ref, folder_id, metadata_json)
+                VALUES (?, ?, '{}')
                 """,
                 (row["file_ref"], folder_id),
             )
@@ -228,18 +276,81 @@ class SQLiteFileSystemStore:
 
     def insert_file(self, record: dict[str, Any]) -> None:
         with self.connect() as conn:
-            folder_id = self.ensure_folder(conn, record["folder_path"])
+            folder_id = self.ensure_folder(conn, record["folder_path"], kind=record.get("folder_kind", "manual"))
             self._insert_file_row(conn, record)
             conn.execute(
                 """
-                INSERT OR REPLACE INTO file_folders(
-                    file_ref, folder_id, membership_kind, reason, confidence
-                ) VALUES (?, ?, 'primary', 'source_path', 1.0)
+                INSERT OR REPLACE INTO file_folders(file_ref, folder_id, metadata_json)
+                VALUES (?, ?, ?)
                 """,
-                (record["file_ref"], folder_id),
+                (
+                    record["file_ref"],
+                    folder_id,
+                    json.dumps(record.get("folder_metadata") or {}, ensure_ascii=False),
+                ),
             )
             self.replace_metadata_values(conn, record["file_ref"], record["metadata"])
             self.replace_fts(conn, record)
+
+    def create_folder(
+        self,
+        path: str,
+        *,
+        kind: str = "manual",
+        description: str = "",
+        metadata: dict[str, Any] | None = None,
+    ) -> str:
+        with self.connect() as conn:
+            return self.ensure_folder(
+                conn,
+                path,
+                kind=kind,
+                description=description,
+                metadata=metadata,
+            )
+
+    def attach_file_to_folder(
+        self,
+        file_ref: str,
+        folder_path_or_id: str,
+        *,
+        metadata: dict[str, Any] | None = None,
+    ) -> None:
+        with self.connect() as conn:
+            resolved_file_ref = self._resolve_file_ref(conn, file_ref)
+            folder_id = self._resolve_or_create_folder(conn, folder_path_or_id)
+            conn.execute(
+                """
+                INSERT INTO file_folders(file_ref, folder_id, metadata_json)
+                VALUES (?, ?, ?)
+                ON CONFLICT(file_ref, folder_id) DO UPDATE SET
+                    metadata_json = excluded.metadata_json
+                """,
+                (
+                    resolved_file_ref,
+                    folder_id,
+                    json.dumps(metadata or {}, ensure_ascii=False),
+                ),
+            )
+
+    def attach_files_to_folders(self, items: list[dict[str, Any]]) -> None:
+        with self.connect() as conn:
+            for item in items:
+                resolved_file_ref = self._resolve_file_ref(conn, item["file_ref"])
+                folder_id = self._resolve_or_create_folder(conn, item["folder"])
+                conn.execute(
+                    """
+                    INSERT INTO file_folders(file_ref, folder_id, metadata_json)
+                    VALUES (?, ?, ?)
+                    ON CONFLICT(file_ref, folder_id) DO UPDATE SET
+                        metadata_json = excluded.metadata_json
+                    """,
+                    (
+                        resolved_file_ref,
+                        folder_id,
+                        json.dumps(item.get("metadata") or {}, ensure_ascii=False),
+                    ),
+                )
 
     def _insert_file_row(self, conn: sqlite3.Connection, record: dict[str, Any]) -> None:
         current_timestamp = object()
@@ -441,18 +552,16 @@ class SQLiteFileSystemStore:
                         fo.path,
                         fo.description,
                         fo.kind,
-                        fo.source,
-                        fo.sort_order,
+                        fo.metadata_json,
                         fo.created_at,
                         fo.updated_at,
                         (
-                            SELECT COUNT(*)
+                            SELECT COUNT(DISTINCT child_ff.file_ref)
                             FROM file_folders child_ff
                             JOIN files child_file
                               ON child_file.file_ref = child_ff.file_ref
                              AND child_file.deleted_at IS NULL
                             WHERE child_ff.folder_id = fo.folder_id
-                              AND child_ff.membership_kind = 'primary'
                         ) AS file_count,
                         (
                             SELECT COUNT(*)
@@ -477,18 +586,16 @@ class SQLiteFileSystemStore:
                         fo.path,
                         fo.description,
                         fo.kind,
-                        fo.source,
-                        fo.sort_order,
+                        fo.metadata_json,
                         fo.created_at,
                         fo.updated_at,
                         (
-                            SELECT COUNT(*)
+                            SELECT COUNT(DISTINCT child_ff.file_ref)
                             FROM file_folders child_ff
                             JOIN files child_file
                               ON child_file.file_ref = child_ff.file_ref
                              AND child_file.deleted_at IS NULL
                             WHERE child_ff.folder_id = fo.folder_id
-                              AND child_ff.membership_kind = 'primary'
                         ) AS file_count,
                         (
                             SELECT COUNT(*)
@@ -497,7 +604,7 @@ class SQLiteFileSystemStore:
                         ) AS children_count
                     FROM folders fo
                     WHERE fo.parent_id = ?
-                    ORDER BY fo.sort_order, fo.kind, fo.name
+                    ORDER BY fo.kind, fo.name
                     LIMIT ?
                     """,
                     (folder["folder_id"], limit),
@@ -540,10 +647,7 @@ class SQLiteFileSystemStore:
         metadata_filter: Optional[dict[str, Any]],
         limit: int,
     ) -> list[sqlite3.Row]:
-        joins = [
-            "JOIN file_folders ff ON ff.file_ref = f.file_ref AND ff.membership_kind = 'primary'",
-            "JOIN folders pf ON pf.folder_id = ff.folder_id",
-        ]
+        joins = []
         selects = [
             "f.file_ref",
             "f.external_id",
@@ -553,8 +657,28 @@ class SQLiteFileSystemStore:
             "f.pageindex_tree_status",
             "f.metadata_json",
             "f.created_at",
-            "pf.folder_id",
-            "pf.path AS folder_path",
+            """
+            (
+                SELECT display_folder.folder_id
+                FROM file_folders display_ff
+                JOIN folders display_folder
+                  ON display_folder.folder_id = display_ff.folder_id
+                WHERE display_ff.file_ref = f.file_ref
+                ORDER BY display_folder.path
+                LIMIT 1
+            ) AS folder_id
+            """,
+            """
+            (
+                SELECT display_folder.path
+                FROM file_folders display_ff
+                JOIN folders display_folder
+                  ON display_folder.folder_id = display_ff.folder_id
+                WHERE display_ff.file_ref = f.file_ref
+                ORDER BY display_folder.path
+                LIMIT 1
+            ) AS folder_path
+            """,
         ]
         where = ["f.deleted_at IS NULL"]
         params: list[Any] = []
@@ -702,43 +826,46 @@ class SQLiteFileSystemStore:
         return self._file_entry(row)
 
     def resolve_file_ref(self, target: str) -> str:
+        with self.connect() as conn:
+            return self._resolve_file_ref(conn, target)
+
+    def _resolve_file_ref(self, conn: sqlite3.Connection, target: str) -> str:
         target = str(target).strip()
         if not target:
             raise KeyError("Empty file target")
-        with self.connect() as conn:
-            row = conn.execute(
-                "SELECT file_ref FROM files WHERE file_ref = ? AND deleted_at IS NULL",
-                (target,),
-            ).fetchone()
-            if row:
-                return row["file_ref"]
-            row = conn.execute(
-                "SELECT file_ref FROM files WHERE external_id = ? AND deleted_at IS NULL",
-                (target,),
-            ).fetchone()
-            if row:
-                return row["file_ref"]
-            stripped = target.strip("/")
-            row = conn.execute(
-                "SELECT file_ref FROM files WHERE source_path = ? AND deleted_at IS NULL",
-                (stripped,),
-            ).fetchone()
-            if row:
-                return row["file_ref"]
-            row = conn.execute(
-                """
-                SELECT f.file_ref
-                FROM files f
-                JOIN file_folders ff ON ff.file_ref = f.file_ref AND ff.membership_kind = 'primary'
-                JOIN folders pf ON pf.folder_id = ff.folder_id
-                WHERE (pf.path || '/' || f.title) = ?
-                   OR (pf.path || '/' || f.source_path) = ?
-                LIMIT 1
-                """,
-                (target, target),
-            ).fetchone()
-            if row:
-                return row["file_ref"]
+        row = conn.execute(
+            "SELECT file_ref FROM files WHERE file_ref = ? AND deleted_at IS NULL",
+            (target,),
+        ).fetchone()
+        if row:
+            return row["file_ref"]
+        row = conn.execute(
+            "SELECT file_ref FROM files WHERE external_id = ? AND deleted_at IS NULL",
+            (target,),
+        ).fetchone()
+        if row:
+            return row["file_ref"]
+        stripped = target.strip("/")
+        row = conn.execute(
+            "SELECT file_ref FROM files WHERE source_path = ? AND deleted_at IS NULL",
+            (stripped,),
+        ).fetchone()
+        if row:
+            return row["file_ref"]
+        row = conn.execute(
+            """
+            SELECT f.file_ref
+            FROM files f
+            JOIN file_folders ff ON ff.file_ref = f.file_ref
+            JOIN folders pf ON pf.folder_id = ff.folder_id
+            WHERE (pf.path || '/' || f.title) = ?
+               OR (pf.path || '/' || f.source_path) = ?
+            LIMIT 1
+            """,
+            (target, target),
+        ).fetchone()
+        if row:
+            return row["file_ref"]
         raise KeyError(f"Unknown file target: {target}")
 
     def ensure_folder(
@@ -746,39 +873,50 @@ class SQLiteFileSystemStore:
         conn: sqlite3.Connection | None,
         path: str,
         *,
-        kind: str = "physical",
-        source: str = "source",
+        kind: str = "manual",
+        description: str = "",
+        metadata: dict[str, Any] | None = None,
     ) -> str:
         owns_connection = conn is None
         if conn is None:
             conn = self.connect()
         try:
             normalized = normalize_path(path)
+            metadata_json = json.dumps(metadata or {}, ensure_ascii=False)
             if normalized == "/":
                 folder_id = self.folder_id("/")
-                conn.execute(
-                    """
-                    INSERT OR IGNORE INTO folders(
-                        folder_id, parent_id, name, path, description, kind, source, sort_order
-                    )
-                    VALUES (?, NULL, '/', '/', '', ?, ?, 0)
-                    """,
-                    (folder_id, kind, source),
+                existing = conn.execute(
+                    "SELECT folder_id FROM folders WHERE path = '/'"
+                ).fetchone()
+                if existing is not None and not description and metadata_json == "{}":
+                    if owns_connection:
+                        conn.commit()
+                    return folder_id
+                self._upsert_folder_row(
+                    conn,
+                    folder_id=folder_id,
+                    parent_id=None,
+                    name="/",
+                    path="/",
+                    kind=kind,
+                    description=description,
+                    metadata_json=metadata_json,
                 )
                 if owns_connection:
                     conn.commit()
                 return folder_id
-            parent_id = self.ensure_folder(conn, str(Path(normalized).parent), kind=kind, source=source)
+            parent_id = self.ensure_folder(conn, str(Path(normalized).parent), kind=kind)
             name = normalized.rsplit("/", 1)[-1]
             folder_id = self.folder_id(normalized)
-            conn.execute(
-                """
-                INSERT OR IGNORE INTO folders(
-                    folder_id, parent_id, name, path, description, kind, source, sort_order
-                )
-                VALUES (?, ?, ?, ?, '', ?, ?, 0)
-                """,
-                (folder_id, parent_id, name, normalized, kind, source),
+            self._upsert_folder_row(
+                conn,
+                folder_id=folder_id,
+                parent_id=parent_id,
+                name=name,
+                path=normalized,
+                kind=kind,
+                description=description,
+                metadata_json=metadata_json,
             )
             if owns_connection:
                 conn.commit()
@@ -786,6 +924,66 @@ class SQLiteFileSystemStore:
         finally:
             if owns_connection:
                 conn.close()
+
+    def _upsert_folder_row(
+        self,
+        conn: sqlite3.Connection,
+        *,
+        folder_id: str,
+        parent_id: str | None,
+        name: str,
+        path: str,
+        kind: str,
+        description: str,
+        metadata_json: str,
+    ) -> None:
+        columns = self._columns(conn, "folders")
+        insert_columns = ["folder_id", "parent_id", "name", "path", "description", "kind", "metadata_json"]
+        values: list[Any] = [folder_id, parent_id, name, path, description, kind, metadata_json]
+        if "source" in columns:
+            insert_columns.append("source")
+            values.append("system")
+        if "sort_order" in columns:
+            insert_columns.append("sort_order")
+            values.append(0)
+        placeholders = ", ".join("?" for _ in values)
+        update_assignments = [
+            "parent_id = excluded.parent_id",
+            "name = excluded.name",
+            "kind = excluded.kind",
+            "updated_at = CURRENT_TIMESTAMP",
+        ]
+        if description:
+            update_assignments.append("description = excluded.description")
+        if metadata_json != "{}":
+            update_assignments.append("metadata_json = excluded.metadata_json")
+        conn.execute(
+            f"""
+            INSERT INTO folders({", ".join(insert_columns)})
+            VALUES ({placeholders})
+            ON CONFLICT(path) DO UPDATE SET
+                {", ".join(update_assignments)}
+            """,
+            values,
+        )
+
+    def _resolve_or_create_folder(self, conn: sqlite3.Connection, folder_path_or_id: str) -> str:
+        target = str(folder_path_or_id).strip()
+        if not target:
+            raise KeyError("Empty folder target")
+        row = conn.execute(
+            "SELECT folder_id FROM folders WHERE folder_id = ?",
+            (target,),
+        ).fetchone()
+        if row:
+            return row["folder_id"]
+        row = conn.execute(
+            "SELECT folder_id FROM folders WHERE path = ?",
+            (normalize_path(target),),
+        ).fetchone()
+        if row:
+            return row["folder_id"]
+        return self.ensure_folder(conn, target)
 
     def read_text(self, file_ref: str) -> str:
         entry = self.get_file(file_ref)
@@ -802,7 +1000,49 @@ class SQLiteFileSystemStore:
         return path
 
     def file_info(self, target: str) -> dict[str, Any]:
-        return self._file_entry_to_dict(self.get_file(self.resolve_file_ref(target)))
+        file_ref = self.resolve_file_ref(target)
+        entry = self.get_file(file_ref)
+        info = self._file_entry_to_dict(entry)
+        info["folders"] = self.folder_memberships(file_ref)
+        return info
+
+    def folder_memberships(self, file_ref: str) -> list[dict[str, Any]]:
+        with self.connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT
+                    fo.folder_id,
+                    fo.parent_id,
+                    fo.name,
+                    fo.path,
+                    fo.description,
+                    fo.kind,
+                    fo.metadata_json AS folder_metadata_json,
+                    ff.metadata_json AS membership_metadata_json,
+                    ff.created_at
+                FROM file_folders ff
+                JOIN folders fo ON fo.folder_id = ff.folder_id
+                WHERE ff.file_ref = ?
+                ORDER BY fo.path
+                """,
+                (file_ref,),
+            ).fetchall()
+        return [
+            {
+                "folder_id": row["folder_id"],
+                "id": row["folder_id"],
+                "parent_id": row["parent_id"],
+                "parent_folder_id": row["parent_id"],
+                "name": row["name"],
+                "path": row["path"],
+                "kind": row["kind"],
+                "description": row["description"],
+                "folder_metadata": json.loads(row["folder_metadata_json"] or "{}"),
+                "metadata": json.loads(row["membership_metadata_json"] or "{}"),
+                "created_at": row["created_at"],
+            }
+            for row in rows
+        ]
 
     def _file_entry_row(self, conn: sqlite3.Connection, file_ref: str) -> sqlite3.Row | None:
         return conn.execute(
@@ -822,10 +1062,19 @@ class SQLiteFileSystemStore:
                 f.pageindex_doc_id,
                 f.pageindex_tree_status,
                 f.metadata_json,
-                pf.path AS folder_path
+                COALESCE(
+                    (
+                        SELECT display_folder.path
+                        FROM file_folders display_ff
+                        JOIN folders display_folder
+                          ON display_folder.folder_id = display_ff.folder_id
+                        WHERE display_ff.file_ref = f.file_ref
+                        ORDER BY display_folder.path
+                        LIMIT 1
+                    ),
+                    '/'
+                ) AS folder_path
             FROM files f
-            JOIN file_folders ff ON ff.file_ref = f.file_ref AND ff.membership_kind = 'primary'
-            JOIN folders pf ON pf.folder_id = ff.folder_id
             WHERE f.file_ref = ? AND f.deleted_at IS NULL
             """,
             (file_ref,),
@@ -848,10 +1097,10 @@ class SQLiteFileSystemStore:
                 f.pageindex_tree_status,
                 f.metadata_json,
                 f.created_at,
-                pf.folder_id,
-                pf.path AS folder_path
+                MIN(pf.folder_id) AS folder_id,
+                MIN(pf.path) AS folder_path
             FROM files f
-            JOIN file_folders ff ON ff.file_ref = f.file_ref AND ff.membership_kind = 'primary'
+            JOIN file_folders ff ON ff.file_ref = f.file_ref
             JOIN folders pf ON pf.folder_id = ff.folder_id
             WHERE f.deleted_at IS NULL
         """
@@ -862,7 +1111,7 @@ class SQLiteFileSystemStore:
         else:
             sql += " AND pf.path = ?"
             params = [path]
-        sql += " ORDER BY f.created_at DESC, f.title LIMIT ?"
+        sql += " GROUP BY f.file_ref ORDER BY f.created_at DESC, f.title LIMIT ?"
         params.append(limit)
         return conn.execute(sql, params).fetchall()
 
@@ -874,32 +1123,63 @@ class SQLiteFileSystemStore:
         if folder_id:
             if folder_id == "root":
                 folder_path = "/"
-            elif recursive:
+            else:
+                if recursive:
+                    return (
+                        """
+                        EXISTS (
+                            SELECT 1
+                            FROM file_folders scope_ff
+                            JOIN folders scope_folder
+                              ON scope_folder.folder_id = scope_ff.folder_id
+                            JOIN folders base_folder
+                              ON base_folder.folder_id = ?
+                            WHERE scope_ff.file_ref = f.file_ref
+                              AND (
+                                scope_folder.folder_id = base_folder.folder_id
+                                OR scope_folder.path LIKE CASE
+                                    WHEN base_folder.path = '/' THEN '/%'
+                                    ELSE base_folder.path || '/%'
+                                END
+                              )
+                        )
+                        """,
+                        [folder_id],
+                    )
                 return (
                     """
-                    (
-                        pf.folder_id = ?
-                        OR pf.path LIKE (
-                            SELECT CASE
-                                WHEN base.path = '/' THEN '/%'
-                                ELSE base.path || '/%'
-                            END
-                            FROM folders base
-                            WHERE base.folder_id = ?
-                        )
+                    EXISTS (
+                        SELECT 1
+                        FROM file_folders scope_ff
+                        WHERE scope_ff.file_ref = f.file_ref
+                          AND scope_ff.folder_id = ?
                     )
                     """,
-                    [folder_id, folder_id],
+                    [folder_id],
                 )
-            else:
-                return "pf.folder_id = ?", [folder_id]
         elif scope.get("folder_path") or scope.get("path"):
             folder_path = normalize_path(scope.get("folder_path") or scope.get("path"))
         else:
             return "", []
-        if recursive:
-            return "(pf.path = ? OR pf.path LIKE ?)", [folder_path, self._descendant_like(folder_path)]
-        return "pf.path = ?", [folder_path]
+        path_clause = (
+            "(scope_folder.path = ? OR scope_folder.path LIKE ?)"
+            if recursive
+            else "scope_folder.path = ?"
+        )
+        params = [folder_path, self._descendant_like(folder_path)] if recursive else [folder_path]
+        return (
+            f"""
+            EXISTS (
+                SELECT 1
+                FROM file_folders scope_ff
+                JOIN folders scope_folder
+                  ON scope_folder.folder_id = scope_ff.folder_id
+                WHERE scope_ff.file_ref = f.file_ref
+                  AND {path_clause}
+            )
+            """,
+            params,
+        )
 
     def _folder_by_path(self, conn: sqlite3.Connection, path: str) -> sqlite3.Row | None:
         return conn.execute(
@@ -911,8 +1191,7 @@ class SQLiteFileSystemStore:
                 path,
                 description,
                 kind,
-                source,
-                sort_order,
+                metadata_json,
                 created_at,
                 updated_at
             FROM folders
@@ -936,8 +1215,7 @@ class SQLiteFileSystemStore:
             "description": cls._row_value(row, "description", ""),
             "path": row["path"],
             "kind": row["kind"],
-            "source": row["source"],
-            "sort_order": cls._row_value(row, "sort_order", 0),
+            "metadata": json.loads(cls._row_value(row, "metadata_json", "{}") or "{}"),
             "created_at": cls._row_value(row, "created_at"),
             "updated_at": cls._row_value(row, "updated_at"),
             "file_count": cls._row_value(row, "file_count", 0),

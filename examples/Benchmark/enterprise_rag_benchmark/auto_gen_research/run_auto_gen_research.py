@@ -754,16 +754,31 @@ def build_workspace(
         profile = profiles[doc_id]
         metadata = build_metadata(doc, profile, clusters, metadata_strategy)
         folder_path = build_folder_path(doc, profile, clusters, plans, folder_strategy)
-        filesystem.register_file(
+        file_ref = filesystem.register_file(
             storage_uri=doc["path"],
             source_path=doc["source_path"],
-            folder_path=folder_path,
             external_id=doc_id,
             title=doc["title"],
             metadata=metadata,
             content=doc["text"],
             content_type="application/json",
             source_type=doc["source_type"],
+        )
+        filesystem.create_folder(
+            folder_path,
+            kind="semantic",
+            metadata={
+                "folder_strategy": folder_strategy,
+                "metadata_strategy": metadata_strategy,
+            },
+        )
+        filesystem.attach_file_to_folder(
+            file_ref,
+            folder_path,
+            metadata={
+                "dataset_doc_uuid": doc_id,
+                "folder_strategy": folder_strategy,
+            },
         )
     return filesystem
 

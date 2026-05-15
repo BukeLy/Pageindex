@@ -65,6 +65,31 @@ class PageIndexFileSystem:
     ) -> dict[str, list[dict[str, Any]]]:
         return self.store.list_folder(path, recursive=recursive, limit=limit)
 
+    def create_folder(
+        self,
+        path: str,
+        kind: str = "manual",
+        description: str = "",
+        metadata: Optional[dict[str, Any]] = None,
+    ) -> str:
+        return self.store.create_folder(
+            path,
+            kind=kind,
+            description=description,
+            metadata=metadata,
+        )
+
+    def attach_file_to_folder(
+        self,
+        file_ref: str,
+        folder_path_or_id: str,
+        metadata: Optional[dict[str, Any]] = None,
+    ) -> None:
+        self.store.attach_file_to_folder(file_ref, folder_path_or_id, metadata=metadata)
+
+    def attach_files_to_folders(self, items: list[dict[str, Any]]) -> None:
+        self.store.attach_files_to_folders(items)
+
     def search(
         self,
         query: Union[str, list[str], None] = None,
@@ -146,7 +171,7 @@ class PageIndexFileSystem:
         self.metadata.register_schema(schema)
 
     def _create_folder(self, path: str) -> str:
-        return self.store.ensure_folder(None, path, kind="physical", source="user")
+        return self.create_folder(path)
 
     def _prepare_file_record(self, file: dict[str, Any]) -> dict[str, Any]:
         storage_uri = file["storage_uri"]
@@ -156,9 +181,7 @@ class PageIndexFileSystem:
         content = file.get("content") or ""
         content_type = file.get("content_type") or "text/plain"
         source_type = file.get("source_type") or self._infer_source_type(source_path)
-        folder_path = normalize_path(
-            file.get("folder_path") or "/" + str(Path(source_path).parent)
-        )
+        folder_path = normalize_path(file.get("folder_path") or "/")
         title = file.get("title") or metadata.get("title") or Path(source_path).stem
         file_ref = make_file_ref(external_id or source_path)
         text_artifact_path = self.store.write_text_artifact(file_ref, content)

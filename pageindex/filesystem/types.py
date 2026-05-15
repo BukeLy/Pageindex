@@ -43,7 +43,6 @@ class FolderEntry:
     name: str
     path: str
     kind: str
-    source: str
 
 
 @dataclass(frozen=True)

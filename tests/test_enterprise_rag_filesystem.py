@@ -318,6 +318,112 @@ class EnterpriseRAGFileSystemTest(unittest.TestCase):
             self.assertIn("line 1", opened.text)
             self.assertIn("line 120", opened.text)
 
+    def test_register_file_without_folder_path_mounts_at_root(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            from pageindex.filesystem import PageIndexFileSystem
+
+            filesystem = PageIndexFileSystem(workspace=Path(tmp) / "workspace")
+            file_ref = filesystem.register_file(
+                storage_uri="file:///tmp/root.json",
+                source_path="github/redwood/root.json",
+                external_id="dsid_root_mount",
+                title="Root mounted document",
+                content="root mounted content",
+            )
+
+            root = filesystem.browse("/")
+            results = filesystem.search("root mounted", scope={"folder_path": "/"})
+            opened = filesystem.open(file_ref)
+
+            self.assertEqual([doc["external_id"] for doc in root["files"]], ["dsid_root_mount"])
+            self.assertEqual([result.external_id for result in results], ["dsid_root_mount"])
+            self.assertEqual(opened.folder_path, "/")
+
+    def test_file_can_be_attached_to_multiple_folders_and_searched_from_each(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            from pageindex.filesystem import PageIndexFileSystem
+
+            filesystem = PageIndexFileSystem(workspace=Path(tmp) / "workspace")
+            file_ref = filesystem.register_file(
+                storage_uri="file:///tmp/multipart.json",
+                source_path="github/redwood/multipart.json",
+                folder_path="/docs/github",
+                external_id="dsid_multi_folder",
+                title="Multipart upload limits",
+                content="multipart upload limit enforcement prevents memory pressure",
+            )
+            semantic_one = filesystem.create_folder(
+                "/semantic/api/file-upload",
+                kind="semantic",
+                description="API file upload behavior",
+                metadata={"generated_by": "test"},
+            )
+            semantic_two = filesystem.create_folder(
+                "/semantic/problem/memory-pressure",
+                kind="semantic",
+            )
+            filesystem.attach_file_to_folder(
+                file_ref,
+                semantic_one,
+                metadata={"note": "topic membership"},
+            )
+            filesystem.attach_file_to_folder(file_ref, "/semantic/problem/memory-pressure")
+
+            by_topic = filesystem.search(
+                "multipart upload",
+                scope={"folder_path": "/semantic/api"},
+                limit=10,
+            )
+            by_problem = filesystem.search(
+                "memory pressure",
+                scope={"folder_path": "/semantic/problem"},
+                limit=10,
+            )
+            docs_listing = filesystem.browse("/docs/github")
+            semantic_listing = filesystem.browse("/semantic/api/file-upload")
+            semantic_root = filesystem.browse("/semantic", recursive=True)
+
+            self.assertEqual([result.external_id for result in by_topic], ["dsid_multi_folder"])
+            self.assertEqual([result.external_id for result in by_problem], ["dsid_multi_folder"])
+            self.assertEqual(docs_listing["files"][0]["file_ref"], file_ref)
+            self.assertEqual(semantic_listing["files"][0]["file_ref"], file_ref)
+            semantic_problem = next(
+                folder
+                for folder in semantic_root["folders"]
+                if folder["path"] == "/semantic/problem/memory-pressure"
+            )
+            self.assertEqual(semantic_problem["kind"], "semantic")
+
+    def test_stat_returns_all_folder_memberships_with_metadata(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            from pageindex.filesystem import PageIndexFileSystem
+
+            filesystem = PageIndexFileSystem(workspace=Path(tmp) / "workspace")
+            file_ref = filesystem.register_file(
+                storage_uri="file:///tmp/stat.json",
+                source_path="github/redwood/stat.json",
+                folder_path="/docs/github",
+                external_id="dsid_stat_memberships",
+                title="Stat memberships",
+                content="stat membership content",
+            )
+            filesystem.create_folder("/semantic/topic/audit", kind="semantic")
+            filesystem.attach_file_to_folder(
+                file_ref,
+                "/semantic/topic/audit",
+                metadata={"why": "semantic match"},
+            )
+
+            stat = filesystem._stat(file_ref)
+
+            self.assertEqual(stat["external_id"], "dsid_stat_memberships")
+            self.assertEqual(
+                {folder["path"] for folder in stat["folders"]},
+                {"/docs/github", "/semantic/topic/audit"},
+            )
+            semantic = next(folder for folder in stat["folders"] if folder["path"] == "/semantic/topic/audit")
+            self.assertEqual(semantic["metadata"], {"why": "semantic match"})
+
     def test_pifs_cat_uses_full_leaf_documents(self):
         with tempfile.TemporaryDirectory() as tmp:
             from pageindex.filesystem import PIFSCommandExecutor, PageIndexFileSystem
