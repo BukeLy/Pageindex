@@ -68,6 +68,7 @@ def main() -> int:
 
     results = []
     for question in questions:
+        print(f"\n[benchmark question]\n{question.question_id}: {question.question}", flush=True)
         result = run_question(
             filesystem,
             question,
@@ -79,6 +80,7 @@ def main() -> int:
             reasoning_summary=args.reasoning_summary,
         )
         results.append(result)
+        print("\n[benchmark question result]", flush=True)
         print(
             json.dumps(
                 {
@@ -117,6 +119,7 @@ def main() -> int:
     }
     summary_path = run_dir / "summary.json"
     summary_path.write_text(json.dumps(summary, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    print("\n[benchmark run summary]", flush=True)
     print(json.dumps(summary, ensure_ascii=False, indent=2), flush=True)
     return 0
 

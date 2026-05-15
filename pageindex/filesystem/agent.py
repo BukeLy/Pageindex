@@ -176,7 +176,7 @@ class PIFSAgentStreamObserver:
 
     def finish(self, final_output: Any = None) -> None:
         if self.wants_model_stream and not self.has_output_text and final_output:
-            self._emit("output", str(final_output), "[llm output]")
+            self._emit("output", str(final_output), "[llm final output stream]")
         if self._printed_section is not None:
             print(file=self.output, flush=True)
             self._printed_section = None
@@ -192,13 +192,13 @@ class PIFSAgentStreamObserver:
         if not isinstance(delta, str) or not delta:
             return
         if event_type == "response.output_text.delta":
-            self._emit("output", delta, "[llm output]")
+            self._emit("output", delta, "[llm final output stream]")
         elif event_type == "response.reasoning_text.delta":
-            self._emit("think", delta, "[llm think]")
+            self._emit("think", delta, "[llm reasoning text stream]")
         elif event_type == "response.reasoning_summary_text.delta":
-            self._emit("think_summary", delta, "[llm think summary]")
+            self._emit("think_summary", delta, "[llm reasoning summary stream]")
         elif event_type == "response.function_call_arguments.delta":
-            self._emit("tool_args", delta, "[pifs tool args]")
+            self._buffers["tool_args"].append(delta)
 
     def _handle_run_item_event(self, event: Any) -> None:
         name = getattr(event, "name", "")
@@ -221,6 +221,52 @@ class PIFSAgentStreamObserver:
             print(f"\n{label}", file=self.output, flush=True)
             self._printed_section = kind
         print(text, end="", file=self.output, flush=True)
+
+    def emit_tool_call(self, command: str, *, force: bool = False) -> None:
+        if self.stream_log is not None:
+            self.stream_log.append({"kind": "tool_call", "command": command})
+        if not (force or self.wants_tool_stream):
+            return
+        self._start_section("tool_call", "[llm -> pifs command]")
+        print(command, file=self.output, flush=True)
+
+    def emit_tool_result(
+        self,
+        *,
+        ok: bool,
+        output: str,
+        seconds: float,
+        force: bool = False,
+        preview_chars: int = 1000,
+    ) -> None:
+        if self.stream_log is not None:
+            self.stream_log.append(
+                {
+                    "kind": "tool_result",
+                    "ok": ok,
+                    "seconds": round(seconds, 4),
+                    "output_chars": len(output),
+                    "preview": output[:preview_chars],
+                }
+            )
+        if not (force or self.wants_tool_stream):
+            return
+        preview = output[:preview_chars]
+        if len(output) > preview_chars:
+            preview += f"\n... [truncated {len(output) - preview_chars} chars]"
+        self._start_section("tool_result", "[pifs -> llm result preview]")
+        print(
+            f"ok={str(ok).lower()} seconds={seconds:.4f} output_chars={len(output)}",
+            file=self.output,
+            flush=True,
+        )
+        print(preview, file=self.output, flush=True)
+
+    def _start_section(self, kind: str, label: str) -> None:
+        if self._printed_section is not None:
+            print(file=self.output, flush=True)
+        print(f"\n{label}", file=self.output, flush=True)
+        self._printed_section = kind
 
 
 def run_pifs_agent(
@@ -249,6 +295,7 @@ def run_pifs_agent(
     set_tracing_disabled(True)
     normalized_stream_mode = normalize_agent_stream_mode(stream_mode)
     executor = PIFSCommandExecutor(filesystem, json_output=True)
+    observer = PIFSAgentStreamObserver(normalized_stream_mode, stream_log=agent_log)
     schema = filesystem._metadata_schema()
     schema_fields = schema.get("fields", {})
     schema_sample = dict(list(schema_fields.items())[:50])
@@ -273,23 +320,24 @@ def run_pifs_agent(
         """Run allowed PageIndex FileSystem shell commands, optionally chained with &&."""
         started = time.time()
         ok = True
+        observer.emit_tool_call(command, force=verbose)
         try:
             output = executor.execute(command)
         except PIFSCommandError as exc:
             ok = False
             output = f"ERROR: {exc}"
+        seconds = time.time() - started
         if tool_log is not None:
             tool_log.append(
                 {
                     "command": command,
                     "ok": ok,
-                    "seconds": round(time.time() - started, 4),
+                    "seconds": round(seconds, 4),
                     "output_chars": len(output),
                     "preview": output[:500],
                 }
             )
-        if verbose or normalized_stream_mode in {"tools", "all"}:
-            print(f"\n[pifs bash] {command}\n{output[:1000]}", flush=True)
+        observer.emit_tool_result(ok=ok, output=output, seconds=seconds, force=verbose)
         return output
 
     model_settings = build_agent_model_settings(
@@ -320,8 +368,6 @@ def run_pifs_agent(
     agent = Agent(**agent_kwargs)
 
     async def _run() -> str:
-        stream_log = agent_log if normalized_stream_mode != "off" else None
-        observer = PIFSAgentStreamObserver(normalized_stream_mode, stream_log=stream_log)
         streamed_run = Runner.run_streamed(agent, question, max_turns=max_turns)
         final_output = ""
         try:

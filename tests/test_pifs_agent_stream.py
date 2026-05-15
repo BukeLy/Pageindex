@@ -40,9 +40,9 @@ class PIFSAgentStreamTest(unittest.TestCase):
         observer.finish()
 
         printed = output.getvalue()
-        self.assertIn("[llm think summary]", printed)
+        self.assertIn("[llm reasoning summary stream]", printed)
         self.assertIn("look up folder", printed)
-        self.assertIn("[llm output]", printed)
+        self.assertIn("[llm final output stream]", printed)
         self.assertIn('{"answer":"done"}', printed.replace("\n", ""))
         self.assertEqual(
             stream_log,
@@ -59,13 +59,19 @@ class PIFSAgentStreamTest(unittest.TestCase):
 
         observer.handle_event(self.raw_event("response.output_text.delta", "hidden from tools mode"))
         observer.handle_event(self.raw_event("response.function_call_arguments.delta", '{"command":"ls /"}'))
+        observer.emit_tool_call("ls /")
+        observer.emit_tool_result(ok=True, output='{"ok": true}', seconds=0.001)
         observer.finish()
 
         printed = output.getvalue()
         self.assertNotIn("hidden from tools mode", printed)
-        self.assertIn("[pifs tool args]", printed)
-        self.assertIn('{"command":"ls /"}', printed)
-        self.assertEqual(stream_log, [{"kind": "tool_args", "text": '{"command":"ls /"}'}])
+        self.assertIn("[llm -> pifs command]", printed)
+        self.assertIn("ls /", printed)
+        self.assertIn("[pifs -> llm result preview]", printed)
+        self.assertIn('{"ok": true}', printed)
+        self.assertEqual(stream_log[0], {"kind": "tool_call", "command": "ls /"})
+        self.assertEqual(stream_log[1]["kind"], "tool_result")
+        self.assertEqual(stream_log[2], {"kind": "tool_args", "text": '{"command":"ls /"}'})
 
     def test_stream_mode_aliases(self):
         self.assertEqual(normalize_agent_stream_mode("think"), "model")
