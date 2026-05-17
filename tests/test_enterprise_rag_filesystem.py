@@ -246,6 +246,32 @@ class EnterpriseRAGFileSystemTest(unittest.TestCase):
                 ],
             )
 
+    def test_enterprise_rag_agent_prompt_supports_retrieval_modes(self):
+        from examples.Benchmark.enterprise_rag_benchmark.enterprise_rag import EnterpriseRAGQuestion
+        from examples.Benchmark.enterprise_rag_benchmark.run_enterprise_rag_pifs_agent import (
+            agent_prompt,
+        )
+
+        question = EnterpriseRAGQuestion(
+            question_id="qst_test",
+            question_type="basic",
+            source_types=["github"],
+            question="Which doc mentions audit logging?",
+            expected_doc_ids=["dsid_audit"],
+        )
+
+        folder_prompt = agent_prompt(question, retrieval_mode="folder")
+        metadata_prompt = agent_prompt(question, retrieval_mode="metadata")
+        hybrid_prompt = agent_prompt(question, retrieval_mode="hybrid")
+
+        self.assertIn("Retrieval mode: folder", folder_prompt)
+        self.assertIn("Do not use `find --where`", folder_prompt)
+        self.assertIn("Retrieval mode: metadata", metadata_prompt)
+        self.assertIn("Start with `stat --schema /`", metadata_prompt)
+        self.assertIn("Do not use `ls`, `tree`, or `grep -R <query> <folder>`", metadata_prompt)
+        self.assertIn("Retrieval mode: hybrid", hybrid_prompt)
+        self.assertIn("find <path> -type d --where", hybrid_prompt)
+
     def test_search_handles_punctuation_heavy_enterprise_identifiers(self):
         with tempfile.TemporaryDirectory() as tmp:
             from pageindex.filesystem import PageIndexFileSystem

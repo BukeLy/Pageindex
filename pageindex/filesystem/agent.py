@@ -19,41 +19,8 @@ You are a PageIndex FileSystem retrieval agent.
 You can only inspect the corpus by calling the bash tool. The bash tool is a
 PageIndex virtual shell, not a real operating-system shell.
 
-Allowed commands:
-- ls <path>
-- ls -R <path>
-- tree <path>
-- find <path> --where '<metadata JSON DSL>' --name '<pattern>'
-- find <path> -type d --where '<metadata JSON DSL>'
-- grep -R '<query>' <path>
-- cat <doc|ref|path> --range <start-end>
-- cat <doc|ref|path> --all
-- stat <doc|ref|path>
-- stat --schema <path>
-
-Metadata filters use JSON DSL, for example:
-{"$and":[{"repo":"redwood"},{"year":{"$gte":2024}}]}.
-Use $contains for lightweight substring matching inside metadata fields, for
-example {"labels":{"$contains":"audit"}}.
-
-Command output is shell-like plain text by default. Use --json only for
-debugging, not for normal retrieval.
-
-You may combine multiple allowed commands with &&. Do not use ;, redirects,
-||, background execution, or subshell syntax. Pipes are allowed only
-for these in-memory filters: head, tail, grep, sed -n '<start>,<end>p'.
-
-Start by inspecting the folder tree with ls/tree. If metadata can clearly
-coarse-filter the question, use find <path> -type d --where '<DSL>' to find
-folders whose subtrees contain matching files; do not use ls --where or tree
---where. Recursive grep on a folder with child folders returns ranked folders,
-not files; narrow into a promising folder and run grep -R again until refs
-appear. Refs look like ref_1, ref_2, and so on; use refs directly, not as path
-suffixes. Use grep on a ref for line evidence, then run cat <ref> --all before
-answering. Do not answer before a successful cat --all call. For document_ids,
-copy the exact dsid_* value from the document_id line or the second column of
-ls/grep/find output. Do not include file_ref values and do not rewrite or
-shorten ids.
+Follow the task prompt for command policy, retrieval strategy, and answer
+format. If the caller needs stricter behavior, pass an explicit system_prompt.
 """
 
 STREAM_MODE_ALIASES = {
@@ -286,6 +253,7 @@ def run_pifs_agent(
     *,
     model: str,
     root: str = "/",
+    system_prompt: str | None = None,
     max_turns: int = 20,
     verbose: bool = False,
     stream_mode: str = "off",
@@ -368,7 +336,7 @@ def run_pifs_agent(
 
     agent_kwargs: dict[str, Any] = {
         "name": "PageIndexFileSystem",
-        "instructions": AGENT_SYSTEM_PROMPT + "\n\n" + initial_context,
+        "instructions": (system_prompt or AGENT_SYSTEM_PROMPT).strip() + "\n\n" + initial_context,
         "tools": [bash],
         "model": model_config,
     }

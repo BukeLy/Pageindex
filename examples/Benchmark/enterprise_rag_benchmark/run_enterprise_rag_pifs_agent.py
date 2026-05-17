@@ -12,6 +12,8 @@ from typing import Any
 REPO_ROOT = Path(__file__).resolve().parents[3]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
+BENCHMARK_DIR = Path(__file__).resolve().parent
+PROMPTS_DIR = BENCHMARK_DIR / "prompts"
 
 from dotenv import load_dotenv
 from pydantic import BaseModel, ConfigDict, Field
@@ -30,6 +32,7 @@ from pageindex.filesystem.agent import (
 
 
 DEFAULT_QUESTION_IDS = ["qst_0001", "qst_0002", "qst_0004", "qst_0011", "qst_0012"]
+RETRIEVAL_MODE_CHOICES = ["hybrid", "folder", "metadata"]
 
 
 class PIFSAgentAnswer(BaseModel):
@@ -45,15 +48,14 @@ class PIFSAgentAnswer(BaseModel):
 
 
 def main() -> int:
-    benchmark_dir = Path(__file__).resolve().parent
     load_dotenv(REPO_ROOT / ".env")
-    load_dotenv(benchmark_dir / ".env")
+    load_dotenv(BENCHMARK_DIR / ".env")
 
     args = parse_args()
-    dataset_root = (benchmark_dir / args.dataset).resolve()
+    dataset_root = (BENCHMARK_DIR / args.dataset).resolve()
     questions_path = dataset_root / "questions.jsonl"
-    run_dir = benchmark_dir / "runs" / args.run_name
-    workspace = (benchmark_dir / args.workspace).resolve()
+    run_dir = BENCHMARK_DIR / "runs" / args.run_name
+    workspace = (BENCHMARK_DIR / args.workspace).resolve()
 
     if not (workspace / "filesystem.sqlite").exists():
         raise SystemExit(f"workspace is not registered: {workspace}")
@@ -63,6 +65,9 @@ def main() -> int:
 
     run_dir.mkdir(parents=True, exist_ok=True)
     filesystem = PageIndexFileSystem(workspace=workspace)
+    system_prompt = read_prompt_file(args.system_prompt_file)
+    question_prompt_file = args.question_prompt_file or default_question_prompt_file(args.retrieval_mode)
+    question_prompt_template = read_prompt_file(question_prompt_file)
     questions = select_questions(
         load_questions(questions_path),
         question_ids=args.question_ids,
@@ -76,6 +81,9 @@ def main() -> int:
             filesystem,
             question,
             model=args.model,
+            retrieval_mode=args.retrieval_mode,
+            system_prompt=system_prompt,
+            question_prompt_template=question_prompt_template,
             skip_agent=args.skip_agent,
             verbose=args.verbose,
             stream_mode=args.stream_mode,
@@ -112,6 +120,9 @@ def main() -> int:
         "model": args.model,
         "base_url": os.environ.get("OPENAI_BASE_URL"),
         "stream_mode": args.stream_mode,
+        "retrieval_mode": args.retrieval_mode,
+        "system_prompt_file": str(Path(args.system_prompt_file).resolve()),
+        "question_prompt_file": str(Path(question_prompt_file).resolve()),
         "reasoning_effort": args.reasoning_effort,
         "reasoning_summary": args.reasoning_summary,
         "doc_hit_rate": (
@@ -136,6 +147,22 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-questions", type=int, default=0)
     parser.add_argument("--model", default=os.environ.get("PIFS_AGENT_MODEL", "gpt-4.1-mini"))
     parser.add_argument("--base-url", default=os.environ.get("OPENAI_BASE_URL"))
+    parser.add_argument(
+        "--retrieval-mode",
+        default=os.environ.get("PIFS_RETRIEVAL_MODE", "hybrid"),
+        choices=RETRIEVAL_MODE_CHOICES,
+        help="Constrain agent retrieval strategy: hybrid, folder, or metadata.",
+    )
+    parser.add_argument(
+        "--system-prompt-file",
+        default=os.environ.get("PIFS_SYSTEM_PROMPT_FILE", str(PROMPTS_DIR / "pifs_agent_system.md")),
+        help="Path to the editable system prompt used by the PIFS agent.",
+    )
+    parser.add_argument(
+        "--question-prompt-file",
+        default=os.environ.get("PIFS_QUESTION_PROMPT_FILE", ""),
+        help="Path to an editable question prompt template. Defaults to retrieval-mode prompt.",
+    )
     parser.add_argument("--skip-agent", action="store_true")
     parser.add_argument("--verbose", action="store_true")
     parser.add_argument(
@@ -180,13 +207,20 @@ def run_question(
     question: EnterpriseRAGQuestion,
     *,
     model: str,
+    retrieval_mode: str,
+    system_prompt: str,
+    question_prompt_template: str,
     skip_agent: bool,
     verbose: bool,
     stream_mode: str,
     reasoning_effort: str | None,
     reasoning_summary: str | None,
 ) -> dict[str, Any]:
-    prompt = agent_prompt(question)
+    prompt = agent_prompt(
+        question,
+        retrieval_mode=retrieval_mode,
+        template=question_prompt_template,
+    )
     raw_output = ""
     error = None
     agent_log: list[dict[str, Any]] = []
@@ -200,6 +234,7 @@ def run_question(
                 prompt,
                 model=model,
                 root="/",
+                system_prompt=system_prompt,
                 verbose=verbose,
                 stream_mode=stream_mode,
                 reasoning_effort=reasoning_effort,
@@ -217,6 +252,7 @@ def run_question(
         "source_types": question.source_types,
         "question": question.question,
         "expected_doc_ids": question.expected_doc_ids,
+        "retrieval_mode": retrieval_mode,
         "answer": parsed.get("answer", ""),
         "document_ids": document_ids,
         "doc_hit": bool(expected.intersection(document_ids)),
@@ -226,27 +262,33 @@ def run_question(
     }
 
 
-def agent_prompt(question: EnterpriseRAGQuestion) -> str:
-    return f"""
-Question ID: {question.question_id}
-Source types: {", ".join(question.source_types)}
-Question: {question.question}
+def agent_prompt(
+    question: EnterpriseRAGQuestion,
+    *,
+    retrieval_mode: str = "hybrid",
+    template: str | None = None,
+) -> str:
+    prompt_template = template or read_prompt_file(default_question_prompt_file(retrieval_mode))
+    return prompt_template.format(
+        question_id=question.question_id,
+        question_type=question.question_type,
+        source_types=", ".join(question.source_types),
+        question=question.question,
+        expected_doc_ids=", ".join(question.expected_doc_ids),
+        retrieval_mode=retrieval_mode,
+    ).strip()
 
-Use the PageIndex virtual shell only. Command output is shell-like plain text.
-Start with folder inspection using `ls` or `tree`. When `grep -R` on a folder
-returns folder matches, choose a narrower folder and run `grep -R` again there.
-When metadata fields clearly apply, use `find <path> -type d --where '<DSL>'`
-to find folders whose subtrees contain matching files. Do not use `ls --where`
-or `tree --where`.
-Refs look like ref_1, ref_2, and so on; use refs directly, not as path suffixes.
-Only after refs appear should you use `grep` on a ref for line evidence and
-then `cat <ref> --all` for the final candidate leaf documents. Do not answer
-before a successful `cat --all` call.
 
-Use the configured structured output schema.
-Only include exact dsid_* document_ids copied from a document_id line or the
-second column of ls/grep output. Do not include file_ref values or rewritten ids.
-""".strip()
+def default_question_prompt_file(retrieval_mode: str) -> Path:
+    mode = retrieval_mode if retrieval_mode in RETRIEVAL_MODE_CHOICES else "hybrid"
+    return PROMPTS_DIR / f"pifs_question_{mode}.md"
+
+
+def read_prompt_file(path: str | Path) -> str:
+    prompt_path = Path(path).expanduser()
+    if not prompt_path.is_absolute():
+        prompt_path = (REPO_ROOT / prompt_path).resolve()
+    return prompt_path.read_text(encoding="utf-8")
 
 
 def parse_agent_json(text: str) -> dict[str, Any]:
