@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import os
 import re
 import shutil
@@ -33,6 +34,8 @@ from examples.Benchmark.enterprise_rag_benchmark.enterprise_rag import load_ques
 from pageindex.filesystem import PIFSCommandExecutor, PageIndexFileSystem
 from pageindex.filesystem.store import metadata_text
 
+
+LOGGER = logging.getLogger("semantic_folder_v2")
 
 SEMANTIC_METADATA_SCHEMA = {
     "semantic_summary": {"type": "string", "description": "Short factual summary extracted from document text only"},
@@ -87,6 +90,7 @@ LIST_FIELDS = [
 
 
 def main() -> int:
+    logging.basicConfig(level=logging.INFO, format="[semantic-v2] %(message)s")
     load_dotenv(REPO_ROOT / ".env")
     load_dotenv(BENCHMARK_DIR / ".env")
     args = parse_args()
@@ -106,6 +110,7 @@ def main() -> int:
     run_dir.mkdir(parents=True, exist_ok=True)
     generated_dir.mkdir(parents=True, exist_ok=True)
     workspace.mkdir(parents=True, exist_ok=True)
+    LOGGER.info("run=%s target_docs=%s workspace=%s", run_name, args.target_docs, workspace)
 
     questions = select_questions(
         load_questions(questions_path),
@@ -114,12 +119,15 @@ def main() -> int:
     )
     docs = load_selected_documents(source_root, questions)
     selection_id = selection_cache_id(docs)
+    LOGGER.info("selected questions=%d docs=%d selection_id=%s", len(questions), len(docs), selection_id)
     write_json(run_dir / "selected_questions.json", [question_to_json(question) for question in questions])
     write_json(run_dir / "selected_documents.json", [doc_summary(doc) for doc in docs])
 
     filesystem = PageIndexFileSystem(workspace=workspace)
     filesystem._register_metadata_schema({"fields": SEMANTIC_METADATA_SCHEMA})
+    LOGGER.info("registered metadata schema fields=%d", len(SEMANTIC_METADATA_SCHEMA))
     file_refs = register_documents(filesystem, docs)
+    LOGGER.info("registered documents=%d", len(file_refs))
     semantic_inputs = semantic_document_inputs(docs)
 
     semantic_metadata = load_or_generate_semantic_metadata(
@@ -130,9 +138,12 @@ def main() -> int:
         workers=args.metadata_workers,
         reuse_only=args.reuse_generated_only,
     )
-    for doc in docs:
+    LOGGER.info("semantic metadata ready docs=%d", len(semantic_metadata))
+    for index, doc in enumerate(docs, 1):
         doc_id = doc["dataset_doc_uuid"]
         update_registered_semantic_metadata(filesystem, file_refs[doc_id], semantic_metadata[doc_id])
+        LOGGER.info("persisted metadata %d/%d %s", index, len(docs), doc_id)
+    LOGGER.info("semantic metadata persisted to sqlite/fts")
 
     canonicalization = load_or_generate_canonicalization(
         semantic_metadata,
@@ -140,13 +151,20 @@ def main() -> int:
         model=args.generation_model,
         reuse_only=args.reuse_generated_only,
     )
+    LOGGER.info("canonicalization ready fields=%d", len(canonicalization))
     folder_plan = build_folder_plan(
         docs,
         semantic_metadata,
         canonicalization,
         max_folders_per_doc=args.max_folders_per_doc,
     )
+    LOGGER.info(
+        "folder plan built folders=%d memberships=%d",
+        len(folder_plan["folders"]),
+        len(folder_plan["memberships"]),
+    )
     materialize_folder_plan(filesystem, file_refs, folder_plan)
+    LOGGER.info("folder plan materialized")
 
     write_json(run_dir / "semantic_metadata.json", semantic_metadata)
     write_json(run_dir / "canonicalization.json", canonicalization)
@@ -191,7 +209,7 @@ def parse_args() -> argparse.Namespace:
 
 def register_documents(filesystem: PageIndexFileSystem, docs: list[dict[str, Any]]) -> dict[str, str]:
     file_refs = {}
-    for doc in docs:
+    for index, doc in enumerate(docs, 1):
         file_refs[doc["dataset_doc_uuid"]] = filesystem.register_file(
             storage_uri=doc["path"],
             source_path=doc["source_path"],
@@ -202,6 +220,7 @@ def register_documents(filesystem: PageIndexFileSystem, docs: list[dict[str, Any
             content_type="application/json",
             source_type=doc["source_type"],
         )
+        LOGGER.info("registered document %d/%d %s", index, len(docs), doc["dataset_doc_uuid"])
     return file_refs
 
 
@@ -256,6 +275,7 @@ def load_or_generate_semantic_metadata(
     cached = read_json(cache_path) if cache_path.exists() else {}
     metadata = {doc_id: normalize_semantic_metadata(value) for doc_id, value in cached.items()}
     missing = [doc for doc in docs if doc["dataset_doc_uuid"] not in metadata]
+    LOGGER.info("semantic metadata cache hit=%d missing=%d", len(metadata), len(missing))
     if missing and reuse_only:
         raise RuntimeError(
             "Missing cached semantic metadata: "
@@ -267,7 +287,7 @@ def load_or_generate_semantic_metadata(
     if workers <= 1:
         client = openai_client()
         for index, doc in enumerate(missing, 1):
-            print(f"[semantic-v2] metadata {index}/{len(missing)} {doc['dataset_doc_uuid']}", flush=True)
+            LOGGER.info("metadata %d/%d %s", index, len(missing), doc["dataset_doc_uuid"])
             metadata[doc["dataset_doc_uuid"]] = generate_semantic_metadata(client, model, doc, max_doc_chars)
             write_json(cache_path, metadata)
         return metadata
@@ -280,7 +300,7 @@ def load_or_generate_semantic_metadata(
             doc = futures[future]
             metadata[doc["dataset_doc_uuid"]] = future.result()
             write_json(cache_path, metadata)
-            print(f"[semantic-v2] metadata {index}/{len(missing)} {doc['dataset_doc_uuid']}", flush=True)
+            LOGGER.info("metadata %d/%d %s", index, len(missing), doc["dataset_doc_uuid"])
     return metadata
 
 
@@ -342,14 +362,42 @@ def load_or_generate_canonicalization(
     model: str,
     reuse_only: bool,
 ) -> dict[str, dict[str, dict[str, Any]]]:
-    if cache_path.exists():
-        return normalize_canonicalization(read_json(cache_path), collect_labels(semantic_metadata))
-    if reuse_only:
-        raise RuntimeError("Missing cached canonicalization")
-    client = openai_client()
     labels_by_field = collect_labels(semantic_metadata)
-    canonicalization = canonicalize_labels(client, model, labels_by_field)
-    write_json(cache_path, canonicalization)
+    cached_raw = read_json(cache_path) if cache_path.exists() else {}
+    cached_fields = cached_raw.get("fields", cached_raw) if isinstance(cached_raw, dict) else {}
+    canonicalization: dict[str, dict[str, dict[str, Any]]] = {}
+    fields = list(labels_by_field.items())
+    LOGGER.info("canonicalization fields=%d cache_path=%s", len(fields), cache_path)
+    client = openai_client() if fields else None
+    for index, (field, labels) in enumerate(fields, 1):
+        cached_field = cached_fields.get(field) if isinstance(cached_fields, dict) else None
+        if cached_field:
+            canonicalization[field] = normalize_canonicalization(
+                {"fields": {field: cached_field}},
+                {field: labels},
+            )[field]
+            LOGGER.info(
+                "canonicalization %d/%d %s labels=%d cache-hit",
+                index,
+                len(fields),
+                field,
+                len(labels),
+            )
+            continue
+        if reuse_only:
+            raise RuntimeError(f"Missing cached canonicalization field: {field}")
+        LOGGER.info(
+            "canonicalization %d/%d %s labels=%d start",
+            index,
+            len(fields),
+            field,
+            len(labels),
+        )
+        assert client is not None
+        field_result = canonicalize_labels(client, model, {field: labels})
+        canonicalization[field] = field_result[field]
+        write_json(cache_path, {"fields": canonicalization})
+        LOGGER.info("canonicalization %d/%d %s done", index, len(fields), field)
     return canonicalization
 
 
@@ -437,7 +485,7 @@ def build_folder_plan(
 ) -> dict[str, Any]:
     folders: dict[str, dict[str, Any]] = {}
     memberships = []
-    for doc in docs:
+    for index, doc in enumerate(docs, 1):
         doc_id = doc["dataset_doc_uuid"]
         selected = selected_memberships_for_doc(
             doc_id,
@@ -445,6 +493,7 @@ def build_folder_plan(
             canonicalization,
             max_folders_per_doc=max_folders_per_doc,
         )
+        LOGGER.info("planned folders %d/%d %s memberships=%d", index, len(docs), doc_id, len(selected))
         for item in selected:
             path = item["path"]
             folders.setdefault(
@@ -524,18 +573,29 @@ def materialize_folder_plan(
     file_refs: dict[str, str],
     folder_plan: dict[str, Any],
 ) -> None:
-    for folder in folder_plan["folders"]:
+    folders = folder_plan["folders"]
+    for index, folder in enumerate(folders, 1):
         filesystem.create_folder(
             folder["path"],
             kind=folder.get("kind", "semantic"),
             description=folder.get("description", ""),
             metadata=folder.get("metadata") or {},
         )
-    for membership in folder_plan["memberships"]:
+        if index == 1 or index % 100 == 0 or index == len(folders):
+            LOGGER.info("created folder %d/%d %s", index, len(folders), folder["path"])
+    memberships = folder_plan["memberships"]
+    for index, membership in enumerate(memberships, 1):
         filesystem.attach_file_to_folder(
             file_refs[membership["dataset_doc_uuid"]],
             membership["folder_path"],
             metadata=membership.get("metadata") or {},
+        )
+        LOGGER.info(
+            "attached file %d/%d %s -> %s",
+            index,
+            len(memberships),
+            membership["dataset_doc_uuid"],
+            membership["folder_path"],
         )
 
 
