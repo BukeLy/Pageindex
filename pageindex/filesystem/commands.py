@@ -20,18 +20,25 @@ class PIFSCommandExecutor:
     FORBIDDEN_TOKENS = {"|", ">", "<", ">>", "<<", "&"}
     ALLOWED_COMMANDS = {"ls", "tree", "find", "grep", "cat", "stat", "mkdir", "cp"}
     ALLOWED_PIPE_FILTERS = {"head", "tail", "grep", "sed"}
+    MAX_TREE_DEPTH = 4
+    MAX_STAT_METADATA_FIELDS = 8
 
     def __init__(self, filesystem: PageIndexFileSystem, *, json_output: bool = False):
         self.filesystem = filesystem
         self.json_output = json_output
 
     def execute(self, command: str) -> str:
-        if not command.strip():
-            raise PIFSCommandError("Empty command")
-        commands = self._split_chained_commands(command)
-        if len(commands) > 1:
-            return "\n".join(self._execute_pipeline(part) for part in commands)
-        return self._execute_pipeline(commands[0])
+        try:
+            if not command.strip():
+                raise PIFSCommandError("Empty command")
+            commands = self._split_chained_commands(command)
+            if len(commands) > 1:
+                return "\n".join(self._execute_pipeline(part) for part in commands)
+            return self._execute_pipeline(commands[0])
+        except PIFSCommandError:
+            raise
+        except (KeyError, ValueError) as exc:
+            raise PIFSCommandError(self._clean_error_message(exc)) from exc
 
     def _execute_pipeline(self, command: str) -> str:
         commands = self._split_piped_commands(command)
@@ -58,7 +65,7 @@ class PIFSCommandExecutor:
         if name not in self.ALLOWED_COMMANDS:
             raise PIFSCommandError(f"Unsupported command: {name}")
         data = getattr(self, f"_cmd_{name}")(tokens[1:])
-        return self._render(data, json_output=json_output)
+        return self._render(data, json_output=json_output, command_name=name)
 
     def _execute_pipe_filter(self, input_text: str, command: str) -> str:
         self._validate_raw_command(command)
@@ -104,6 +111,7 @@ class PIFSCommandExecutor:
     def _cmd_tree(self, args: list[str]) -> Any:
         path = "/"
         limit = 1000
+        depth = 2
         i = 0
         while i < len(args):
             arg = args[i]
@@ -112,14 +120,18 @@ class PIFSCommandExecutor:
                 limit = int(args[i])
             elif arg == "--depth":
                 i += 1
-                # Depth-aware formatting can be added later; recursive browse is the v1 data source.
-                int(args[i])
+                depth = int(args[i])
             elif arg.startswith("-"):
                 raise PIFSCommandError(f"Unsupported tree option: {arg}")
             else:
                 path = arg
             i += 1
-        return self.filesystem.browse(path, recursive=True, limit=limit)
+        if depth < 1:
+            raise PIFSCommandError("tree --depth must be at least 1")
+        if depth > self.MAX_TREE_DEPTH:
+            depth = self.MAX_TREE_DEPTH
+        listing = self.filesystem.browse(path, recursive=True, limit=limit)
+        return {"path": path, "depth": depth, "limit": limit, **listing}
 
     def _cmd_find(self, args: list[str]) -> Any:
         path = "/"
@@ -183,17 +195,42 @@ class PIFSCommandExecutor:
             raise PIFSCommandError("grep requires a query")
         query = positionals[0]
         path = positionals[1] if len(positionals) > 1 else "/"
-        if path != "/":
-            try:
-                return self.filesystem.find(path, query, limit=limit)
-            except (KeyError, ValueError):
-                pass
-        return self.filesystem.search(
-            query=query,
-            scope={"folder_path": path, "recursive": recursive},
-            metadata_filter=where,
-            limit=limit,
-        )
+        if self._is_folder(path):
+            normalized = self._normalize_folder_path(path)
+            if recursive:
+                children = self.filesystem.browse(normalized, recursive=False, limit=1000)["folders"]
+                if children:
+                    ranked = self._rank_child_folders(
+                        query=query,
+                        children=children,
+                        metadata_filter=where,
+                        limit=limit,
+                    )
+                    return {
+                        "mode": "folders",
+                        "query": query,
+                        "scope": normalized,
+                        "data": ranked,
+                        "hint": "narrow into one directory, then run grep -R again",
+                    }
+            results = self.filesystem.search(
+                query=query,
+                scope={"folder_path": normalized, "recursive": recursive},
+                metadata_filter=where,
+                limit=limit,
+            )
+            return {
+                "mode": "files",
+                "query": query,
+                "scope": normalized,
+                "data": self._grep_file_hits_from_results(results, query),
+            }
+        return {
+            "mode": "matches",
+            "query": query,
+            "target": path,
+            "data": self._grep_file_matches(path, query, limit=limit),
+        }
 
     def _cmd_cat(self, args: list[str]) -> Any:
         if not args:
@@ -222,7 +259,7 @@ class PIFSCommandExecutor:
             return self.filesystem._metadata_schema()
         if not args:
             raise PIFSCommandError("stat requires a file target or --schema")
-        return self.filesystem._stat(args[0])
+        return {"target": args[0], **self.filesystem._stat(args[0])}
 
     def _cmd_mkdir(self, args: list[str]) -> Any:
         if len(args) != 1:
@@ -280,17 +317,304 @@ class PIFSCommandExecutor:
             title=title,
             content=content,
         )
-        return self.filesystem._stat(file_ref)
+        return {"folder_path": folder_path, "file": self.filesystem._stat(file_ref)}
 
-    def _render(self, data: Any, *, json_output: bool) -> str:
+    def _render(self, data: Any, *, json_output: bool, command_name: str) -> str:
         jsonable = self._jsonable(data)
         if json_output:
             return json.dumps({"ok": True, "data": jsonable}, ensure_ascii=False)
-        if isinstance(jsonable, dict):
-            return json.dumps(jsonable, ensure_ascii=False, indent=2)
-        if isinstance(jsonable, list):
-            return "\n".join(json.dumps(item, ensure_ascii=False) for item in jsonable)
-        return str(jsonable)
+        return self._render_shell(command_name, jsonable)
+
+    def _render_shell(self, command_name: str, data: Any) -> str:
+        if command_name == "cat":
+            return str(data.get("text", "")) if isinstance(data, dict) else str(data)
+        if command_name == "ls":
+            return self._render_listing(data)
+        if command_name == "tree":
+            return self._render_tree(data)
+        if command_name == "grep":
+            return self._render_grep(data)
+        if command_name == "find":
+            return self._render_find(data)
+        if command_name == "stat":
+            return self._render_stat(data)
+        if command_name == "mkdir":
+            return f"created folder: {self._normalize_folder_path(data['path'])}"
+        if command_name == "cp":
+            file_info = data["file"]
+            doc_id = file_info.get("external_id") or "-"
+            return f"copied file: {file_info['file_ref']} {doc_id} -> {self._normalize_folder_path(data['folder_path'])}"
+        if isinstance(data, dict):
+            return "\n".join(f"{key}: {value}" for key, value in data.items())
+        if isinstance(data, list):
+            return "\n".join(str(item) for item in data)
+        return str(data)
+
+    def _render_listing(self, data: Any) -> str:
+        if not isinstance(data, dict):
+            return str(data)
+        lines: list[str] = []
+        for folder in data.get("folders", []):
+            name = folder["path"] if folder.get("path", "").startswith("/") else folder["name"]
+            if not name.endswith("/"):
+                name = f"{name}/"
+            lines.append(
+                f"{name} folders={folder.get('children_count', 0)} files={folder.get('file_count', 0)}"
+            )
+        for file in data.get("files", []):
+            lines.append(self._file_row_text(file))
+        return "\n".join(lines)
+
+    def _render_tree(self, data: Any) -> str:
+        if not isinstance(data, dict):
+            return str(data)
+        root = self._normalize_folder_path(data.get("path", "/"))
+        max_depth = int(data.get("depth", 2))
+        lines = [root]
+        folders = [
+            folder
+            for folder in data.get("folders", [])
+            if self._relative_depth(root, folder["path"]) <= max_depth
+        ]
+        for folder in folders:
+            depth = self._relative_depth(root, folder["path"])
+            indent = "  " * max(depth - 1, 0)
+            lines.append(
+                f"{indent}{folder['name']}/ folders={folder.get('children_count', 0)} "
+                f"files={folder.get('file_count', 0)}"
+            )
+        if len(folders) < len(data.get("folders", [])):
+            lines.append(f"# truncated at depth={max_depth}")
+        return "\n".join(lines)
+
+    def _render_grep(self, data: Any) -> str:
+        if not isinstance(data, dict):
+            return str(data)
+        mode = data.get("mode")
+        if mode == "folders":
+            lines = [f"# folder matches for: {data.get('query', '')}"]
+            for folder in data.get("data", []):
+                path = folder["path"]
+                if not path.endswith("/"):
+                    path = f"{path}/"
+                lines.append(
+                    f"{path} matched_files={folder.get('matched_files', 0)} "
+                    f"files={folder.get('files', 0)}"
+                )
+            lines.append(f"# {data.get('hint', 'narrow into one directory, then run grep -R again')}")
+            return "\n".join(lines)
+        if mode == "files":
+            return "\n".join(
+                self._grep_file_hit_text(item)
+                for item in data.get("data", [])
+            )
+        if mode == "matches":
+            return "\n".join(
+                f"{item['reference_id']}:{item['line']}: "
+                f"{self._compact_text(item['text'], max_chars=220)}"
+                for item in data.get("data", [])
+            )
+        return str(data)
+
+    def _render_find(self, data: Any) -> str:
+        if not isinstance(data, list):
+            return str(data)
+        if data and isinstance(data[0], dict) and "path" in data[0] and "file_ref" not in data[0]:
+            return "\n".join(
+                f"{item['path']}/ folders={item.get('children_count', 0)} files={item.get('file_count', 0)}"
+                for item in data
+            )
+        return "\n".join(self._file_row_text(item) for item in data)
+
+    def _render_stat(self, data: Any) -> str:
+        if not isinstance(data, dict):
+            return str(data)
+        if "fields" in data:
+            lines = ["metadata schema:"]
+            for name, field in sorted(data["fields"].items()):
+                lines.append(f"{name}: {field.get('type', 'string')}")
+            return "\n".join(lines)
+        lines = [
+            f"ref: {data.get('target') or data.get('file_ref')}",
+            f"file_ref: {data.get('file_ref')}",
+            f"document_id: {data.get('external_id') or data.get('document_id') or '-'}",
+            f"source_path: {data.get('source_path') or '-'}",
+            f"storage_uri: {data.get('storage_uri') or '-'}",
+        ]
+        folders = data.get("folders") or []
+        if folders:
+            lines.append("folders:")
+            lines.extend(f"  {folder['path']}" for folder in folders)
+        metadata = data.get("metadata") or {}
+        if metadata:
+            lines.append("metadata:")
+            metadata_items = sorted(metadata.items())[: self.MAX_STAT_METADATA_FIELDS]
+            for key, value in metadata_items:
+                lines.append(f"  {key}: {self._compact_value(value)}")
+            if len(metadata) > self.MAX_STAT_METADATA_FIELDS:
+                lines.append(f"  ... {len(metadata) - self.MAX_STAT_METADATA_FIELDS} more fields")
+        return "\n".join(lines)
+
+    def _file_row_text(self, item: dict[str, Any]) -> str:
+        file_ref = item.get("file_ref")
+        ref = item.get("reference_id") or (self.filesystem._reference_for(file_ref) if file_ref else "-")
+        doc_id = item.get("external_id") or item.get("document_id") or "-"
+        title = self._compact_text(item.get("title") or item.get("name") or "", max_chars=80)
+        source_path = item.get("source_path") or "-"
+        folder_paths = item.get("folder_paths") or self._folder_paths_for_file(file_ref)
+        folders = f" folders={','.join(folder_paths)}" if folder_paths else ""
+        return f"{ref} {doc_id} {title} {source_path}{folders}".strip()
+
+    def _grep_file_hit_text(self, item: dict[str, Any]) -> str:
+        doc_id = item.get("external_id") or "-"
+        source_path = item.get("source_path") or "-"
+        line = item.get("line") or 1
+        return (
+            f"{item['reference_id']} {doc_id} {source_path}:{line}: "
+            f"{self._compact_text(item.get('text') or '', max_chars=180)}"
+        )
+
+    def _rank_child_folders(
+        self,
+        *,
+        query: str,
+        children: list[dict[str, Any]],
+        metadata_filter: str | None,
+        limit: int,
+    ) -> list[dict[str, Any]]:
+        ranked: list[dict[str, Any]] = []
+        for child in children:
+            results = self.filesystem.search(
+                query=query,
+                scope={"folder_path": child["path"], "recursive": True},
+                metadata_filter=metadata_filter,
+                limit=max(limit, 50),
+            )
+            if not results:
+                continue
+            ranked.append(
+                {
+                    "path": child["path"],
+                    "name": child["name"],
+                    "matched_files": len(results),
+                    "files": self.filesystem.store.count_files_in_folder(child["path"], recursive=True),
+                    "children_count": child.get("children_count", 0),
+                }
+            )
+        ranked.sort(key=lambda item: (-item["matched_files"], item["path"]))
+        return ranked[:limit]
+
+    def _grep_file_hits_from_results(self, results: list[Any], query: str) -> list[dict[str, Any]]:
+        hits = []
+        for result in results:
+            line, text = self._first_matching_line(result.file_ref, query)
+            hits.append(
+                {
+                    "reference_id": result.reference_id,
+                    "file_ref": result.file_ref,
+                    "external_id": result.external_id,
+                    "title": result.title,
+                    "source_path": result.source_path,
+                    "folder_paths": result.folder_paths,
+                    "line": line,
+                    "text": text or result.snippet,
+                }
+            )
+        return hits
+
+    def _grep_file_matches(self, target: str, query: str, *, limit: int) -> list[dict[str, Any]]:
+        file_ref = self.filesystem._resolve_reference(target)
+        reference_id = self.filesystem._reference_for(file_ref)
+        entry = self.filesystem.store.get_file(file_ref)
+        matches = []
+        for line_number, line in enumerate(self.filesystem.store.read_text(file_ref).splitlines(), 1):
+            if self._line_matches(line, query):
+                matches.append(
+                    {
+                        "reference_id": reference_id,
+                        "file_ref": file_ref,
+                        "external_id": entry.external_id,
+                        "source_path": entry.source_path,
+                        "line": line_number,
+                        "text": self._compact_text(line, max_chars=220),
+                    }
+                )
+                if len(matches) >= limit:
+                    break
+        return matches
+
+    def _first_matching_line(self, file_ref: str, query: str) -> tuple[int, str]:
+        for line_number, line in enumerate(self.filesystem.store.read_text(file_ref).splitlines(), 1):
+            if self._line_matches(line, query):
+                return line_number, self._compact_text(line, max_chars=220)
+        return 1, ""
+
+    def _line_matches(self, line: str, query: str) -> bool:
+        haystack = line.lower()
+        needle = query.lower().strip()
+        if needle and needle in haystack:
+            return True
+        terms = [term for term in re.findall(r"[A-Za-z0-9_]+", needle) if term]
+        return bool(terms) and all(term in haystack for term in terms)
+
+    def _folder_paths_for_file(self, file_ref: str | None) -> list[str]:
+        if not file_ref:
+            return []
+        try:
+            return [folder["path"] for folder in self.filesystem.store.folder_memberships(file_ref)]
+        except KeyError:
+            return []
+
+    def _is_folder(self, path: str) -> bool:
+        try:
+            self.filesystem.browse(path, recursive=False, limit=1)
+            return True
+        except KeyError:
+            return False
+
+    @staticmethod
+    def _normalize_folder_path(path: str) -> str:
+        value = str(path or "/").strip()
+        if not value or value == "/":
+            return "/"
+        return "/" + value.strip("/")
+
+    @classmethod
+    def _relative_depth(cls, root: str, path: str) -> int:
+        root = cls._normalize_folder_path(root).rstrip("/")
+        path = cls._normalize_folder_path(path).rstrip("/")
+        if root == "":
+            root = "/"
+        if root == "/":
+            rel = path.strip("/")
+        else:
+            rel = path[len(root):].strip("/")
+        return 0 if not rel else len(rel.split("/"))
+
+    @classmethod
+    def _compact_value(cls, value: Any) -> str:
+        if isinstance(value, list):
+            rendered = ", ".join(cls._compact_text(str(item), max_chars=40) for item in value[:3])
+            if len(value) > 3:
+                rendered += f", ... {len(value) - 3} more"
+            return rendered
+        if isinstance(value, dict):
+            return cls._compact_text(json.dumps(value, ensure_ascii=False, sort_keys=True), max_chars=120)
+        return cls._compact_text(str(value), max_chars=120)
+
+    @staticmethod
+    def _compact_text(text: str, *, max_chars: int) -> str:
+        collapsed = re.sub(r"\s+", " ", text or "").strip()
+        if len(collapsed) <= max_chars:
+            return collapsed
+        return collapsed[: max_chars - 3].rstrip() + "..."
+
+    @staticmethod
+    def _clean_error_message(exc: BaseException) -> str:
+        message = str(exc)
+        if isinstance(exc, KeyError) and len(exc.args) == 1:
+            message = str(exc.args[0])
+        return message or exc.__class__.__name__
 
     @classmethod
     def _jsonable(cls, value: Any) -> Any:

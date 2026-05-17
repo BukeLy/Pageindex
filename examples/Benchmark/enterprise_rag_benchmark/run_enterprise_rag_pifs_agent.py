@@ -37,7 +37,10 @@ class PIFSAgentAnswer(BaseModel):
 
     answer: str = Field(description="Final answer based only on opened PageIndex FileSystem documents.")
     document_ids: list[str] = Field(
-        description="EnterpriseRAG document ids copied from tool output external_id/document_id fields."
+        description=(
+            "Exact EnterpriseRAG dsid_* ids copied from a document_id line or the second "
+            "column of ls/grep output. Do not include file_ref values or rewritten ids."
+        )
     )
 
 
@@ -229,14 +232,17 @@ Question ID: {question.question_id}
 Source types: {", ".join(question.source_types)}
 Question: {question.question}
 
-Use the PageIndex virtual shell only. Start with folder inspection, search
-within the relevant source folder, and open full leaf documents with `cat --all`
-before answering. Your first content search should use the complete Question
-text with `grep -R` in the source folder; refine only if the top results do not
-contain enough evidence.
+Use the PageIndex virtual shell only. Command output is shell-like plain text.
+Start with folder inspection using `ls` or `tree`. When `grep -R` on a folder
+returns folder matches, choose a narrower folder and run `grep -R` again there.
+Refs look like ref_1, ref_2, and so on; use refs directly, not as path suffixes.
+Only after refs appear should you use `grep` on a ref for line evidence and
+then `cat <ref> --all` for the final candidate leaf documents. Do not answer
+before a successful `cat --all` call.
 
 Use the configured structured output schema.
-Only include document_ids that appeared in tool output as external_id/document_id.
+Only include exact dsid_* document_ids copied from a document_id line or the
+second column of ls/grep output. Do not include file_ref values or rewritten ids.
 """.strip()
 
 

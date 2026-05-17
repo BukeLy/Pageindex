@@ -541,6 +541,7 @@ class EnterpriseRAGFileSystemTest(unittest.TestCase):
                 )
             )
             grepped = json.loads(executor.execute('grep -R "bundle verification" /github'))
+            leaf_grepped = json.loads(executor.execute('grep -R "bundle verification" /github/redwood'))
             file_grep = json.loads(
                 executor.execute('grep "bundle verification" /github/redwood/pr-audit.json')
             )
@@ -549,11 +550,110 @@ class EnterpriseRAGFileSystemTest(unittest.TestCase):
 
             self.assertIn("/github", [folder["path"] for folder in listing["data"]["folders"]])
             self.assertEqual(found["data"][0]["external_id"], "dsid_cli_audit")
-            self.assertEqual(grepped["data"][0]["external_id"], "dsid_cli_audit")
-            self.assertEqual(file_grep["data"][0]["external_id"], "dsid_cli_audit")
-            self.assertIn("bundle verification", file_grep["data"][0]["text"])
+            self.assertEqual(grepped["data"]["mode"], "folders")
+            self.assertEqual(grepped["data"]["data"][0]["path"], "/github/redwood")
+            self.assertEqual(leaf_grepped["data"]["mode"], "files")
+            self.assertEqual(leaf_grepped["data"]["data"][0]["external_id"], "dsid_cli_audit")
+            self.assertEqual(file_grep["data"]["mode"], "matches")
+            self.assertEqual(file_grep["data"]["data"][0]["external_id"], "dsid_cli_audit")
+            self.assertIn("bundle verification", file_grep["data"]["data"][0]["text"])
             self.assertEqual(stat["data"]["external_id"], "dsid_cli_audit")
             self.assertIn("audit logging", opened["data"]["text"])
+
+    def test_pifs_command_executor_defaults_to_shell_like_text(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            from pageindex.filesystem import PIFSCommandExecutor, PageIndexFileSystem
+
+            filesystem = PageIndexFileSystem(workspace=Path(tmp) / "workspace")
+            filesystem.create_folder("/semantic/topics/api-input")
+            filesystem.register_file(
+                storage_uri="file:///tmp/pr.json",
+                source_path="github/pr-18421.json",
+                folder_path="/semantic/topics/api-input",
+                external_id="dsid_shell_text",
+                title="Multipart upload limits",
+                metadata={
+                    "semantic_topics": ["multipart upload", "api input"],
+                    "long_note": "metadata must not be printed by ls or tree",
+                },
+                content="line one\nmax_file_size defaults to 10MiB\nprivate full document tail",
+            )
+            executor = PIFSCommandExecutor(filesystem)
+
+            listing = executor.execute("ls /semantic")
+            tree = executor.execute("tree /semantic")
+            stat = executor.execute("stat dsid_shell_text")
+            content = executor.execute("cat dsid_shell_text --all")
+            mkdir = executor.execute("mkdir /manual/new")
+            copied = executor.execute(
+                'cp file:///tmp/copied.txt /manual/new --content "copy body" '
+                '--external-id dsid_copied --title "Copied doc"'
+            )
+
+            self.assertFalse(listing.lstrip().startswith("{"))
+            self.assertIn("topics/", listing)
+            self.assertIn("folders=", listing)
+            self.assertIn("/semantic", tree)
+            self.assertIn("api-input/", tree)
+            self.assertNotIn("file_", tree)
+            self.assertNotIn("metadata must not be printed", listing)
+            self.assertNotIn("metadata must not be printed", tree)
+            self.assertIn("document_id: dsid_shell_text", stat)
+            self.assertIn("/semantic/topics/api-input", stat)
+            self.assertNotIn("private full document tail", stat)
+            self.assertEqual(content, "line one\nmax_file_size defaults to 10MiB\nprivate full document tail")
+            self.assertEqual(mkdir, "created folder: /manual/new")
+            self.assertIn("copied file:", copied)
+            self.assertIn("dsid_copied", copied)
+            self.assertIn("-> /manual/new", copied)
+
+    def test_recursive_grep_prunes_large_folders_before_returning_file_hits(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            from pageindex.filesystem import PIFSCommandExecutor, PageIndexFileSystem
+
+            filesystem = PageIndexFileSystem(workspace=Path(tmp) / "workspace")
+            file_ref = filesystem.register_file(
+                storage_uri="file:///tmp/pr.json",
+                source_path="github/pr-18421.json",
+                folder_path="/semantic/topics/api-input/multipart",
+                external_id="dsid_multipart_limits",
+                title="Multipart upload limits",
+                metadata={"semantic_topics": ["multipart upload"]},
+                content=(
+                    "title line\n"
+                    "The multipart upload path sets max_file_size to 10MiB. "
+                    + ("long-context " * 80)
+                    + "\n"
+                    "The total request limit is 50MiB.\n"
+                    "private full document tail that should only appear in cat"
+                ),
+            )
+            filesystem.attach_file_to_folder(
+                file_ref,
+                "/semantic/problems/payload-limits/request-size",
+            )
+            executor = PIFSCommandExecutor(filesystem)
+
+            broad = executor.execute('grep -R "multipart upload" /semantic')
+            listing = executor.execute("ls -R /semantic/topics/api-input/multipart")
+            leaf = executor.execute('grep -R "multipart upload" /semantic/topics/api-input/multipart')
+            local = executor.execute('grep "max_file_size" ref_1')
+
+            self.assertIn("# folder matches for: multipart upload", broad)
+            self.assertIn("/semantic/topics/", broad)
+            self.assertIn("matched_files=1", broad)
+            self.assertNotIn("dsid_multipart_limits", broad)
+            self.assertNotIn("ref_1", broad)
+            self.assertIn("ref_1 dsid_multipart_limits", listing)
+            self.assertIn("github/pr-18421.json", listing)
+            self.assertNotIn("file_", listing)
+            self.assertIn("ref_1 dsid_multipart_limits github/pr-18421.json:", leaf)
+            self.assertIn("multipart upload", leaf)
+            self.assertNotIn("private full document tail", leaf)
+            self.assertIn("ref_1:", local)
+            self.assertIn("max_file_size", local)
+            self.assertLessEqual(len(local.splitlines()[0]), 240)
+            self.assertNotIn("private full document tail", local)
 
     def test_pifs_command_executor_supports_safe_and_chains(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -588,10 +688,12 @@ class EnterpriseRAGFileSystemTest(unittest.TestCase):
             sed = json.loads(executor.execute("cat dsid_chain_audit --all | sed -n '1,1p'"))
 
             self.assertIn("/github", [folder["path"] for folder in listing["data"]["folders"]])
-            self.assertGreaterEqual(len(grepped["data"]), 2)
-            self.assertEqual(quoted["data"][0]["external_id"], "dsid_chain_audit")
+            self.assertEqual(grepped["data"]["mode"], "folders")
+            self.assertEqual(grepped["data"]["data"][0]["path"], "/github/redwood")
+            self.assertEqual(quoted["data"]["mode"], "folders")
+            self.assertEqual(quoted["data"]["data"][0]["path"], "/github/redwood")
             self.assertEqual(piped_listing["data"]["folders"][0]["path"], "/github")
-            self.assertEqual(len(headed["data"]), 1)
+            self.assertEqual(len(headed["data"]["data"]), 1)
             self.assertEqual(sed["data"]["text"], "first line")
 
     def test_pifs_command_executor_allows_metadata_comparison_dsl(self):
@@ -752,6 +854,8 @@ class EnterpriseRAGFileSystemTest(unittest.TestCase):
                 executor.execute("ls / & cat")
             with self.assertRaises(PIFSCommandError):
                 executor.execute("ls / || cat")
+            with self.assertRaisesRegex(PIFSCommandError, "Unknown file target"):
+                executor.execute("stat missing_ref")
 
     def test_pifs_cli_module_outputs_json(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -781,7 +885,7 @@ class EnterpriseRAGFileSystemTest(unittest.TestCase):
                     "grep",
                     "-R",
                     "smoke content",
-                    "/github",
+                    "/github/redwood",
                 ],
                 cwd=repo_root,
                 text=True,
@@ -794,7 +898,8 @@ class EnterpriseRAGFileSystemTest(unittest.TestCase):
                 msg=f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}",
             )
             payload = json.loads(result.stdout)
-            self.assertEqual(payload["data"][0]["external_id"], "dsid_cli_module")
+            self.assertEqual(payload["data"]["mode"], "files")
+            self.assertEqual(payload["data"]["data"][0]["external_id"], "dsid_cli_module")
 
     def test_reopen_workspace_keeps_migrated_catalog(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -105,8 +105,14 @@ class PageIndexFileSystem:
             limit=limit,
         )
         results = []
+        scope_path = self._scope_folder_path(scope)
         for row in rows:
             reference_id = self._reference_for(row["file_ref"])
+            folder_paths = [
+                folder["path"]
+                for folder in self.store.folder_memberships(row["file_ref"])
+            ]
+            folder_path = self._preferred_folder_path(folder_paths, scope_path, row["folder_path"])
             results.append(
                 SearchResult(
                     reference_id=reference_id,
@@ -114,7 +120,8 @@ class PageIndexFileSystem:
                     external_id=row["external_id"],
                     title=row["title"],
                     snippet=row["snippet"],
-                    folder_path=row["folder_path"],
+                    folder_path=folder_path,
+                    folder_paths=folder_paths,
                     metadata=row["metadata"],
                     source_path=row["source_path"],
                     id=row["id"],
@@ -270,6 +277,32 @@ class PageIndexFileSystem:
     def _infer_source_type(source_path: str) -> Optional[str]:
         parts = [part for part in Path(source_path).parts if part not in ("", ".")]
         return parts[0] if parts else None
+
+    @staticmethod
+    def _scope_folder_path(scope: Optional[dict[str, Any]]) -> Optional[str]:
+        if not scope:
+            return None
+        path = scope.get("folder_path") or scope.get("path")
+        return normalize_path(path) if path else None
+
+    @staticmethod
+    def _preferred_folder_path(
+        folder_paths: list[str],
+        scope_path: Optional[str],
+        fallback: str,
+    ) -> str:
+        if scope_path:
+            scoped = [
+                path
+                for path in folder_paths
+                if path == scope_path or path.startswith(f"{scope_path.rstrip('/')}/")
+            ]
+            if scoped:
+                return sorted(scoped, key=lambda item: (len(item), item))[0]
+        non_root = [path for path in folder_paths if path != "/"]
+        if non_root:
+            return sorted(non_root, key=lambda item: (len(item), item))[0]
+        return fallback
 
     @staticmethod
     def _parse_line_range(location: str) -> tuple[int, int]:

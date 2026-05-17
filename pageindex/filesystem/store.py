@@ -1044,6 +1044,38 @@ class SQLiteFileSystemStore:
             for row in rows
         ]
 
+    def count_files_in_folder(self, path: str, *, recursive: bool = True) -> int:
+        path = normalize_path(path)
+        with self.connect() as conn:
+            folder = self._folder_by_path(conn, path)
+            if folder is None:
+                raise KeyError(f"Unknown folder path: {path}")
+            if recursive:
+                row = conn.execute(
+                    """
+                    SELECT COUNT(DISTINCT f.file_ref) AS count
+                    FROM files f
+                    JOIN file_folders ff ON ff.file_ref = f.file_ref
+                    JOIN folders fo ON fo.folder_id = ff.folder_id
+                    WHERE f.deleted_at IS NULL
+                      AND (fo.path = ? OR fo.path LIKE ?)
+                    """,
+                    (path, self._descendant_like(path)),
+                ).fetchone()
+            else:
+                row = conn.execute(
+                    """
+                    SELECT COUNT(DISTINCT f.file_ref) AS count
+                    FROM files f
+                    JOIN file_folders ff ON ff.file_ref = f.file_ref
+                    JOIN folders fo ON fo.folder_id = ff.folder_id
+                    WHERE f.deleted_at IS NULL
+                      AND fo.path = ?
+                    """,
+                    (path,),
+                ).fetchone()
+        return int(row["count"] or 0)
+
     def _file_entry_row(self, conn: sqlite3.Connection, file_ref: str) -> sqlite3.Row | None:
         return conn.execute(
             """

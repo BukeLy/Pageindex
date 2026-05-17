@@ -12,6 +12,7 @@ class SearchResult:
     title: str
     snippet: str
     folder_path: str
+    folder_paths: list[str]
     metadata: dict[str, Any]
     source_path: str = ""
     id: Optional[str] = None

@@ -35,10 +35,10 @@ def main(argv: list[str] | None = None) -> int:
         command = " ".join(shlex.quote(token) for token in command_tokens)
         print(executor.execute(command))
     except PIFSCommandError as exc:
-        print(f"pifs-cli: {exc}", file=sys.stderr)
+        print(f"ERROR: {exc}", file=sys.stderr)
         return 2
     except Exception as exc:
-        print(f"pifs-cli: {exc}", file=sys.stderr)
+        print(f"ERROR: {exc}", file=sys.stderr)
         return 1
     return 0
 

@@ -952,14 +952,17 @@ Source types: {", ".join(question.source_types)}
 Question: {question.question}
 
 You are evaluating an automatically generated PageIndex FileSystem layout.
-Source types are hints, not guaranteed folder names. Start from the folder tree
-visible in the system context, inspect likely folders with `ls` or `tree`, then
-use `grep -R` inside the most relevant folder. Use root `grep -R ... /` only if
-folder-scoped search fails. Open full leaf documents with `cat --all` before
-answering.
+Source types are hints, not guaranteed folder names. Command output is
+shell-like plain text. Start from the folder tree visible in the system context,
+inspect likely folders with `ls` or `tree`, then use `grep -R` inside the most
+relevant folder. If `grep -R` returns folder matches, choose a narrower folder
+and run `grep -R` again there. Refs look like ref_1, ref_2, and so on; use refs
+directly, not as path suffixes. Open full leaf documents with `cat <ref> --all`
+only after refs appear, and do not answer before a successful `cat --all` call.
 
 Use the configured structured output schema.
-Only include document_ids that appeared in tool output as external_id/document_id.
+Only include exact dsid_* document_ids copied from a document_id line or the
+second column of ls/grep output. Do not include file_ref values or rewritten ids.
 """.strip()
 
 
