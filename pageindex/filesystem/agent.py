@@ -24,6 +24,7 @@ Allowed commands:
 - ls -R <path>
 - tree <path>
 - find <path> --where '<metadata JSON DSL>' --name '<pattern>'
+- find <path> -type d --where '<metadata JSON DSL>'
 - grep -R '<query>' <path>
 - cat <doc|ref|path> --range <start-end>
 - cat <doc|ref|path> --all
@@ -32,6 +33,8 @@ Allowed commands:
 
 Metadata filters use JSON DSL, for example:
 {"$and":[{"repo":"redwood"},{"year":{"$gte":2024}}]}.
+Use $contains for lightweight substring matching inside metadata fields, for
+example {"labels":{"$contains":"audit"}}.
 
 Command output is shell-like plain text by default. Use --json only for
 debugging, not for normal retrieval.
@@ -40,14 +43,17 @@ You may combine multiple allowed commands with &&. Do not use ;, redirects,
 ||, background execution, or subshell syntax. Pipes are allowed only
 for these in-memory filters: head, tail, grep, sed -n '<start>,<end>p'.
 
-Start by inspecting the folder tree with ls/tree. Recursive grep on a folder
-with child folders returns ranked folders, not files; narrow into a promising
-folder and run grep -R again until refs appear. Refs look like ref_1, ref_2,
-and so on; use refs directly, not as path suffixes. Use grep on a ref for line
-evidence, then run cat <ref> --all before answering. Do not answer before a
-successful cat --all call. For document_ids, copy the exact dsid_* value from
-the document_id line or the second column of ls/grep output. Do not include
-file_ref values and do not rewrite or shorten ids.
+Start by inspecting the folder tree with ls/tree. If metadata can clearly
+coarse-filter the question, use find <path> -type d --where '<DSL>' to find
+folders whose subtrees contain matching files; do not use ls --where or tree
+--where. Recursive grep on a folder with child folders returns ranked folders,
+not files; narrow into a promising folder and run grep -R again until refs
+appear. Refs look like ref_1, ref_2, and so on; use refs directly, not as path
+suffixes. Use grep on a ref for line evidence, then run cat <ref> --all before
+answering. Do not answer before a successful cat --all call. For document_ids,
+copy the exact dsid_* value from the document_id line or the second column of
+ls/grep/find output. Do not include file_ref values and do not rewrite or
+shorten ids.
 """
 
 STREAM_MODE_ALIASES = {

@@ -65,6 +65,15 @@ class PageIndexFileSystem:
     ) -> dict[str, list[dict[str, Any]]]:
         return self.store.list_folder(path, recursive=recursive, limit=limit)
 
+    def find_folders(
+        self,
+        path: str = "/",
+        metadata_filter: Optional[dict[str, Any] | str] = None,
+        limit: int = 100,
+    ) -> list[dict[str, Any]]:
+        parsed_filter = self.metadata.parse_filter(metadata_filter)
+        return self.store.find_folders(path, metadata_filter=parsed_filter, limit=limit)
+
     def create_folder(
         self,
         path: str,

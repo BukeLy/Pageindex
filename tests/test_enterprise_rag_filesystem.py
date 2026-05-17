@@ -732,6 +732,7 @@ class EnterpriseRAGFileSystemTest(unittest.TestCase):
                     "year": {"type": "number"},
                     "channel": {"type": "string"},
                     "private": {"type": "boolean"},
+                    "labels": {"type": "string"},
                 },
             )
             filesystem.register_files(
@@ -742,7 +743,12 @@ class EnterpriseRAGFileSystemTest(unittest.TestCase):
                         "folder_path": "/github/redwood",
                         "external_id": "dsid_redwood_2024",
                         "title": "Redwood 2024",
-                        "metadata": {"repo": "redwood", "year": 2024, "private": True},
+                        "metadata": {
+                            "repo": "redwood",
+                            "year": 2024,
+                            "private": True,
+                            "labels": ["Audit Logging", "security"],
+                        },
                         "content": "metadata json dsl document",
                     },
                     {
@@ -777,6 +783,11 @@ class EnterpriseRAGFileSystemTest(unittest.TestCase):
                 metadata_filter={"$or": [{"repo": "redwood"}, {"channel": "eng"}]},
                 limit=10,
             )
+            contains = filesystem.search(
+                None,
+                metadata_filter={"labels": {"$contains": "audit"}},
+                limit=10,
+            )
 
             self.assertEqual([result.external_id for result in filtered], ["dsid_redwood_2024"])
             self.assertEqual([result.external_id for result in not_redwood], ["dsid_missing_repo"])
@@ -784,6 +795,69 @@ class EnterpriseRAGFileSystemTest(unittest.TestCase):
                 {result.external_id for result in either},
                 {"dsid_redwood_2024", "dsid_redwood_2020", "dsid_missing_repo"},
             )
+            self.assertEqual([result.external_id for result in contains], ["dsid_redwood_2024"])
+
+    def test_find_folders_filters_descendant_folders_by_metadata(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            from pageindex.filesystem import PIFSCommandExecutor, PageIndexFileSystem
+
+            filesystem = PageIndexFileSystem(workspace=Path(tmp) / "workspace")
+            register_metadata_schema(
+                filesystem,
+                {
+                    "source_type": {"type": "string"},
+                    "labels": {"type": "string"},
+                },
+            )
+            file_ref = filesystem.register_file(
+                storage_uri="file:///tmp/github.json",
+                source_path="github/redwood/pr.json",
+                folder_path="/github/redwood",
+                external_id="dsid_github",
+                title="GitHub audit doc",
+                metadata={"source_type": "github", "labels": ["audit-logging"]},
+                content="audit logging text",
+            )
+            filesystem.create_folder("/semantic/topics/api", kind="semantic")
+            filesystem.create_folder("/semantic/topics/audit", kind="semantic")
+            filesystem.create_folder("/semantic/topics/slack", kind="semantic")
+            filesystem.attach_file_to_folder(file_ref, "/semantic/topics/api")
+            filesystem.attach_file_to_folder(file_ref, "/semantic/topics/audit")
+            filesystem.register_file(
+                storage_uri="file:///tmp/slack.json",
+                source_path="slack/eng/thread.json",
+                folder_path="/slack/eng",
+                external_id="dsid_slack",
+                title="Slack thread",
+                metadata={"source_type": "slack", "labels": ["chat"]},
+                content="slack thread text",
+            )
+
+            folders = filesystem.find_folders(
+                "/semantic",
+                metadata_filter={"source_type": "github"},
+                limit=10,
+            )
+            payload = json.loads(
+                PIFSCommandExecutor(filesystem, json_output=True).execute(
+                    'find /semantic -type d --where \'{"labels":{"$contains":"audit"}}\''
+                )
+            )
+            text = PIFSCommandExecutor(filesystem).execute(
+                'find /semantic -type d --where \'{"source_type":"github"}\''
+            )
+
+            self.assertEqual(
+                [folder["path"] for folder in folders],
+                ["/semantic/topics", "/semantic/topics/api", "/semantic/topics/audit"],
+            )
+            self.assertEqual({folder["matched_files"] for folder in folders}, {1})
+            self.assertEqual(
+                [folder["path"] for folder in payload["data"]],
+                ["/semantic/topics", "/semantic/topics/api", "/semantic/topics/audit"],
+            )
+            self.assertIn("/semantic/topics/api/ matched_files=1", text)
+            self.assertNotIn("/semantic/topics/slack", text)
 
     def test_metadata_filter_rejects_old_sql_like_dsl_and_unknown_operators(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -805,7 +879,7 @@ class EnterpriseRAGFileSystemTest(unittest.TestCase):
             with self.assertRaises(MetadataQueryError):
                 filesystem.search(None, metadata_filter='repo = "redwood"')
             with self.assertRaises(MetadataQueryError):
-                filesystem.search(None, metadata_filter={"repo": {"$contains": "red"}})
+                filesystem.search(None, metadata_filter={"repo": {"$match": "red"}})
             with self.assertRaises(MetadataQueryError):
                 filesystem.search(None, metadata_filter={"_repo": "redwood"})
 
@@ -850,6 +924,8 @@ class EnterpriseRAGFileSystemTest(unittest.TestCase):
                 executor.execute("rm -rf /")
             with self.assertRaises(PIFSCommandError):
                 executor.execute("ls / | cat")
+            with self.assertRaisesRegex(PIFSCommandError, "Unsupported ls option"):
+                executor.execute('ls / --where \'{"repo":"redwood"}\'')
             with self.assertRaises(PIFSCommandError):
                 executor.execute("ls / & cat")
             with self.assertRaises(PIFSCommandError):

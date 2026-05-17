@@ -162,6 +162,8 @@ class PIFSCommandExecutor:
         if file_type and file_type not in {"f", "d"}:
             raise PIFSCommandError("find -type supports only f or d")
         if file_type == "d":
+            if where:
+                return self.filesystem.find_folders(path, metadata_filter=where, limit=limit)
             return self.filesystem.browse(path, recursive=True, limit=limit)["folders"]
         return self.filesystem.search(
             query=name,
@@ -421,7 +423,13 @@ class PIFSCommandExecutor:
             return str(data)
         if data and isinstance(data[0], dict) and "path" in data[0] and "file_ref" not in data[0]:
             return "\n".join(
-                f"{item['path']}/ folders={item.get('children_count', 0)} files={item.get('file_count', 0)}"
+                (
+                    f"{item['path']}/ matched_files={item['matched_files']} "
+                    f"files={item.get('file_count', 0)}"
+                    if item.get("matched_files")
+                    else f"{item['path']}/ folders={item.get('children_count', 0)} "
+                    f"files={item.get('file_count', 0)}"
+                )
                 for item in data
             )
         return "\n".join(self._file_row_text(item) for item in data)

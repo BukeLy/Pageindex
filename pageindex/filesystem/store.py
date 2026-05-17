@@ -615,6 +615,74 @@ class SQLiteFileSystemStore:
             "files": [self._file_summary(row) for row in file_rows],
         }
 
+    def find_folders(
+        self,
+        path: str = "/",
+        *,
+        metadata_filter: Optional[dict[str, Any]] = None,
+        limit: int = 100,
+    ) -> list[dict[str, Any]]:
+        path = normalize_path(path)
+        metadata_sql, metadata_params = self._metadata_filter_sql(metadata_filter)
+        metadata_clause = f"AND {' AND '.join(metadata_sql)}" if metadata_sql else ""
+        sql = f"""
+            SELECT *
+            FROM (
+                SELECT
+                    fo.folder_id,
+                    fo.parent_id,
+                    fo.name,
+                    fo.path,
+                    fo.description,
+                    fo.kind,
+                    fo.metadata_json,
+                    fo.created_at,
+                    fo.updated_at,
+                    (
+                        SELECT COUNT(DISTINCT child_ff.file_ref)
+                        FROM file_folders child_ff
+                        JOIN files child_file
+                          ON child_file.file_ref = child_ff.file_ref
+                         AND child_file.deleted_at IS NULL
+                        WHERE child_ff.folder_id = fo.folder_id
+                    ) AS file_count,
+                    (
+                        SELECT COUNT(*)
+                        FROM folders child_folder
+                        WHERE child_folder.parent_id = fo.folder_id
+                    ) AS children_count,
+                    (
+                        SELECT COUNT(DISTINCT f.file_ref)
+                        FROM files f
+                        JOIN file_folders matched_ff
+                          ON matched_ff.file_ref = f.file_ref
+                        JOIN folders matched_folder
+                          ON matched_folder.folder_id = matched_ff.folder_id
+                        WHERE f.deleted_at IS NULL
+                          AND (
+                              matched_folder.folder_id = fo.folder_id
+                              OR matched_folder.path LIKE CASE
+                                  WHEN fo.path = '/' THEN '/%'
+                                  ELSE fo.path || '/%'
+                              END
+                          )
+                          {metadata_clause}
+                    ) AS matched_files
+                FROM folders fo
+                WHERE fo.path != ? AND fo.path LIKE ?
+            )
+            WHERE matched_files > 0
+            ORDER BY path
+            LIMIT ?
+        """
+        params = [*metadata_params, path, self._descendant_like(path), limit]
+        with self.connect() as conn:
+            folder = self._folder_by_path(conn, path)
+            if folder is None:
+                raise KeyError(f"Unknown folder path: {path}")
+            rows = conn.execute(sql, params).fetchall()
+        return [self._folder_row_to_dict(row) for row in rows]
+
     def search_files(
         self,
         query: str | list[str] | None,
@@ -784,6 +852,18 @@ class SQLiteFileSystemStore:
                 )
                 """,
                 [field_id, *values],
+            )
+        if operator == "$contains":
+            return (
+                """
+                EXISTS (
+                    SELECT 1 FROM metadata_values mv
+                    WHERE mv.file_ref = f.file_ref
+                      AND mv.field_id = ?
+                      AND lower(mv.value_text) LIKE '%' || lower(?) || '%'
+                )
+                """,
+                [field_id, self._metadata_compare_text(expected)],
             )
         if operator in {"$gt", "$gte", "$lt", "$lte"}:
             comparator = {
@@ -1252,6 +1332,7 @@ class SQLiteFileSystemStore:
             "updated_at": cls._row_value(row, "updated_at"),
             "file_count": cls._row_value(row, "file_count", 0),
             "children_count": cls._row_value(row, "children_count", 0),
+            "matched_files": cls._row_value(row, "matched_files", 0),
         }
 
     @classmethod

@@ -13,7 +13,7 @@ class MetadataQueryError(ValueError):
 
 class MetadataQueryEngine:
     FIELD_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_]*$")
-    OPERATORS = {"$eq", "$ne", "$in", "$gt", "$gte", "$lt", "$lte"}
+    OPERATORS = {"$eq", "$ne", "$in", "$gt", "$gte", "$lt", "$lte", "$contains"}
     LOGICAL_OPERATORS = {"$and", "$or"}
     MAX_DEPTH = 5
 
@@ -109,6 +109,9 @@ class MetadataQueryEngine:
                 raise MetadataQueryError(f"{field} $in requires a list")
             for item in expected:
                 self._validate_scalar(item, context=f"{field} $in")
+            return
+        if operator == "$contains":
+            self._validate_scalar(expected, context=f"{field} $contains")
             return
         if operator in {"$gt", "$gte", "$lt", "$lte"}:
             self._validate_range_value(expected, context=f"{field} {operator}")
