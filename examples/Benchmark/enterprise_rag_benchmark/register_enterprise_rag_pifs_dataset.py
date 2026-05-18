@@ -205,7 +205,10 @@ def ingest_paths_filtered(
                     skipped_existing,
                 )
             continue
-        spec = benchmark._document_spec(source_root, path, data)
+        if source_json_artifacts and lite_fts:
+            spec = lite_document_spec(source_root, path, data)
+        else:
+            spec = benchmark._document_spec(source_root, path, data)
         if source_json_artifacts:
             spec["text_artifact_path"] = str(path)
             spec["write_raw_artifact"] = False
@@ -248,6 +251,35 @@ def lite_fts_content(spec: dict[str, Any]) -> str:
         ]
         if item
     )
+
+
+def lite_document_spec(source_root: Path, path: Path, data: dict[str, Any]) -> dict[str, Any]:
+    relative_path = path.relative_to(source_root)
+    title_field = data.get("title_field_name") or "title"
+    title = str(data.get(title_field) or data.get("dataset_doc_uuid") or "Untitled")
+    content_fields = set(data.get("content_field_names") or [])
+    metadata = {
+        key: value
+        for key, value in data.items()
+        if key not in content_fields and key not in {"content_field_names", "title_field_name"}
+    }
+    metadata["source_type"] = relative_path.parts[0] if relative_path.parts else None
+    folder_path = "/" + "/".join(relative_path.parent.parts)
+    spec = {
+        "storage_uri": str(path),
+        "source_path": str(relative_path),
+        "folder_path": folder_path,
+        "metadata": metadata,
+        "external_id": data.get("dataset_doc_uuid"),
+        "title": title,
+        "content": "",
+        "content_type": "application/json",
+        "source_type": metadata["source_type"],
+    }
+    spec["text_artifact_path"] = str(path)
+    spec["write_raw_artifact"] = False
+    spec["fts_content"] = lite_fts_content(spec)
+    return spec
 
 
 def catalog_count(workspace: Path, table: str) -> int:
