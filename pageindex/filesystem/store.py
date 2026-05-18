@@ -281,23 +281,156 @@ class SQLiteFileSystemStore:
         if not records:
             return
         with self.connect() as conn:
-            conn.execute("PRAGMA synchronous = NORMAL")
+            conn.execute("PRAGMA synchronous = OFF")
+            conn.execute("PRAGMA temp_store = MEMORY")
+            folder_cache: dict[tuple[str, str], str] = {}
+            file_rows = []
+            membership_rows = []
+            file_ref_rows = []
+            fts_rows = []
+            metadata_rows = []
+            metadata_field_ids = {
+                row["name"]: row["field_id"]
+                for row in conn.execute(
+                    "SELECT name, field_id FROM metadata_fields WHERE schema_id = 'default'"
+                ).fetchall()
+            }
+            include_folder_path = "folder_path" in self._columns(conn, "files")
             for record in records:
-                folder_id = self.ensure_folder(conn, record["folder_path"], kind=record.get("folder_kind", "manual"))
-                self._insert_file_row(conn, record)
-                conn.execute(
-                    """
-                    INSERT OR REPLACE INTO file_folders(file_ref, folder_id, metadata_json)
-                    VALUES (?, ?, ?)
-                    """,
+                folder_cache_key = (record["folder_path"], record.get("folder_kind", "manual"))
+                folder_id = folder_cache.get(folder_cache_key)
+                if folder_id is None:
+                    folder_id = self.ensure_folder(
+                        conn,
+                        record["folder_path"],
+                        kind=record.get("folder_kind", "manual"),
+                    )
+                    folder_cache[folder_cache_key] = folder_id
+                file_rows.append(self._file_insert_values(record, include_folder_path=include_folder_path))
+                membership_rows.append(
                     (
                         record["file_ref"],
                         folder_id,
                         json.dumps(record.get("folder_metadata") or {}, ensure_ascii=False),
-                    ),
+                    )
                 )
-                self.replace_metadata_values(conn, record["file_ref"], record["metadata"])
-                self.replace_fts(conn, record)
+                file_ref_rows.append((record["file_ref"],))
+                fts_rows.append(
+                    (
+                        record["file_ref"],
+                        record["title"],
+                        record["content"],
+                        record["metadata_text"],
+                    )
+                )
+                metadata_rows.extend(
+                    self._metadata_insert_values(
+                        record["file_ref"],
+                        record["metadata"],
+                        metadata_field_ids,
+                    )
+                )
+            conn.executemany(self._file_insert_sql(include_folder_path=include_folder_path), file_rows)
+            conn.executemany(
+                """
+                INSERT OR REPLACE INTO file_folders(file_ref, folder_id, metadata_json)
+                VALUES (?, ?, ?)
+                """,
+                membership_rows,
+            )
+            conn.executemany("DELETE FROM metadata_values WHERE file_ref = ?", file_ref_rows)
+            if metadata_rows:
+                conn.executemany(
+                    """
+                    INSERT INTO metadata_values(
+                        file_ref, field_id, value_text, value_number, value_bool, value_json
+                    ) VALUES (?, ?, ?, ?, ?, ?)
+                    """,
+                    metadata_rows,
+                )
+            conn.executemany("DELETE FROM file_fts WHERE file_ref = ?", file_ref_rows)
+            conn.executemany(
+                """
+                INSERT INTO file_fts(file_ref, title, body, metadata_text)
+                VALUES (?, ?, ?, ?)
+                """,
+                fts_rows,
+            )
+
+    @staticmethod
+    def _file_insert_sql(*, include_folder_path: bool) -> str:
+        columns = [
+            "file_ref",
+            "external_id",
+            "storage_uri",
+            "source_path",
+            "title",
+            "descriptor",
+            "content_type",
+            "source_type",
+            "fingerprint",
+            "text_artifact_path",
+            "raw_artifact_path",
+            "pageindex_doc_id",
+            "pageindex_tree_status",
+            "metadata_json",
+        ]
+        if include_folder_path:
+            columns.append("folder_path")
+        columns.extend(["deleted_at", "updated_at"])
+        placeholders = ", ".join(["?"] * (len(columns) - 2) + ["NULL", "CURRENT_TIMESTAMP"])
+        return f"""
+            INSERT OR REPLACE INTO files ({", ".join(columns)})
+            VALUES ({placeholders})
+        """
+
+    @staticmethod
+    def _file_insert_values(record: dict[str, Any], *, include_folder_path: bool) -> tuple[Any, ...]:
+        values: list[Any] = [
+            record["file_ref"],
+            record["external_id"],
+            record["storage_uri"],
+            record["source_path"],
+            record["title"],
+            record["descriptor"],
+            record["content_type"],
+            record["source_type"],
+            record["fingerprint"],
+            record["text_artifact_path"],
+            record["raw_artifact_path"],
+            record.get("pageindex_doc_id"),
+            record.get("pageindex_tree_status", "not_built"),
+            record["metadata_json"],
+        ]
+        if include_folder_path:
+            values.append(record["folder_path"])
+        return tuple(values)
+
+    def _metadata_insert_values(
+        self,
+        file_ref: str,
+        metadata: dict[str, Any],
+        metadata_field_ids: dict[str, str],
+    ) -> list[tuple[Any, ...]]:
+        values = []
+        for name, value in metadata.items():
+            if not self._valid_field_name(name):
+                continue
+            field_id = metadata_field_ids.get(name)
+            if field_id is None:
+                continue
+            for item in self._metadata_value_items(value):
+                values.append(
+                    (
+                        file_ref,
+                        field_id,
+                        item["value_text"],
+                        item["value_number"],
+                        item["value_bool"],
+                        item["value_json"],
+                    )
+                )
+        return values
 
     def create_folder(
         self,

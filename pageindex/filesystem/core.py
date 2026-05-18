@@ -226,7 +226,7 @@ class PageIndexFileSystem:
             "source_type": source_type,
             "fingerprint": fingerprint(content),
             "text_artifact_path": str(text_artifact_path),
-            "raw_artifact_path": str(raw_artifact_path),
+            "raw_artifact_path": str(raw_artifact_path) if raw_artifact_path is not None else None,
             "pageindex_doc_id": None,
             "pageindex_tree_status": "not_built",
             "metadata": metadata,
