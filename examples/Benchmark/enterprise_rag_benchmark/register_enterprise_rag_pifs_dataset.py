@@ -77,12 +77,14 @@ def main() -> int:
         batch_size=args.batch_size,
         existing_ids=existing_ids,
         refresh_existing=args.refresh_existing,
+        source_json_artifacts=args.source_json_artifacts,
     )
     elapsed = time.time() - started
     summary = {
         "workspace": str(workspace),
         "dataset_root": str(dataset_root),
         "all_documents": args.all_documents,
+        "source_json_artifacts": args.source_json_artifacts,
         "question_ids": [question.question_id for question in questions],
         "questions_total": len(all_questions),
         "source_types_indexed": source_types_indexed,
@@ -112,6 +114,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--batch-size", type=int, default=1000)
     parser.add_argument("--all-documents", action="store_true", help="Register every JSON document in generated_data/sources.")
     parser.add_argument("--refresh-existing", action="store_true", help="Overwrite documents already present in the workspace.")
+    parser.add_argument(
+        "--source-json-artifacts",
+        action="store_true",
+        help="Reuse each source JSON file as the open() artifact and skip raw artifact duplication.",
+    )
     parser.add_argument("--reset", action="store_true")
     return parser.parse_args()
 
@@ -168,6 +175,7 @@ def ingest_paths_filtered(
     batch_size: int,
     existing_ids: set[str],
     refresh_existing: bool,
+    source_json_artifacts: bool,
 ) -> tuple[list[str], int]:
     file_refs: list[str] = []
     batch: list[dict[str, Any]] = []
@@ -188,7 +196,11 @@ def ingest_paths_filtered(
                     skipped_existing,
                 )
             continue
-        batch.append(benchmark._document_spec(source_root, path, data))
+        spec = benchmark._document_spec(source_root, path, data)
+        if source_json_artifacts:
+            spec["text_artifact_path"] = str(path)
+            spec["write_raw_artifact"] = False
+        batch.append(spec)
         if external_id:
             seen_ids.add(str(external_id))
         if len(batch) >= batch_size:

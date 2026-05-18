@@ -15,6 +15,7 @@ For a full-corpus workspace:
 python register_enterprise_rag_pifs_dataset.py \
   --workspace runs/full-pifs-workspace/workspace \
   --all-documents \
+  --source-json-artifacts \
   --batch-size 1000
 ```
 

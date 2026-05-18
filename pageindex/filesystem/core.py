@@ -199,16 +199,21 @@ class PageIndexFileSystem:
         folder_path = normalize_path(file.get("folder_path") or "/")
         title = file.get("title") or metadata.get("title") or Path(source_path).stem
         file_ref = make_file_ref(external_id or source_path)
-        text_artifact_path = self.store.write_text_artifact(file_ref, content)
-        raw_artifact_path = self.store.write_raw_artifact(
+        text_artifact_path = file.get("text_artifact_path") or self.store.write_text_artifact(
             file_ref,
-            {
-                "storage_uri": storage_uri,
-                "source_path": source_path,
-                "folder_path": folder_path,
-                "metadata": metadata,
-            },
+            content,
         )
+        raw_artifact_path = file.get("raw_artifact_path")
+        if raw_artifact_path is None and file.get("write_raw_artifact", True):
+            raw_artifact_path = self.store.write_raw_artifact(
+                file_ref,
+                {
+                    "storage_uri": storage_uri,
+                    "source_path": source_path,
+                    "folder_path": folder_path,
+                    "metadata": metadata,
+                },
+            )
         descriptor = self._build_descriptor(title, metadata)
         return {
             "file_ref": file_ref,
