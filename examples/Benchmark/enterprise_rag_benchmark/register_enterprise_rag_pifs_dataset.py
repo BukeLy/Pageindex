@@ -80,6 +80,7 @@ def main() -> int:
         refresh_existing=args.refresh_existing,
         source_json_artifacts=args.source_json_artifacts,
         lite_fts=args.lite_fts,
+        skip_fts=args.skip_fts,
     )
     elapsed = time.time() - started
     summary = {
@@ -88,6 +89,7 @@ def main() -> int:
         "all_documents": args.all_documents,
         "source_json_artifacts": args.source_json_artifacts,
         "lite_fts": args.lite_fts,
+        "skip_fts": args.skip_fts,
         "question_ids": [question.question_id for question in questions],
         "questions_total": len(all_questions),
         "source_types_indexed": source_types_indexed,
@@ -127,6 +129,7 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Index title/source_path/metadata for candidate recall instead of full document body.",
     )
+    parser.add_argument("--skip-fts", action="store_true", help="Do not prebuild SQLite FTS rows.")
     parser.add_argument("--reset", action="store_true")
     return parser.parse_args()
 
@@ -185,6 +188,7 @@ def ingest_paths_filtered(
     refresh_existing: bool,
     source_json_artifacts: bool,
     lite_fts: bool,
+    skip_fts: bool,
 ) -> tuple[list[str], int]:
     file_refs: list[str] = []
     batch: list[dict[str, Any]] = []
@@ -214,6 +218,8 @@ def ingest_paths_filtered(
             spec["write_raw_artifact"] = False
         if lite_fts:
             spec["fts_content"] = lite_fts_content(spec)
+        if skip_fts:
+            spec["skip_fts"] = True
         batch.append(spec)
         if external_id:
             seen_ids.add(str(external_id))

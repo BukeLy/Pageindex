@@ -235,6 +235,7 @@ class PageIndexFileSystem:
             "metadata_text": metadata_text(metadata),
             "folder_path": folder_path,
             "content": fts_content,
+            "skip_fts": bool(file.get("skip_fts", False)),
         }
 
     def _open_lines(self, reference_id: str, file_ref: str, start: int, end: int) -> OpenResult:

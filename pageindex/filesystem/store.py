@@ -287,6 +287,7 @@ class SQLiteFileSystemStore:
             file_rows = []
             membership_rows = []
             file_ref_rows = []
+            fts_file_ref_rows = []
             fts_rows = []
             metadata_rows = []
             metadata_field_ids = {
@@ -315,14 +316,16 @@ class SQLiteFileSystemStore:
                     )
                 )
                 file_ref_rows.append((record["file_ref"],))
-                fts_rows.append(
-                    (
-                        record["file_ref"],
-                        record["title"],
-                        record["content"],
-                        record["metadata_text"],
+                if not record.get("skip_fts", False):
+                    fts_file_ref_rows.append((record["file_ref"],))
+                    fts_rows.append(
+                        (
+                            record["file_ref"],
+                            record["title"],
+                            record["content"],
+                            record["metadata_text"],
+                        )
                     )
-                )
                 metadata_rows.extend(
                     self._metadata_insert_values(
                         record["file_ref"],
@@ -348,14 +351,15 @@ class SQLiteFileSystemStore:
                     """,
                     metadata_rows,
                 )
-            conn.executemany("DELETE FROM file_fts WHERE file_ref = ?", file_ref_rows)
-            conn.executemany(
-                """
-                INSERT INTO file_fts(file_ref, title, body, metadata_text)
-                VALUES (?, ?, ?, ?)
-                """,
-                fts_rows,
-            )
+            if fts_file_ref_rows:
+                conn.executemany("DELETE FROM file_fts WHERE file_ref = ?", fts_file_ref_rows)
+                conn.executemany(
+                    """
+                    INSERT INTO file_fts(file_ref, title, body, metadata_text)
+                    VALUES (?, ?, ?, ?)
+                    """,
+                    fts_rows,
+                )
 
     @staticmethod
     def _file_insert_sql(*, include_folder_path: bool) -> str:
