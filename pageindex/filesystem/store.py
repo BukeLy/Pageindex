@@ -275,22 +275,29 @@ class SQLiteFileSystemStore:
         return {row["name"] for row in conn.execute(f"PRAGMA table_info({table})").fetchall()}
 
     def insert_file(self, record: dict[str, Any]) -> None:
+        self.insert_files([record])
+
+    def insert_files(self, records: list[dict[str, Any]]) -> None:
+        if not records:
+            return
         with self.connect() as conn:
-            folder_id = self.ensure_folder(conn, record["folder_path"], kind=record.get("folder_kind", "manual"))
-            self._insert_file_row(conn, record)
-            conn.execute(
-                """
-                INSERT OR REPLACE INTO file_folders(file_ref, folder_id, metadata_json)
-                VALUES (?, ?, ?)
-                """,
-                (
-                    record["file_ref"],
-                    folder_id,
-                    json.dumps(record.get("folder_metadata") or {}, ensure_ascii=False),
-                ),
-            )
-            self.replace_metadata_values(conn, record["file_ref"], record["metadata"])
-            self.replace_fts(conn, record)
+            conn.execute("PRAGMA synchronous = NORMAL")
+            for record in records:
+                folder_id = self.ensure_folder(conn, record["folder_path"], kind=record.get("folder_kind", "manual"))
+                self._insert_file_row(conn, record)
+                conn.execute(
+                    """
+                    INSERT OR REPLACE INTO file_folders(file_ref, folder_id, metadata_json)
+                    VALUES (?, ?, ?)
+                    """,
+                    (
+                        record["file_ref"],
+                        folder_id,
+                        json.dumps(record.get("folder_metadata") or {}, ensure_ascii=False),
+                    ),
+                )
+                self.replace_metadata_values(conn, record["file_ref"], record["metadata"])
+                self.replace_fts(conn, record)
 
     def create_folder(
         self,

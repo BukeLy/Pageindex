@@ -53,8 +53,7 @@ class PageIndexFileSystem:
 
     def register_files(self, files: list[dict[str, Any]]) -> list[str]:
         records = [self._prepare_file_record(file) for file in files]
-        for record in records:
-            self.store.insert_file(record)
+        self.store.insert_files(records)
         return [record["file_ref"] for record in records]
 
     def browse(
