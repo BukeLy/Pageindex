@@ -195,6 +195,7 @@ class PageIndexFileSystem:
         external_id = file.get("external_id")
         content = file.get("content") or ""
         content_type = file.get("content_type") or "text/plain"
+        fts_content = file.get("fts_content", content)
         source_type = file.get("source_type") or self._infer_source_type(source_path)
         folder_path = normalize_path(file.get("folder_path") or "/")
         title = file.get("title") or metadata.get("title") or Path(source_path).stem
@@ -233,7 +234,7 @@ class PageIndexFileSystem:
             "metadata_json": json.dumps(metadata, ensure_ascii=False),
             "metadata_text": metadata_text(metadata),
             "folder_path": folder_path,
-            "content": content,
+            "content": fts_content,
         }
 
     def _open_lines(self, reference_id: str, file_ref: str, start: int, end: int) -> OpenResult:

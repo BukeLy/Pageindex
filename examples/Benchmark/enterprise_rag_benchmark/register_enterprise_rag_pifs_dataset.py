@@ -20,6 +20,7 @@ from examples.Benchmark.enterprise_rag_benchmark.enterprise_rag import (
     EnterpriseRAGQuestion,
 )
 from pageindex.filesystem import PIFSCommandExecutor, PageIndexFileSystem
+from pageindex.filesystem.store import metadata_text
 
 
 LOGGER = logging.getLogger("enterprise_rag_register")
@@ -78,6 +79,7 @@ def main() -> int:
         existing_ids=existing_ids,
         refresh_existing=args.refresh_existing,
         source_json_artifacts=args.source_json_artifacts,
+        lite_fts=args.lite_fts,
     )
     elapsed = time.time() - started
     summary = {
@@ -85,6 +87,7 @@ def main() -> int:
         "dataset_root": str(dataset_root),
         "all_documents": args.all_documents,
         "source_json_artifacts": args.source_json_artifacts,
+        "lite_fts": args.lite_fts,
         "question_ids": [question.question_id for question in questions],
         "questions_total": len(all_questions),
         "source_types_indexed": source_types_indexed,
@@ -118,6 +121,11 @@ def parse_args() -> argparse.Namespace:
         "--source-json-artifacts",
         action="store_true",
         help="Reuse each source JSON file as the open() artifact and skip raw artifact duplication.",
+    )
+    parser.add_argument(
+        "--lite-fts",
+        action="store_true",
+        help="Index title/source_path/metadata for candidate recall instead of full document body.",
     )
     parser.add_argument("--reset", action="store_true")
     return parser.parse_args()
@@ -176,6 +184,7 @@ def ingest_paths_filtered(
     existing_ids: set[str],
     refresh_existing: bool,
     source_json_artifacts: bool,
+    lite_fts: bool,
 ) -> tuple[list[str], int]:
     file_refs: list[str] = []
     batch: list[dict[str, Any]] = []
@@ -200,6 +209,8 @@ def ingest_paths_filtered(
         if source_json_artifacts:
             spec["text_artifact_path"] = str(path)
             spec["write_raw_artifact"] = False
+        if lite_fts:
+            spec["fts_content"] = lite_fts_content(spec)
         batch.append(spec)
         if external_id:
             seen_ids.add(str(external_id))
@@ -223,6 +234,20 @@ def ingest_paths_filtered(
             skipped_existing,
         )
     return file_refs, skipped_existing
+
+
+def lite_fts_content(spec: dict[str, Any]) -> str:
+    metadata = spec.get("metadata") or {}
+    return "\n".join(
+        item
+        for item in [
+            str(spec.get("title") or ""),
+            str(spec.get("source_path") or ""),
+            str(metadata.get("dataset_doc_uuid") or ""),
+            metadata_text(metadata),
+        ]
+        if item
+    )
 
 
 def catalog_count(workspace: Path, table: str) -> int:
