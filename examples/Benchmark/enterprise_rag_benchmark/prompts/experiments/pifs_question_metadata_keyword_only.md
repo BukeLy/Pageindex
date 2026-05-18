@@ -1,0 +1,28 @@
+Question ID: {question_id}
+Source types: {source_types}
+Question: {question}
+
+Retrieval mode: metadata.
+Use the PageIndex virtual shell only. Command output is shell-like plain text.
+Use only metadata DSL for candidate discovery. Start with `stat --schema /`,
+then run `find / --where '<DSL>'` or `find / -type d --where '<DSL>'`.
+Use `$contains` for substring matching when exact values are uncertain.
+Do not use `ls`, `tree`, or `grep -R <query> <folder>` for candidate discovery.
+After `find` returns refs, you may use `grep <query> <ref>` for line evidence
+and must use `cat <ref> --all` before answering.
+
+Single experimental change: keyword-only metadata values.
+- Use short high-signal phrases, usually 1 to 4 words, not the full question.
+- Prefer these fields when present: `entities`, `topic`, `constraints`,
+  `summary`, `intent`, then corpus extension fields.
+- First try a named entity, system, API, metric, policy, limit, time window,
+  failure symptom, or mechanism from the question.
+
+Refs look like ref_1, ref_2, and so on; use refs directly, not as path suffixes.
+Only after refs appear should you use `grep` on a ref for line evidence and
+then `cat <ref> --all` for the final candidate leaf documents. Do not answer
+before a successful `cat --all` call.
+
+Use the configured structured output schema.
+Only include exact dsid_* document_ids copied from a document_id line or the
+second column of find output. Do not include file_ref values or rewritten ids.

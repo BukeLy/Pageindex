@@ -49,7 +49,23 @@ from pageindex.filesystem import PageIndexFileSystem
 LOGGER = logging.getLogger("schema-discovery")
 BENCHMARK_DIR = Path(__file__).resolve().parent
 PROMPTS_DIR = BENCHMARK_DIR / "prompts"
-STRATEGIES = ["manual_baseline", "base_only", "freeform_workspace", "hybrid_workspace", "hybrid_v2_extension"]
+DEFAULT_SCHEMA_STRATEGY = "default_workspace"
+SCHEMA_STRATEGY_PROFILES = {
+    DEFAULT_SCHEMA_STRATEGY: "hybrid_v3_retrieval_cues",
+}
+EXPERIMENT_STRATEGIES = [
+    "manual_baseline",
+    "base_only",
+    "freeform_workspace",
+    "hybrid_workspace",
+    "hybrid_v2_extension",
+    "hybrid_v3_problem_extensions",
+    "hybrid_v3_retrieval_cues",
+    "hybrid_v3_filter_power_gate",
+    "hybrid_v3_alias_rich",
+]
+STRATEGIES = [DEFAULT_SCHEMA_STRATEGY, *EXPERIMENT_STRATEGIES]
+DEFAULT_STRATEGIES = [DEFAULT_SCHEMA_STRATEGY]
 DATASETS = ["enterprise_rag", "wixqa"]
 
 BASE_SCHEMA: dict[str, dict[str, str]] = {
@@ -216,7 +232,7 @@ def main() -> int:
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run cross-dataset PIFS schema discovery experiments")
     parser.add_argument("--datasets", default=",".join(DATASETS))
-    parser.add_argument("--strategies", default=",".join(STRATEGIES))
+    parser.add_argument("--strategies", default=",".join(DEFAULT_STRATEGIES))
     parser.add_argument("--target-docs", type=int, default=100)
     parser.add_argument("--schema-sample-size", type=int, default=30)
     parser.add_argument("--run-name", default="")
@@ -247,6 +263,7 @@ def run_strategy(
 ) -> dict[str, Any]:
     if strategy not in STRATEGIES:
         raise ValueError(f"Unknown strategy: {strategy}")
+    strategy_profile = schema_strategy_profile(strategy)
     workspace = strategy_dir / "workspace"
     if workspace.exists() and args.reset:
         shutil.rmtree(workspace)
@@ -272,10 +289,11 @@ def run_strategy(
     if not args.skip_agent:
         agent_summary = evaluate_workspace(bundle, strategy, filesystem, strategy_dir, args)
 
-    quality = schema_quality(schema, metadata_by_doc, schema_result.get("audit", {}), len(bundle.documents))
+    quality = schema_quality(schema, metadata_by_doc, audit, len(bundle.documents))
     summary = {
         "dataset": bundle.name,
         "strategy": strategy,
+        "strategy_profile": strategy_profile,
         "workspace": str(workspace),
         "schema_path": str(strategy_dir / "schema.json"),
         "metadata_path": str(strategy_dir / "metadata.json"),
@@ -292,6 +310,7 @@ def build_schema(
     strategy_dir: Path,
     args: argparse.Namespace,
 ) -> dict[str, Any]:
+    strategy_profile = schema_strategy_profile(strategy)
     schema_path = strategy_dir / "schema.json"
     audit_path = strategy_dir / "schema_audit.json"
     prompt_path = strategy_dir / "schema_prompt.md"
@@ -300,17 +319,17 @@ def build_schema(
     if args.reuse_generated_only:
         raise RuntimeError(f"Missing generated schema: {schema_path}")
 
-    if strategy == "manual_baseline":
+    if strategy_profile == "manual_baseline":
         schema = bundle.manual_schema
-        audit = {"strategy": strategy, "kept": list(schema), "rejected": [], "merged": []}
-    elif strategy == "base_only":
+        audit = {"strategy": strategy, "strategy_profile": strategy_profile, "kept": list(schema), "rejected": [], "merged": []}
+    elif strategy_profile == "base_only":
         schema = BASE_SCHEMA
-        audit = {"strategy": strategy, "kept": list(schema), "rejected": [], "merged": []}
+        audit = {"strategy": strategy, "strategy_profile": strategy_profile, "kept": list(schema), "rejected": [], "merged": []}
     else:
-        is_hybrid = strategy in {"hybrid_workspace", "hybrid_v2_extension"}
+        is_hybrid = strategy_profile.startswith("hybrid_")
         sample = sample_documents(bundle.documents, args.schema_sample_size, args.max_doc_chars)
         prompt = render_schema_prompt(
-            strategy=strategy,
+            strategy=strategy_profile,
             sample=sample,
             base_schema=BASE_SCHEMA if is_hybrid else {},
             max_fields=6 if is_hybrid else 16,
@@ -320,12 +339,25 @@ def build_schema(
         write_json(strategy_dir / "schema_draft.json", draft)
         normalized = normalize_schema_draft(
             draft,
-            strategy=strategy,
+            strategy=strategy_profile,
             base_schema=BASE_SCHEMA if is_hybrid else {},
             max_extension_fields=6 if is_hybrid else 16,
         )
         schema = normalized["schema"]
         audit = normalized["audit"]
+        audit["strategy"] = strategy
+        audit["strategy_profile"] = strategy_profile
+        if strategy_profile == "hybrid_v3_retrieval_cues":
+            schema["retrieval_cues"] = {
+                "type": "string",
+                "description": (
+                    "Five to ten short query phrases grounded in the document text, "
+                    "optimized for metadata-only candidate discovery."
+                ),
+                "why_queryable": "Lets the agent search concise document-specific retrieval hints without full-text FTS.",
+                "quality_gate": "allow_high_cardinality",
+            }
+            audit.setdefault("kept", []).append("retrieval_cues")
 
     write_json(schema_path, {"fields": schema})
     write_json(audit_path, audit)
@@ -361,7 +393,7 @@ def build_metadata(
     if args.reuse_generated_only:
         raise RuntimeError(f"Missing generated metadata: {metadata_path}")
 
-    if strategy == "manual_baseline":
+    if schema_strategy_profile(strategy) == "manual_baseline":
         metadata = {
             doc.doc_id: normalize_metadata_for_schema(schema, doc.manual_metadata)
             for doc in bundle.documents
@@ -634,7 +666,7 @@ def normalize_schema_draft(
 ) -> dict[str, Any]:
     audit: dict[str, Any] = {"strategy": strategy, "kept": [], "rejected": [], "merged": []}
     schema = dict(base_schema)
-    extension_only = strategy == "hybrid_v2_extension"
+    extension_only = strategy.startswith("hybrid_v")
     raw_fields = draft.get("fields", draft)
     items = schema_items(raw_fields)
     for raw_name, declaration in items:
@@ -895,8 +927,13 @@ def apply_schema_quality_gate(
     min_coverage: float = 0.3,
     max_high_cardinality: float = 0.75,
 ) -> tuple[dict[str, dict[str, Any]], dict[str, dict[str, Any]], dict[str, Any]]:
-    if strategy != "hybrid_v2_extension":
+    strategy_profile = schema_strategy_profile(strategy)
+    if not strategy_profile.startswith("hybrid_v"):
         return schema, metadata_by_doc, audit
+
+    if strategy_profile == "hybrid_v3_filter_power_gate":
+        min_coverage = 0.4
+        max_high_cardinality = 0.55
 
     gated_audit = dict(audit)
     quality_rejected = list(gated_audit.get("quality_rejected", []))
@@ -921,7 +958,10 @@ def apply_schema_quality_gate(
             reason = "disallowed"
         elif coverage < min_coverage:
             reason = "low_coverage"
-        elif high_cardinality > max_high_cardinality:
+        elif (
+            declaration.get("quality_gate") != "allow_high_cardinality"
+            and high_cardinality > max_high_cardinality
+        ):
             reason = "high_cardinality"
         elif not declaration.get("why_queryable") and not declaration.get("description"):
             reason = "not_queryable"
@@ -994,6 +1034,10 @@ def render_schema_prompt(
         max_fields=max_fields,
         sample_json=json.dumps(sample, ensure_ascii=False, indent=2),
     )
+
+
+def schema_strategy_profile(strategy: str) -> str:
+    return SCHEMA_STRATEGY_PROFILES.get(strategy, strategy)
 
 
 def schema_prompt_markdown(strategy: str, schema: dict[str, Any], audit: dict[str, Any]) -> str:
