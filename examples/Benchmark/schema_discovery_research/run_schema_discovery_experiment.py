@@ -331,8 +331,22 @@ def build_metadata(
     args: argparse.Namespace,
 ) -> dict[str, dict[str, Any]]:
     metadata_path = strategy_dir / "metadata.json"
+    existing = read_json(metadata_path) if metadata_path.exists() else {}
+    if not isinstance(existing, dict):
+        existing = {}
     if metadata_path.exists():
-        return read_json(metadata_path)
+        missing = [doc for doc in bundle.documents if doc.doc_id not in existing]
+        if not missing:
+            return existing
+        if args.reuse_generated_only:
+            raise RuntimeError(f"Generated metadata is incomplete: {metadata_path}")
+        LOGGER.info(
+            "metadata cache incomplete dataset=%s strategy=%s complete=%d missing=%d",
+            bundle.name,
+            strategy,
+            len(existing),
+            len(missing),
+        )
     if args.reuse_generated_only:
         raise RuntimeError(f"Missing generated metadata: {metadata_path}")
 
@@ -344,8 +358,10 @@ def build_metadata(
         write_json(metadata_path, metadata)
         return metadata
 
-    result: dict[str, dict[str, Any]] = {}
-    for index, doc in enumerate(bundle.documents, 1):
+    result: dict[str, dict[str, Any]] = dict(existing)
+    missing_docs = [doc for doc in bundle.documents if doc.doc_id not in result]
+    completed = len(bundle.documents) - len(missing_docs)
+    for index, doc in enumerate(missing_docs, completed + 1):
         generated = generate_metadata_for_doc(doc, schema, args)
         result[doc.doc_id] = normalize_metadata_for_schema(schema, generated)
         write_json(metadata_path, result)
@@ -823,12 +839,30 @@ def call_json_model(model: str, *, system: str, user: str, base_url: str | None 
     if system:
         messages.append({"role": "system", "content": system})
     messages.append({"role": "user", "content": user})
-    response = client.chat.completions.create(
-        model=model,
-        temperature=0.1,
-        response_format={"type": "json_object"},
-        messages=messages,
-    )
+    last_error: Exception | None = None
+    for attempt in range(1, 6):
+        try:
+            response = client.chat.completions.create(
+                model=model,
+                temperature=0.1,
+                response_format={"type": "json_object"},
+                messages=messages,
+            )
+            break
+        except Exception as exc:  # noqa: BLE001 - benchmark generation should survive transient API failures.
+            last_error = exc
+            if attempt == 5:
+                raise
+            sleep_seconds = min(30, 2**attempt)
+            LOGGER.warning(
+                "json model call failed attempt=%d retry_in=%ss error=%s",
+                attempt,
+                sleep_seconds,
+                f"{type(exc).__name__}: {exc}",
+            )
+            time.sleep(sleep_seconds)
+    else:  # pragma: no cover - loop always raises or breaks.
+        raise RuntimeError("unreachable json model retry state") from last_error
     content = response.choices[0].message.content or "{}"
     parsed = json.loads(content)
     if not isinstance(parsed, dict):

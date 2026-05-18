@@ -3,6 +3,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
@@ -135,6 +136,60 @@ class SchemaDiscoveryResearchTest(unittest.TestCase):
             self.assertEqual([doc.doc_id for doc in bundle.documents], ["a1", "a2"])
             self.assertEqual([question.question_id for question in bundle.questions], ["wixqa_expertwritten_0001", "wixqa_expertwritten_0002"])
             self.assertIn("article_id", bundle.manual_schema)
+
+    def test_metadata_generation_resumes_partial_cache(self):
+        from examples.Benchmark.schema_discovery_research.run_schema_discovery_experiment import (
+            BASE_SCHEMA,
+            DatasetBundle,
+            ResearchDocument,
+            build_metadata,
+            parse_args,
+        )
+
+        docs = [
+            ResearchDocument(
+                doc_id="doc_1",
+                title="First",
+                text="First document",
+                storage_uri="memory://doc_1",
+                source_path="doc_1.txt",
+                folder_path="/",
+                content_type="text/plain",
+                source_type="test",
+                manual_metadata={},
+            ),
+            ResearchDocument(
+                doc_id="doc_2",
+                title="Second",
+                text="Second document",
+                storage_uri="memory://doc_2",
+                source_path="doc_2.txt",
+                folder_path="/",
+                content_type="text/plain",
+                source_type="test",
+                manual_metadata={},
+            ),
+        ]
+        bundle = DatasetBundle("unit", docs, [], BASE_SCHEMA)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            strategy_dir = Path(tmp)
+            metadata_path = strategy_dir / "metadata.json"
+            metadata_path.write_text(
+                json.dumps({"doc_1": {field: "cached" for field in BASE_SCHEMA}}),
+                encoding="utf-8",
+            )
+            args = parse_args(["--target-docs", "2"])
+
+            with patch(
+                "examples.Benchmark.schema_discovery_research.run_schema_discovery_experiment.generate_metadata_for_doc",
+                return_value={field: "generated" for field in BASE_SCHEMA},
+            ) as generate:
+                metadata = build_metadata(bundle, "base_only", BASE_SCHEMA, strategy_dir, args)
+
+            self.assertEqual(generate.call_count, 1)
+            self.assertEqual(metadata["doc_1"]["summary"], "cached")
+            self.assertEqual(metadata["doc_2"]["summary"], "generated")
 
 
 if __name__ == "__main__":
