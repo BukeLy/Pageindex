@@ -191,6 +191,128 @@ class SchemaDiscoveryResearchTest(unittest.TestCase):
             self.assertEqual(metadata["doc_1"]["summary"], "cached")
             self.assertEqual(metadata["doc_2"]["summary"], "generated")
 
+    def test_hybrid_v2_extension_schema_keeps_canonical_hints(self):
+        from examples.Benchmark.schema_discovery_research.run_schema_discovery_experiment import (
+            BASE_SCHEMA,
+            normalize_schema_draft,
+        )
+
+        draft = {
+            "fields": [
+                {"name": "user_goal", "description": "duplicate of base intent"},
+                {"name": "source_path", "description": "leaky artifact path"},
+                {
+                    "name": "source_channel",
+                    "description": "where the content originated",
+                    "why_queryable": "lets the agent filter github, slack, email, or kb content",
+                    "coverage_estimate": 0.8,
+                    "canonical_values": ["github", "slack", "email", "kb"],
+                    "synonyms": {"github": ["github pull request", "pr"], "kb": ["help center", "knowledge base"]},
+                    "empty_policy": "empty if source channel is not clear",
+                },
+                {
+                    "name": "risk_level",
+                    "description": "operational risk level discussed",
+                    "why_queryable": "lets the agent narrow by severity",
+                    "coverage_estimate": 0.5,
+                    "canonical_values": ["low", "medium", "high"],
+                    "synonyms": {"high": ["critical"]},
+                    "empty_policy": "empty if no risk is described",
+                },
+            ]
+        }
+
+        result = normalize_schema_draft(
+            draft,
+            strategy="hybrid_v2_extension",
+            base_schema=BASE_SCHEMA,
+            max_extension_fields=6,
+        )
+
+        schema = result["schema"]
+        self.assertTrue(set(BASE_SCHEMA).issubset(schema))
+        self.assertIn("source_channel", schema)
+        self.assertEqual(schema["source_channel"]["canonical_values"], ["github", "slack", "email", "kb"])
+        self.assertEqual(schema["source_channel"]["synonyms"]["github"], ["github pull request", "pr"])
+        self.assertIn("risk_level", schema)
+        rejected = {item["name"]: item["reason"] for item in result["audit"]["rejected"]}
+        self.assertEqual(rejected["user_goal"], "base_duplicate")
+        self.assertEqual(rejected["source_path"], "disallowed")
+
+    def test_metadata_normalization_uses_canonical_value_hints(self):
+        from examples.Benchmark.schema_discovery_research.run_schema_discovery_experiment import (
+            BASE_SCHEMA,
+            normalize_metadata_for_schema,
+        )
+
+        schema = dict(BASE_SCHEMA)
+        schema["source_channel"] = {
+            "type": "string",
+            "description": "source channel",
+            "canonical_values": ["github", "slack", "email", "kb"],
+            "synonyms": {"github": ["github pull request", "pr"], "kb": ["help center"]},
+        }
+        metadata = {field: "" for field in BASE_SCHEMA}
+        metadata["source_channel"] = "GitHub Pull Request"
+
+        normalized = normalize_metadata_for_schema(schema, metadata)
+
+        self.assertEqual(normalized["source_channel"], "github")
+
+    def test_quality_gate_removes_bad_extension_fields(self):
+        from examples.Benchmark.schema_discovery_research.run_schema_discovery_experiment import (
+            BASE_SCHEMA,
+            apply_schema_quality_gate,
+        )
+
+        schema = dict(BASE_SCHEMA)
+        schema.update(
+            {
+                "source_channel": {
+                    "type": "string",
+                    "description": "source channel",
+                    "canonical_values": ["github", "slack", "email", "kb"],
+                },
+                "sparse_signal": {
+                    "type": "string",
+                    "description": "rare signal",
+                    "canonical_values": ["yes", "no"],
+                },
+                "unique_label": {
+                    "type": "string",
+                    "description": "unique per doc label",
+                    "canonical_values": ["a", "b", "c", "d", "e"],
+                },
+            }
+        )
+        metadata = {}
+        channels = ["github", "github", "slack", "email", "github", "kb", "github", "slack", "email", "github"]
+        for index, channel in enumerate(channels):
+            metadata[f"doc_{index}"] = {
+                **{field: "base" for field in BASE_SCHEMA},
+                "source_channel": channel,
+                "sparse_signal": "yes" if index == 0 else "",
+                "unique_label": f"unique_{index}",
+            }
+        audit = {"strategy": "hybrid_v2_extension", "kept": ["source_channel", "sparse_signal", "unique_label"], "rejected": []}
+
+        gated_schema, gated_metadata, gated_audit = apply_schema_quality_gate(
+            schema,
+            metadata,
+            audit,
+            strategy="hybrid_v2_extension",
+            min_coverage=0.3,
+            max_high_cardinality=0.75,
+        )
+
+        self.assertIn("source_channel", gated_schema)
+        self.assertNotIn("sparse_signal", gated_schema)
+        self.assertNotIn("unique_label", gated_schema)
+        self.assertNotIn("sparse_signal", gated_metadata["doc_0"])
+        reasons = {item["field"]: item["reason"] for item in gated_audit["quality_rejected"]}
+        self.assertEqual(reasons["sparse_signal"], "low_coverage")
+        self.assertEqual(reasons["unique_label"], "high_cardinality")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -49,7 +49,7 @@ from pageindex.filesystem import PageIndexFileSystem
 LOGGER = logging.getLogger("schema-discovery")
 BENCHMARK_DIR = Path(__file__).resolve().parent
 PROMPTS_DIR = BENCHMARK_DIR / "prompts"
-STRATEGIES = ["manual_baseline", "base_only", "freeform_workspace", "hybrid_workspace"]
+STRATEGIES = ["manual_baseline", "base_only", "freeform_workspace", "hybrid_workspace", "hybrid_v2_extension"]
 DATASETS = ["enterprise_rag", "wixqa"]
 
 BASE_SCHEMA: dict[str, dict[str, str]] = {
@@ -255,6 +255,16 @@ def run_strategy(
     schema_result = build_schema(bundle, strategy, strategy_dir, args)
     schema = schema_result["schema"]
     metadata_by_doc = build_metadata(bundle, strategy, schema, strategy_dir, args)
+    schema, metadata_by_doc, audit = apply_schema_quality_gate(
+        schema,
+        metadata_by_doc,
+        schema_result.get("audit", {}),
+        strategy=strategy,
+    )
+    if audit != schema_result.get("audit", {}):
+        write_json(strategy_dir / "schema.json", {"fields": schema})
+        write_json(strategy_dir / "metadata.json", metadata_by_doc)
+        write_json(strategy_dir / "schema_audit.json", audit)
     filesystem = materialize_workspace(bundle, workspace, schema, metadata_by_doc)
     LOGGER.info("workspace ready dataset=%s strategy=%s path=%s", bundle.name, strategy, workspace)
 
@@ -297,12 +307,13 @@ def build_schema(
         schema = BASE_SCHEMA
         audit = {"strategy": strategy, "kept": list(schema), "rejected": [], "merged": []}
     else:
+        is_hybrid = strategy in {"hybrid_workspace", "hybrid_v2_extension"}
         sample = sample_documents(bundle.documents, args.schema_sample_size, args.max_doc_chars)
         prompt = render_schema_prompt(
             strategy=strategy,
             sample=sample,
-            base_schema=BASE_SCHEMA if strategy == "hybrid_workspace" else {},
-            max_fields=6 if strategy == "hybrid_workspace" else 16,
+            base_schema=BASE_SCHEMA if is_hybrid else {},
+            max_fields=6 if is_hybrid else 16,
         )
         prompt_path.write_text(prompt, encoding="utf-8")
         draft = call_json_model(args.generation_model, system="", user=prompt, base_url=args.base_url)
@@ -310,8 +321,8 @@ def build_schema(
         normalized = normalize_schema_draft(
             draft,
             strategy=strategy,
-            base_schema=BASE_SCHEMA if strategy == "hybrid_workspace" else {},
-            max_extension_fields=6 if strategy == "hybrid_workspace" else 16,
+            base_schema=BASE_SCHEMA if is_hybrid else {},
+            max_extension_fields=6 if is_hybrid else 16,
         )
         schema = normalized["schema"]
         audit = normalized["audit"]
@@ -623,13 +634,17 @@ def normalize_schema_draft(
 ) -> dict[str, Any]:
     audit: dict[str, Any] = {"strategy": strategy, "kept": [], "rejected": [], "merged": []}
     schema = dict(base_schema)
+    extension_only = strategy == "hybrid_v2_extension"
     raw_fields = draft.get("fields", draft)
     items = schema_items(raw_fields)
     for raw_name, declaration in items:
         normalized_name = normalize_field_name(raw_name)
         canonical_name = FIELD_SYNONYMS.get(normalized_name, normalized_name)
         if canonical_name in base_schema:
-            audit["merged"].append({"from": raw_name, "to": canonical_name})
+            if extension_only:
+                audit["rejected"].append({"name": raw_name, "normalized": canonical_name, "reason": "base_duplicate"})
+            else:
+                audit["merged"].append({"from": raw_name, "to": canonical_name})
             continue
         if is_disallowed_field(canonical_name):
             audit["rejected"].append({"name": raw_name, "normalized": canonical_name, "reason": "disallowed"})
@@ -637,13 +652,14 @@ def normalize_schema_draft(
         if canonical_name in schema:
             audit["merged"].append({"from": raw_name, "to": canonical_name})
             continue
+        field = normalize_field_declaration(declaration, extension_only=extension_only)
+        if field is None:
+            audit["rejected"].append({"name": raw_name, "normalized": canonical_name, "reason": "not_queryable"})
+            continue
         if len([name for name in schema if name not in base_schema]) >= max_extension_fields:
             audit["rejected"].append({"name": raw_name, "normalized": canonical_name, "reason": "max_fields"})
             continue
-        schema[canonical_name] = {
-            "type": "string",
-            "description": field_description(declaration),
-        }
+        schema[canonical_name] = field
         audit["kept"].append(canonical_name)
     if strategy == "freeform_workspace" and not schema:
         schema = dict(BASE_SCHEMA)
@@ -672,6 +688,93 @@ def field_description(declaration: Any) -> str:
     return "Workspace-specific retrieval field."
 
 
+def normalize_field_declaration(declaration: Any, *, extension_only: bool) -> dict[str, Any] | None:
+    description = field_description(declaration).strip()
+    field: dict[str, Any] = {
+        "type": "string",
+        "description": description or "Workspace-specific retrieval field.",
+    }
+    if not isinstance(declaration, dict):
+        return field
+
+    why_queryable = stringify_metadata_value(declaration.get("why_queryable", "")).strip()
+    if why_queryable:
+        field["why_queryable"] = why_queryable
+    canonical_values = normalize_canonical_values(declaration.get("canonical_values"))
+    synonyms = normalize_synonyms(declaration.get("synonyms"))
+    empty_policy = stringify_metadata_value(declaration.get("empty_policy", "")).strip()
+    coverage_estimate = parse_coverage_estimate(declaration.get("coverage_estimate"))
+
+    if extension_only:
+        if not why_queryable:
+            return None
+        if len(canonical_values) < 2 or len(canonical_values) > 16:
+            return None
+        if coverage_estimate is not None and coverage_estimate < 0.3:
+            return None
+
+    if canonical_values:
+        field["canonical_values"] = canonical_values
+    if synonyms:
+        field["synonyms"] = synonyms
+    if empty_policy:
+        field["empty_policy"] = empty_policy
+    if coverage_estimate is not None:
+        field["coverage_estimate"] = coverage_estimate
+    return field
+
+
+def normalize_canonical_values(value: Any) -> list[str]:
+    if isinstance(value, str):
+        raw_values = re.split(r"[,;\n|]+", value)
+    elif isinstance(value, list):
+        raw_values = value
+    else:
+        raw_values = []
+    values = []
+    seen = set()
+    for item in raw_values:
+        text = stringify_metadata_value(item).strip()
+        if not text:
+            continue
+        key = metadata_match_key(text)
+        if key in seen:
+            continue
+        seen.add(key)
+        values.append(text)
+    return values
+
+
+def normalize_synonyms(value: Any) -> dict[str, list[str]]:
+    if not isinstance(value, dict):
+        return {}
+    normalized: dict[str, list[str]] = {}
+    for canonical, synonyms in value.items():
+        canonical_text = stringify_metadata_value(canonical).strip()
+        if not canonical_text:
+            continue
+        synonym_values = normalize_canonical_values(synonyms)
+        if synonym_values:
+            normalized[canonical_text] = synonym_values
+    return normalized
+
+
+def parse_coverage_estimate(value: Any) -> float | None:
+    if value is None or value == "":
+        return None
+    if isinstance(value, str):
+        text = value.strip().removesuffix("%")
+        try:
+            parsed = float(text)
+        except ValueError:
+            return None
+        return parsed / 100 if parsed > 1 else parsed
+    if isinstance(value, (int, float)):
+        parsed = float(value)
+        return parsed / 100 if parsed > 1 else parsed
+    return None
+
+
 def normalize_field_name(value: str) -> str:
     text = re.sub(r"[^A-Za-z0-9]+", "_", value.strip()).strip("_").lower()
     if not text:
@@ -692,9 +795,49 @@ def normalize_metadata_for_schema(
     metadata: dict[str, Any],
 ) -> dict[str, str]:
     normalized = {}
-    for field in schema:
-        normalized[field] = stringify_metadata_value(metadata.get(field, ""))
+    for field, declaration in schema.items():
+        normalized[field] = normalize_metadata_value_for_field(declaration, metadata.get(field, ""))
     return normalized
+
+
+def normalize_metadata_value_for_field(declaration: dict[str, Any], value: Any) -> str:
+    text = stringify_metadata_value(value)
+    if not text:
+        return ""
+    canonical_values = normalize_canonical_values(declaration.get("canonical_values"))
+    if not canonical_values:
+        return text
+    synonym_map = normalize_synonyms(declaration.get("synonyms"))
+    lookup: dict[str, str] = {}
+    for canonical in canonical_values:
+        lookup[metadata_match_key(canonical)] = canonical
+        for synonym in synonym_map.get(canonical, []):
+            lookup[metadata_match_key(synonym)] = canonical
+    parts = [part.strip() for part in re.split(r"[,;\n|]+", text) if part.strip()]
+    matched = []
+    for part in parts or [text]:
+        key = metadata_match_key(part)
+        if key in lookup:
+            matched.append(lookup[key])
+            continue
+        for candidate_key, canonical in lookup.items():
+            if candidate_key and (candidate_key in key or key in candidate_key):
+                matched.append(canonical)
+                break
+    if matched:
+        unique = []
+        seen = set()
+        for item in matched:
+            key = metadata_match_key(item)
+            if key not in seen:
+                seen.add(key)
+                unique.append(item)
+        return ", ".join(unique)
+    return text
+
+
+def metadata_match_key(value: str) -> str:
+    return re.sub(r"[^a-z0-9]+", " ", value.lower()).strip()
 
 
 def stringify_metadata_value(value: Any) -> str:
@@ -741,6 +884,74 @@ def schema_quality(
         "base_overlap": base_overlap,
         "rejected_fields": audit.get("rejected", []),
     }
+
+
+def apply_schema_quality_gate(
+    schema: dict[str, dict[str, Any]],
+    metadata_by_doc: dict[str, dict[str, Any]],
+    audit: dict[str, Any],
+    *,
+    strategy: str,
+    min_coverage: float = 0.3,
+    max_high_cardinality: float = 0.75,
+) -> tuple[dict[str, dict[str, Any]], dict[str, dict[str, Any]], dict[str, Any]]:
+    if strategy != "hybrid_v2_extension":
+        return schema, metadata_by_doc, audit
+
+    gated_audit = dict(audit)
+    quality_rejected = list(gated_audit.get("quality_rejected", []))
+    kept_schema: dict[str, dict[str, Any]] = {}
+    rejected_fields = set()
+    doc_count = max(1, len(metadata_by_doc))
+    base_fields = set(BASE_SCHEMA)
+
+    for field, declaration in schema.items():
+        if field in base_fields:
+            kept_schema[field] = declaration
+            continue
+        values = [stringify_metadata_value(metadata.get(field, "")) for metadata in metadata_by_doc.values()]
+        non_empty = [value for value in values if value]
+        coverage = len(non_empty) / doc_count
+        unique_count = len(set(non_empty))
+        high_cardinality = unique_count / len(non_empty) if non_empty else 0
+        reason = ""
+        if field in base_fields or FIELD_SYNONYMS.get(field, field) in base_fields:
+            reason = "base_duplicate"
+        elif is_disallowed_field(field):
+            reason = "disallowed"
+        elif coverage < min_coverage:
+            reason = "low_coverage"
+        elif high_cardinality > max_high_cardinality:
+            reason = "high_cardinality"
+        elif not declaration.get("why_queryable") and not declaration.get("description"):
+            reason = "not_queryable"
+
+        if reason:
+            rejected_fields.add(field)
+            quality_rejected.append(
+                {
+                    "field": field,
+                    "reason": reason,
+                    "coverage": coverage,
+                    "high_cardinality": high_cardinality,
+                    "unique_values": unique_count,
+                }
+            )
+            continue
+        kept_schema[field] = declaration
+
+    gated_audit["quality_rejected"] = quality_rejected
+    if not rejected_fields:
+        return schema, metadata_by_doc, gated_audit
+
+    gated_metadata = {
+        doc_id: {field: metadata.get(field, "") for field in kept_schema}
+        for doc_id, metadata in metadata_by_doc.items()
+    }
+    gated_audit["kept_after_quality_gate"] = [
+        field for field in kept_schema if field not in base_fields
+    ]
+    return kept_schema, gated_metadata, gated_audit
 
 
 def cross_dataset_drift(summaries: list[dict[str, Any]]) -> dict[str, Any]:

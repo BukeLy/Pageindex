@@ -6,6 +6,8 @@ Rules:
 - Prefer fields that help an agent filter documents before opening full text.
 - Avoid fields that are unique identifiers or artifact provenance.
 - All field types must be string, number, or boolean.
+- For `hybrid_v2_extension`, the base schema is already fixed. Return extension fields only. Do not repeat or rename base fields.
+- For extension fields, only propose fields that appear likely to cover at least 30% of the sample, can be canonicalized into a small value set, and are useful for metadata DSL filtering.
 - Return strict JSON only.
 
 Strategy: {strategy}
@@ -23,6 +25,10 @@ Return:
       "type": "string",
       "description": "what this field captures",
       "why_queryable": "why an agent would filter on this field",
+      "coverage_estimate": 0.3,
+      "canonical_values": ["small", "stable", "value", "set"],
+      "synonyms": {{"canonical_value": ["alternate wording"]}},
+      "empty_policy": "when this should be empty",
       "example_values": ["short grounded examples"],
       "source_evidence": "short phrase showing this came from the samples"
     }}
