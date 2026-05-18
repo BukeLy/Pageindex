@@ -5,6 +5,7 @@ import json
 import os
 import re
 import sys
+import time
 from pathlib import Path
 from typing import Any
 
@@ -75,6 +76,7 @@ def main() -> int:
             stream_mode=args.stream_mode,
             reasoning_effort=args.reasoning_effort,
             reasoning_summary=args.reasoning_summary,
+            max_seconds=args.max_seconds,
         )
         results.append(result)
         predictions.append(
@@ -111,6 +113,17 @@ def main() -> int:
         "model": args.model,
         "base_url": os.environ.get("OPENAI_BASE_URL"),
         "retrieval_mode": args.retrieval_mode,
+        "max_seconds": args.max_seconds,
+        "timeout_count": sum(
+            1
+            for result in results
+            if result.get("error") and "MaxSecondsExceeded" in str(result.get("error"))
+        ),
+        "avg_seconds": (
+            sum(float(result.get("seconds") or 0) for result in results) / len(results)
+            if results
+            else 0
+        ),
         "article_hit_rate": sum(1 for result in results if result["article_hit"]) / len(results) if results else 0,
         "predictions_path": str(predictions_path),
         "results_path": str(results_path),
@@ -130,6 +143,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-questions", type=int, default=20)
     parser.add_argument("--model", default=os.environ.get("PIFS_AGENT_MODEL", "gpt-4.1-mini"))
     parser.add_argument("--base-url", default=os.environ.get("OPENAI_BASE_URL"))
+    parser.add_argument("--max-seconds", type=float, default=float(os.environ.get("PIFS_MAX_SECONDS", "60")))
     parser.add_argument("--retrieval-mode", default="hybrid", choices=RETRIEVAL_MODE_CHOICES)
     parser.add_argument("--system-prompt-file", default=str(PROMPTS_DIR / "pifs_agent_system.md"))
     parser.add_argument("--question-prompt-file", default="")
@@ -155,6 +169,7 @@ def run_question(
     stream_mode: str,
     reasoning_effort: str | None,
     reasoning_summary: str | None,
+    max_seconds: float,
 ) -> dict[str, Any]:
     prompt = question_prompt_template.format(
         question_id=question.question_id,
@@ -166,6 +181,7 @@ def run_question(
     error = None
     agent_log: list[dict[str, Any]] = []
     parsed = {"answer": "", "article_ids": []}
+    started = time.time()
     try:
         raw_output = run_pifs_agent(
             filesystem,
@@ -176,6 +192,7 @@ def run_question(
             stream_mode=stream_mode,
             reasoning_effort=reasoning_effort,
             reasoning_summary=reasoning_summary,
+            max_seconds=max_seconds,
             output_type=WixQAAgentAnswer,
             agent_log=agent_log,
         )
@@ -196,6 +213,7 @@ def run_question(
         "raw_output": raw_output,
         "agent_log": agent_log,
         "error": error,
+        "seconds": round(time.time() - started, 3),
     }
 
 

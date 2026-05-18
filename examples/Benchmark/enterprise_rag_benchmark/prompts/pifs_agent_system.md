@@ -34,3 +34,8 @@ a ref for line evidence, then run cat <ref> --all before answering. Do not
 answer before a successful cat --all call. For document_ids, copy the exact
 dsid_* value from the document_id line or the second column of ls/grep/find
 output. Do not include file_ref values and do not rewrite or shorten ids.
+When possible, include internal citations in the structured output. Citations
+should point to opened evidence only and include document_id, source_path, ref,
+line_start, line_end, and a short quote. These citations are for local debug;
+the official benchmark answer file will still contain only question_id, answer,
+and document_ids.

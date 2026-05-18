@@ -113,6 +113,7 @@ def main() -> int:
         "target_docs": args.target_docs,
         "max_agent_questions": args.max_agent_questions,
         "agent_model": args.agent_model,
+        "max_seconds": args.max_seconds,
         "skip_agent": args.skip_agent,
         "datasets": selected_datasets,
         "strategies": selected_strategies,
@@ -135,6 +136,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--max-agent-questions", type=int, default=30)
     parser.add_argument("--agent-model", default=os.environ.get("PIFS_AGENT_MODEL", "gpt-5.4-mini"))
     parser.add_argument("--base-url", default=os.environ.get("OPENAI_BASE_URL"))
+    parser.add_argument("--max-seconds", type=float, default=float(os.environ.get("PIFS_MAX_SECONDS", "60")))
     parser.add_argument("--retrieval-mode", default="folder", choices=["folder", "hybrid"])
     parser.add_argument("--skip-agent", action="store_true")
     parser.add_argument("--enterprise-dataset", default="examples/Benchmark/enterprise_rag_benchmark/dataset")
@@ -543,6 +545,7 @@ def evaluate_workspace(
                 stream_mode=args.stream_mode,
                 reasoning_effort=args.reasoning_effort,
                 reasoning_summary=args.reasoning_summary,
+                max_seconds=args.max_seconds,
             )
             results.append(result)
             LOGGER.info("agent enterprise_rag %s %s hit=%s", strategy, result["question_id"], result["doc_hit"])
@@ -560,6 +563,7 @@ def evaluate_workspace(
                 stream_mode=args.stream_mode,
                 reasoning_effort=args.reasoning_effort,
                 reasoning_summary=args.reasoning_summary,
+                max_seconds=args.max_seconds,
             )
             results.append(result)
             predictions.append(
@@ -731,19 +735,21 @@ def write_summary_markdown(path: Path, summary: dict[str, Any]) -> None:
         f"- retrieval_mode: `{summary['retrieval_mode']}`",
         f"- target_docs: `{summary['target_docs']}`",
         f"- max_agent_questions: `{summary['max_agent_questions']}`",
+        f"- max_seconds: `{summary['max_seconds']}`",
         "",
-        "| dataset | strategy | hit rate | max turns | avg tool calls | cat | grep | folders | memberships | singleton folders | fallback |",
-        "|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---|",
+        "| dataset | strategy | hit rate | timeouts | avg seconds | avg tool calls | cat | grep | folders | memberships | singleton folders | fallback |",
+        "|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|",
     ]
     for item in summary["results"]:
         agent = item.get("agent") or {}
         quality = item.get("folder_quality") or {}
         lines.append(
-            "| {dataset} | {strategy} | {hit_rate} | {max_turns} | {avg_calls} | {cat} | {grep} | {folders} | {memberships} | {singletons} | {fallback} |".format(
+            "| {dataset} | {strategy} | {hit_rate} | {timeouts} | {avg_seconds} | {avg_calls} | {cat} | {grep} | {folders} | {memberships} | {singletons} | {fallback} |".format(
                 dataset=item["dataset"],
                 strategy=item["strategy"],
                 hit_rate=round(agent.get("hit_rate", 0), 4),
-                max_turns=agent.get("max_turns", 0),
+                timeouts=agent.get("timeout_count", 0),
+                avg_seconds=round(agent.get("avg_seconds", 0), 2),
                 avg_calls=round(agent.get("avg_tool_calls", 0), 2),
                 cat=agent.get("cat_count", 0),
                 grep=agent.get("grep_count", 0),

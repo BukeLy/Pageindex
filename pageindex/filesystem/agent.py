@@ -255,6 +255,7 @@ def run_pifs_agent(
     root: str = "/",
     system_prompt: str | None = None,
     max_turns: int = 20,
+    max_seconds: float | None = 60,
     verbose: bool = False,
     stream_mode: str = "off",
     reasoning_effort: str | None = None,
@@ -346,7 +347,7 @@ def run_pifs_agent(
         agent_kwargs["output_type"] = output_type
     agent = Agent(**agent_kwargs)
 
-    async def _run() -> str:
+    async def _run_streamed() -> str:
         streamed_run = Runner.run_streamed(agent, question, max_turns=max_turns)
         final_output = ""
         try:
@@ -358,6 +359,14 @@ def run_pifs_agent(
             if not final_output and streamed_run.final_output:
                 final_output = serialize_agent_final_output(streamed_run.final_output)
             observer.finish(final_output)
+
+    async def _run() -> str:
+        if max_seconds is None or max_seconds <= 0:
+            return await _run_streamed()
+        try:
+            return await asyncio.wait_for(_run_streamed(), timeout=max_seconds)
+        except asyncio.TimeoutError as exc:
+            raise TimeoutError(f"MaxSecondsExceeded: exceeded {max_seconds:g}s") from exc
 
     try:
         asyncio.get_running_loop()

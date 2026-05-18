@@ -217,7 +217,9 @@ def main() -> int:
         "target_docs": args.target_docs,
         "schema_sample_size": args.schema_sample_size,
         "generation_model": args.generation_model,
+        "metadata_model": args.metadata_model,
         "agent_model": args.agent_model,
+        "max_seconds": args.max_seconds,
         "datasets": selected_datasets,
         "strategies": selected_strategies,
         "results": summaries,
@@ -237,8 +239,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--schema-sample-size", type=int, default=30)
     parser.add_argument("--run-name", default="")
     parser.add_argument("--generation-model", default=os.environ.get("PIFS_GENERATION_MODEL", "gpt-4.1-mini"))
+    parser.add_argument("--metadata-model", default=os.environ.get("PIFS_METADATA_MODEL", os.environ.get("PIFS_GENERATION_MODEL", "gpt-5.4-nano")))
     parser.add_argument("--agent-model", default=os.environ.get("PIFS_AGENT_MODEL", "gpt-5.4-mini"))
     parser.add_argument("--base-url", default=os.environ.get("OPENAI_BASE_URL"))
+    parser.add_argument("--max-seconds", type=float, default=float(os.environ.get("PIFS_MAX_SECONDS", "60")))
     parser.add_argument("--metadata-workers", type=int, default=1, help="Reserved for future parallel generation; currently sequential for reproducibility.")
     parser.add_argument("--max-doc-chars", type=int, default=12000)
     parser.add_argument("--max-agent-questions", type=int, default=0)
@@ -422,7 +426,7 @@ def generate_metadata_for_doc(
         schema_json=json.dumps({"fields": schema}, ensure_ascii=False, indent=2),
         document_text=truncate_doc_text(doc, args.max_doc_chars),
     )
-    return call_json_model(args.generation_model, system="", user=prompt, base_url=args.base_url)
+    return call_json_model(args.metadata_model, system="", user=prompt, base_url=args.base_url)
 
 
 def materialize_workspace(
@@ -474,6 +478,7 @@ def evaluate_workspace(
                 stream_mode=args.stream_mode,
                 reasoning_effort=args.reasoning_effort,
                 reasoning_summary=args.reasoning_summary,
+                max_seconds=args.max_seconds,
             )
             results.append(result)
             LOGGER.info("agent enterprise_rag %s %s hit=%s", strategy, result["question_id"], result["doc_hit"])
@@ -491,6 +496,7 @@ def evaluate_workspace(
                 stream_mode=args.stream_mode,
                 reasoning_effort=args.reasoning_effort,
                 reasoning_summary=args.reasoning_summary,
+                max_seconds=args.max_seconds,
             )
             results.append(result)
             predictions.append(
@@ -531,7 +537,12 @@ def summarize_agent_results(dataset: str, results: list[dict[str, Any]], results
         "cat_count": sum(1 for command in commands if command.strip().startswith("cat ")),
         "find_count": sum(1 for command in commands if command.strip().startswith("find ")),
         "grep_count": sum(1 for command in commands if command.strip().startswith("grep") or " grep" in command),
-        "max_turns": sum(1 for error in errors if "MaxTurnsExceeded" in str(error)),
+        "timeout_count": sum(1 for error in errors if "MaxSecondsExceeded" in str(error)),
+        "avg_seconds": (
+            sum(float(result.get("seconds") or 0) for result in results) / len(results)
+            if results
+            else 0
+        ),
         "errors": len(errors),
         "first_relevant_doc_turn": None,
         "results_path": str(results_path),
@@ -1140,20 +1151,23 @@ def write_summary_markdown(path: Path, summary: dict[str, Any]) -> None:
         f"- run: `{summary['run_name']}`",
         f"- target_docs: `{summary['target_docs']}`",
         f"- generation_model: `{summary['generation_model']}`",
+        f"- metadata_model: `{summary['metadata_model']}`",
         f"- agent_model: `{summary['agent_model']}`",
+        f"- max_seconds: `{summary['max_seconds']}`",
         "",
-        "| dataset | strategy | hit rate | max turns | avg tool calls | fields | avg empty rate |",
-        "|---|---|---:|---:|---:|---:|---:|",
+        "| dataset | strategy | hit rate | timeouts | avg seconds | avg tool calls | fields | avg empty rate |",
+        "|---|---|---:|---:|---:|---:|---:|---:|",
     ]
     for item in summary["results"]:
         agent = item.get("agent") or {}
         quality = item.get("schema_quality") or {}
         lines.append(
-            "| {dataset} | {strategy} | {hit_rate} | {max_turns} | {avg_calls} | {fields} | {empty} |".format(
+            "| {dataset} | {strategy} | {hit_rate} | {timeouts} | {avg_seconds} | {avg_calls} | {fields} | {empty} |".format(
                 dataset=item["dataset"],
                 strategy=item["strategy"],
                 hit_rate=round(agent.get("hit_rate", 0), 4) if agent else "skipped",
-                max_turns=agent.get("max_turns", "skipped") if agent else "skipped",
+                timeouts=agent.get("timeout_count", "skipped") if agent else "skipped",
+                avg_seconds=round(agent.get("avg_seconds", 0), 2) if agent else "skipped",
                 avg_calls=round(agent.get("avg_tool_calls", 0), 2) if agent else "skipped",
                 fields=quality.get("field_count", 0),
                 empty=round(quality.get("avg_empty_rate", 0), 4),

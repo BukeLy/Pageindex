@@ -5,6 +5,7 @@ import json
 import os
 import re
 import sys
+import time
 from pathlib import Path
 from typing import Any
 
@@ -19,6 +20,7 @@ from dotenv import load_dotenv
 from pydantic import BaseModel, ConfigDict, Field
 
 from examples.Benchmark.enterprise_rag_benchmark.enterprise_rag import (
+    EnterpriseRAGBenchmark,
     EnterpriseRAGQuestion,
     load_questions,
 )
@@ -45,6 +47,13 @@ class PIFSAgentAnswer(BaseModel):
             "column of ls/grep output. Do not include file_ref values or rewritten ids."
         )
     )
+    citations: list[dict[str, Any]] = Field(
+        default_factory=list,
+        description=(
+            "Optional internal provenance rows. Each row should include document_id, source_path, "
+            "ref, line_start, line_end, and quote when available."
+        ),
+    )
 
 
 def main() -> int:
@@ -70,7 +79,7 @@ def main() -> int:
     question_prompt_template = read_prompt_file(question_prompt_file)
     questions = select_questions(
         load_questions(questions_path),
-        question_ids=args.question_ids,
+        question_ids="" if args.all_questions else args.question_ids,
         max_questions=args.max_questions,
     )
 
@@ -89,6 +98,7 @@ def main() -> int:
             stream_mode=args.stream_mode,
             reasoning_effort=args.reasoning_effort,
             reasoning_summary=args.reasoning_summary,
+            max_seconds=args.max_seconds,
         )
         results.append(result)
         print("\n[benchmark question result]", flush=True)
@@ -110,7 +120,15 @@ def main() -> int:
     with results_path.open("w", encoding="utf-8") as f:
         for result in results:
             f.write(json.dumps(result, ensure_ascii=False) + "\n")
+    answers_path = run_dir / "answers.jsonl"
+    EnterpriseRAGBenchmark.write_answers(answers_path, results)
 
+    timeout_count = sum(
+        1
+        for result in results
+        if result.get("error") and "MaxSecondsExceeded" in str(result.get("error"))
+    )
+    seconds_values = [float(result.get("seconds") or 0) for result in results]
     summary = {
         "questions": len(questions),
         "question_ids": [question.question_id for question in questions],
@@ -125,10 +143,14 @@ def main() -> int:
         "question_prompt_file": str(Path(question_prompt_file).resolve()),
         "reasoning_effort": args.reasoning_effort,
         "reasoning_summary": args.reasoning_summary,
+        "max_seconds": args.max_seconds,
+        "timeout_count": timeout_count,
+        "avg_seconds": sum(seconds_values) / len(seconds_values) if seconds_values else 0,
         "doc_hit_rate": (
             sum(1 for result in results if result["doc_hit"]) / len(results) if results else 0
         ),
         "skip_agent": args.skip_agent,
+        "answers_path": str(answers_path),
         "results_path": str(results_path),
     }
     summary_path = run_dir / "summary.json"
@@ -144,9 +166,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--workspace", default="runs/pifs-workspace/workspace")
     parser.add_argument("--run-name", default="pifs-agent-smoke")
     parser.add_argument("--question-ids", default=",".join(DEFAULT_QUESTION_IDS))
+    parser.add_argument("--all-questions", action="store_true")
     parser.add_argument("--max-questions", type=int, default=0)
     parser.add_argument("--model", default=os.environ.get("PIFS_AGENT_MODEL", "gpt-4.1-mini"))
     parser.add_argument("--base-url", default=os.environ.get("OPENAI_BASE_URL"))
+    parser.add_argument("--max-seconds", type=float, default=float(os.environ.get("PIFS_MAX_SECONDS", "60")))
     parser.add_argument(
         "--retrieval-mode",
         default=os.environ.get("PIFS_RETRIEVAL_MODE", "hybrid"),
@@ -215,6 +239,7 @@ def run_question(
     stream_mode: str,
     reasoning_effort: str | None,
     reasoning_summary: str | None,
+    max_seconds: float,
 ) -> dict[str, Any]:
     prompt = agent_prompt(
         question,
@@ -224,7 +249,8 @@ def run_question(
     raw_output = ""
     error = None
     agent_log: list[dict[str, Any]] = []
-    parsed = {"answer": "", "document_ids": []}
+    parsed = {"answer": "", "document_ids": [], "citations": []}
+    started = time.time()
     if skip_agent:
         error = "skipped"
     else:
@@ -239,6 +265,7 @@ def run_question(
                 stream_mode=stream_mode,
                 reasoning_effort=reasoning_effort,
                 reasoning_summary=reasoning_summary,
+                max_seconds=max_seconds,
                 output_type=PIFSAgentAnswer,
                 agent_log=agent_log,
             )
@@ -247,6 +274,7 @@ def run_question(
             error = f"{type(exc).__name__}: {exc}"
     expected = set(question.expected_doc_ids)
     document_ids = list(dict.fromkeys(str(item) for item in parsed.get("document_ids", [])))
+    seconds = time.time() - started
     return {
         "question_id": question.question_id,
         "source_types": question.source_types,
@@ -255,10 +283,12 @@ def run_question(
         "retrieval_mode": retrieval_mode,
         "answer": parsed.get("answer", ""),
         "document_ids": document_ids,
+        "citations": parsed.get("citations", []),
         "doc_hit": bool(expected.intersection(document_ids)),
         "raw_output": raw_output,
         "agent_log": agent_log,
         "error": error,
+        "seconds": round(seconds, 3),
     }
 
 
@@ -306,7 +336,14 @@ def parse_agent_json(text: str) -> dict[str, Any]:
         document_ids = []
     if not document_ids:
         document_ids = re.findall(r"dsid_[A-Za-z0-9]+", stripped)
-    return {"answer": "" if answer is None else str(answer), "document_ids": document_ids}
+    citations = data.get("citations", [])
+    if not isinstance(citations, list):
+        citations = []
+    return {
+        "answer": "" if answer is None else str(answer),
+        "document_ids": document_ids,
+        "citations": citations,
+    }
 
 
 if __name__ == "__main__":

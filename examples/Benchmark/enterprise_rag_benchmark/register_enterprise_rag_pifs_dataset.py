@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import shutil
 import sqlite3
 import sys
@@ -21,6 +22,7 @@ from examples.Benchmark.enterprise_rag_benchmark.enterprise_rag import (
 from pageindex.filesystem import PIFSCommandExecutor, PageIndexFileSystem
 
 
+LOGGER = logging.getLogger("enterprise_rag_register")
 DEFAULT_QUESTION_IDS = ["qst_0001", "qst_0002"]
 MANUAL_METADATA_SCHEMA = {
     "fields": {
@@ -34,6 +36,7 @@ MANUAL_METADATA_SCHEMA = {
 
 
 def main() -> int:
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     args = parse_args()
     benchmark_dir = Path(__file__).resolve().parent
     dataset_root = (benchmark_dir / args.dataset).resolve()
@@ -48,25 +51,43 @@ def main() -> int:
     filesystem = PageIndexFileSystem(workspace=workspace)
     filesystem._register_metadata_schema(MANUAL_METADATA_SCHEMA)
     benchmark = EnterpriseRAGBenchmark(filesystem)
+    all_questions = benchmark.load_questions(questions_path)
     questions = select_questions(
-        benchmark.load_questions(questions_path),
+        all_questions,
         question_ids=args.question_ids,
         max_questions=args.max_questions,
     )
-    paths = dataset_paths_for_questions(
-        source_root,
-        questions,
-        limit_per_source=args.limit_per_source,
-    )
+    if args.all_documents:
+        paths = sorted(source_root.rglob("*.json"))
+        source_types_indexed = sorted(path.name for path in source_root.iterdir() if path.is_dir())
+    else:
+        paths = dataset_paths_for_questions(
+            source_root,
+            questions,
+            limit_per_source=args.limit_per_source,
+        )
+        source_types_indexed = sorted({item for q in questions for item in q.source_types})
 
     started = time.time()
-    file_refs = benchmark.ingest_paths(source_root, paths, batch_size=args.batch_size)
+    existing_ids = existing_external_ids(workspace) if not args.refresh_existing else set()
+    file_refs, skipped_existing = ingest_paths_filtered(
+        benchmark,
+        source_root,
+        paths,
+        batch_size=args.batch_size,
+        existing_ids=existing_ids,
+        refresh_existing=args.refresh_existing,
+    )
     elapsed = time.time() - started
     summary = {
         "workspace": str(workspace),
         "dataset_root": str(dataset_root),
+        "all_documents": args.all_documents,
         "question_ids": [question.question_id for question in questions],
-        "source_types_indexed": sorted({item for q in questions for item in q.source_types}),
+        "questions_total": len(all_questions),
+        "source_types_indexed": source_types_indexed,
+        "candidate_files": len(paths),
+        "skipped_existing": skipped_existing,
         "indexed_files": len(file_refs),
         "registered_files_total": catalog_count(workspace, "files"),
         "metadata_fields_total": catalog_count(workspace, "metadata_fields"),
@@ -89,6 +110,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-questions", type=int, default=0)
     parser.add_argument("--limit-per-source", type=int, default=0)
     parser.add_argument("--batch-size", type=int, default=1000)
+    parser.add_argument("--all-documents", action="store_true", help="Register every JSON document in generated_data/sources.")
+    parser.add_argument("--refresh-existing", action="store_true", help="Overwrite documents already present in the workspace.")
     parser.add_argument("--reset", action="store_true")
     return parser.parse_args()
 
@@ -124,6 +147,70 @@ def dataset_paths_for_questions(
             source_paths = source_paths[:limit_per_source]
         paths.extend(source_paths)
     return paths
+
+
+def existing_external_ids(workspace: Path) -> set[str]:
+    db_path = workspace / "filesystem.sqlite"
+    if not db_path.exists():
+        return set()
+    with sqlite3.connect(db_path) as conn:
+        rows = conn.execute(
+            "SELECT external_id FROM files WHERE external_id IS NOT NULL AND deleted_at IS NULL"
+        ).fetchall()
+    return {str(row[0]) for row in rows if row[0]}
+
+
+def ingest_paths_filtered(
+    benchmark: EnterpriseRAGBenchmark,
+    source_root: Path,
+    paths: list[Path],
+    *,
+    batch_size: int,
+    existing_ids: set[str],
+    refresh_existing: bool,
+) -> tuple[list[str], int]:
+    file_refs: list[str] = []
+    batch: list[dict[str, Any]] = []
+    skipped_existing = 0
+    seen_ids = set(existing_ids)
+    total = len(paths)
+    for index, path in enumerate(paths, 1):
+        data = benchmark._read_json(path)
+        external_id = data.get("dataset_doc_uuid")
+        if external_id and external_id in seen_ids and not refresh_existing:
+            skipped_existing += 1
+            if index % 10000 == 0:
+                LOGGER.info(
+                    "scan %d/%d indexed=%d skipped_existing=%d",
+                    index,
+                    total,
+                    len(file_refs),
+                    skipped_existing,
+                )
+            continue
+        batch.append(benchmark._document_spec(source_root, path, data))
+        if external_id:
+            seen_ids.add(str(external_id))
+        if len(batch) >= batch_size:
+            file_refs.extend(benchmark.filesystem.register_files(batch))
+            LOGGER.info(
+                "registered scan=%d/%d indexed=%d skipped_existing=%d",
+                index,
+                total,
+                len(file_refs),
+                skipped_existing,
+            )
+            batch = []
+    if batch:
+        file_refs.extend(benchmark.filesystem.register_files(batch))
+        LOGGER.info(
+            "registered scan=%d/%d indexed=%d skipped_existing=%d",
+            total,
+            total,
+            len(file_refs),
+            skipped_existing,
+        )
+    return file_refs, skipped_existing
 
 
 def catalog_count(workspace: Path, table: str) -> int:
