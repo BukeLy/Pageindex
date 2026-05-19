@@ -1,0 +1,318 @@
+{
+  "question_count": 5,
+  "hit_any_count": 3,
+  "hit_any_rate": 0.6,
+  "best_candidate_count_avg": 200.0,
+  "misses": [
+    "qst_0016",
+    "qst_0017"
+  ],
+  "workspace": "/Users/chengjie/.codex/worktrees/6d00/PageIndex/examples/Benchmark/enterprise_rag_benchmark/auto_gen_research/full_workspace_layer/workspaces/structured-metadata-v1/workspace",
+  "seconds": 0.576,
+  "questions": [
+    {
+      "question_id": "qst_0016",
+      "source_types": [
+        "confluence"
+      ],
+      "expected_doc_ids": [
+        "dsid_ba7d1565b0694e359983bccaa4bf5977"
+      ],
+      "terms": [
+        "default before it expires",
+        "default-before-it-expires",
+        "defaultbeforeitexpires",
+        "default-before-it-expire",
+        "company",
+        "policy",
+        "long",
+        "contractor",
+        "access",
+        "acces",
+        "should",
+        "last",
+        "default",
+        "before",
+        "expires",
+        "expire",
+        "according",
+        "permissions",
+        "permission",
+        "playbook",
+        "company policy long",
+        "company-policy-long",
+        "companypolicylong",
+        "policy long contractor"
+      ],
+      "hit_any": false,
+      "best_hit": null,
+      "top_document_ids": [
+        "dsid_3bbea346f853491abd6e9615a41f1c77",
+        "dsid_5bb8a925b2414de78011566238f8e4a8",
+        "dsid_942c5f533732471c8ec0a46b25b4418a",
+        "dsid_7f0a1ac8a93b43e9884865825ca9d539",
+        "dsid_a5646b96187c4c6db01319035f56dc3d",
+        "dsid_3a3fbeabfa8043b4a820a050e899b6ce",
+        "dsid_5039f426a519424899f51c595c83541d",
+        "dsid_7e5db13970bc4f1e9943d6ff488924c3",
+        "dsid_944280d3e953446ead301635c5cf5823",
+        "dsid_2e21918ddd4746128604a38bd1ed35b9",
+        "dsid_fa707e55123043dbb986264edfdbdae3",
+        "dsid_958a7dd68615451eb42054b6f12311b3",
+        "dsid_11b4dc5c498c472b9827a245f5a0720e",
+        "dsid_0f31b23148494a6fa2462b8d089c75d6",
+        "dsid_a8051b77115b4f45b668db5b5cbb04dd",
+        "dsid_4289f3f1fb54444f81ad6fb1edc6dec3",
+        "dsid_f59c6a20cc6d48df968d9403fe8b1ef4",
+        "dsid_a5c5f94650aa4795b9607ace51ba5ea0",
+        "dsid_b45102be3609421dab4a10c84035f18c",
+        "dsid_2ee5157ee3b6493aab64c55870ba1978"
+      ]
+    },
+    {
+      "question_id": "qst_0017",
+      "source_types": [
+        "hubspot"
+      ],
+      "expected_doc_ids": [
+        "dsid_03af1e44970d4d6db6e85bc2c5fce8de"
+      ],
+      "terms": [
+        "SLA counteroffer for the maritime logistics SaaS customer using dedicated GPU capac",
+        "sla-counteroffer-maritime-logistics-saas-customer",
+        "slacounteroffermaritimelogisticssaascustomer",
+        "service",
+        "credit",
+        "percentages",
+        "percentage",
+        "were",
+        "proposed",
+        "tiered",
+        "uptime",
+        "sla",
+        "counteroffer",
+        "maritime",
+        "logistics",
+        "logistic",
+        "saas",
+        "customer",
+        "using",
+        "dedicated",
+        "gpu",
+        "capacity",
+        "service credit percentages",
+        "service-credit-percentages"
+      ],
+      "hit_any": false,
+      "best_hit": null,
+      "top_document_ids": [
+        "dsid_aa1ad5fc8ec34acbb70f1e3a8a47c7e4",
+        "dsid_86afbfccd4924946b75e30989b981996",
+        "dsid_bb30deaae689472d83a5666a24839bc6",
+        "dsid_55c3f751879749c4988ee042fd734939",
+        "dsid_d9db1a1109d24c588ae6443ca746b0e3",
+        "dsid_a7d95c122cfe44699f7ab94444f966f7",
+        "dsid_9882154ae51746a5bc874ec97c1f4b05",
+        "dsid_ca7dee5f843c4011aed8e515e08dbe47",
+        "dsid_bee960def2d744dca5c15c6a6c739fa9",
+        "dsid_733f0071dfba41e6a10b251edcca3bae",
+        "dsid_1cdb4813c46b4405ad99de98b08bce65",
+        "dsid_653df4a231424a6bb4e6b55e03df7dd1",
+        "dsid_71fa3ba65f274c2c8e141c47c1072553",
+        "dsid_b863b0760f244cf9a5e9e2ff9126b40b",
+        "dsid_c9f597b5348f4d33a524c05fa099198a",
+        "dsid_ddf9e1a279514398a43be75324272d8c",
+        "dsid_73c541072fa249e39c359c8143e77d9f",
+        "dsid_3f99ce1ef2a0455d8a88b0d846eb7bb4",
+        "dsid_0a6cc9cfc5ba4e0d8a4bbc439a5ab9db",
+        "dsid_46b65bf5a0694460ba9526148e70209c"
+      ]
+    },
+    {
+      "question_id": "qst_0110",
+      "source_types": [
+        "confluence"
+      ],
+      "expected_doc_ids": [
+        "dsid_2e4183d040b341cf843366e2c15402af"
+      ],
+      "terms": [
+        "rollout",
+        "ramp",
+        "schedule",
+        "time",
+        "window",
+        "used",
+        "canary",
+        "phase",
+        "validating",
+        "adaptive",
+        "degradation",
+        "behavior",
+        "serving",
+        "runtime",
+        "rollout ramp schedule",
+        "rollout-ramp-schedule",
+        "rolloutrampschedule",
+        "ramp schedule time",
+        "ramp-schedule-time",
+        "rampscheduletime",
+        "schedule time window",
+        "schedule-time-window",
+        "scheduletimewindow",
+        "time window used"
+      ],
+      "hit_any": true,
+      "best_hit": {
+        "candidate_count_lte_200": 200,
+        "hit": true
+      },
+      "top_document_ids": [
+        "dsid_f4834d3feaa24c7d8ef79fc319936159",
+        "dsid_2e69e0e64c3e48fca73aea96ca3db2db",
+        "dsid_2e4183d040b341cf843366e2c15402af",
+        "dsid_b58ca26e59e7404098a7b69412da717a",
+        "dsid_aeb8dd3f5b744ea0b307954410bd57a7",
+        "dsid_20d1dd8f82bf47ff910854ddbacdf66f",
+        "dsid_ac2fdba09cc24cd98ba60f5da114780c",
+        "dsid_00d25c10e3c14e5aa285c1212be6c4c4",
+        "dsid_6a8476f19fee43b3af984d2bd790453f",
+        "dsid_f6e3b7ad413142019dbb5a5fed07f548",
+        "dsid_d8a2e9ad3e6d49dc8d6fad709bfa80a9",
+        "dsid_8c24fd15fe5b473eb71341751d292b6e",
+        "dsid_42aad55e1b9848b7944b7437e7b8339e",
+        "dsid_a1a962c966a147d1a43c3ce2db546167",
+        "dsid_bcc1085866fa46eda8fccfd676347aee",
+        "dsid_59da09cec92c4817b4fc18562cfe666e",
+        "dsid_174f6e0816824a17a80577c19b8fa7e9",
+        "dsid_8a97509821e848d7aa81b1a1b72ca2f5",
+        "dsid_ca122b701b4d41a2bc7877f25b5c5bb4",
+        "dsid_99038c8222c24825b130be6b9a52749b"
+      ]
+    },
+    {
+      "question_id": "qst_0128",
+      "source_types": [
+        "confluence"
+      ],
+      "expected_doc_ids": [
+        "dsid_319db001cae246bbbb16f441b64d9b82"
+      ],
+      "terms": [
+        "default business hours change window?",
+        "default-business-hours-change-window",
+        "defaultbusinesshourschangewindow",
+        "production",
+        "changes",
+        "change",
+        "normally",
+        "allowed",
+        "deployed",
+        "default",
+        "business",
+        "busines",
+        "hours",
+        "hour",
+        "window",
+        "production changes normally",
+        "production-changes-normally",
+        "productionchangesnormally",
+        "changes normally allowed",
+        "changes-normally-allowed",
+        "changesnormallyallowed",
+        "normally allowed deployed",
+        "normally-allowed-deployed",
+        "normallyalloweddeployed"
+      ],
+      "hit_any": true,
+      "best_hit": {
+        "candidate_count_lte_200": 200,
+        "hit": true
+      },
+      "top_document_ids": [
+        "dsid_452dc45d76754cbca8a3674170599633",
+        "dsid_eac14b05fee947639c11f82451aaa8c5",
+        "dsid_32c5e7ca0e2e4eadac78b01a35cfed7a",
+        "dsid_89889daf6b89426ca90049f313d4324f",
+        "dsid_2fede54bdbb24335bf08a65d19d93de7",
+        "dsid_bf7e0df04c8748458b5515c864c48609",
+        "dsid_319db001cae246bbbb16f441b64d9b82",
+        "dsid_a1c9554c774a401fb87c65bb12f5afb5",
+        "dsid_c9e7302df4ad482aa4dedd5872a7ce2f",
+        "dsid_80a4e96eed2942be93c328964e1d327f",
+        "dsid_6807c651b55546559733c7c6f8dc133d",
+        "dsid_914d75cb27ee4a06b3f69e445d715ab4",
+        "dsid_3dc07700ce134ca69292efcd3a968251",
+        "dsid_2b7848a8491749f8b9b9a8c13f78445f",
+        "dsid_3f8b4eed72cd4540a7d1ac1eb0924519",
+        "dsid_73e7b6330dfe481c92598ba4f97c3fff",
+        "dsid_1404d5e685e94b1cbbd1b5f5ebef558d",
+        "dsid_f6b4cb137c444b57bbd4a5d21843d240",
+        "dsid_357d274e83384a87afacc3aaec224f51",
+        "dsid_81a7e3e0204d4c6984e0a503d5423314"
+      ]
+    },
+    {
+      "question_id": "qst_0161",
+      "source_types": [
+        "github"
+      ],
+      "expected_doc_ids": [
+        "dsid_2fb08b7571444bdf894607549642498f"
+      ],
+      "terms": [
+        "openai",
+        "compatibility",
+        "adapter",
+        "update",
+        "deployments",
+        "deployment",
+        "priority",
+        "order",
+        "does",
+        "normalizer",
+        "use",
+        "resolve",
+        "conflicting",
+        "tool",
+        "selection",
+        "hints",
+        "hint",
+        "openai compatibility adapter",
+        "openai-compatibility-adapter",
+        "openaicompatibilityadapter",
+        "compatibility adapter update",
+        "compatibility-adapter-update",
+        "compatibilityadapterupdate",
+        "adapter update deployments"
+      ],
+      "hit_any": true,
+      "best_hit": {
+        "candidate_count_lte_200": 200,
+        "hit": true
+      },
+      "top_document_ids": [
+        "dsid_f30a4c8b64dc4582b5f2a0b05f3cbf37",
+        "dsid_06504b99e7a24721acd37486d8e41d3c",
+        "dsid_819798c1aa6f4be7bd195a14864e533d",
+        "dsid_0ed26c38f7f44e4e989012e88ed0acba",
+        "dsid_82d3d60c2b2a47feab7cb07863897123",
+        "dsid_e2650c35e05441f2be8d7a07d1277281",
+        "dsid_81efc759c67745569f035ec4157828b0",
+        "dsid_48fc313deb634291a6417c28b45fa30a",
+        "dsid_50247fa193b44f8e8b43b5a995df558a",
+        "dsid_899b7b4114e042199a03af7eb8e655c9",
+        "dsid_910ba7ca93a14caf8ae9bfd8465f1b33",
+        "dsid_2113d59d19aa4ef3bb619b3f96f1e2cf",
+        "dsid_4b217dbd2e15462d8317ec52cbf11108",
+        "dsid_adcaed1d611c446ba9a10aae93f43afe",
+        "dsid_5b9b759171764e0394bd5a9ac58477f5",
+        "dsid_1e3d8b2b60ce4ef4a2820949ea2f98cf",
+        "dsid_ce16698bab404d7eb5b6621e9b4f2818",
+        "dsid_f1d604f5c2dd421dab14b3d28aab5860",
+        "dsid_80a15e952b7b4dc9894ab280138d695b",
+        "dsid_3c9316fd06a149789b78df5d0fa0e8cc"
+      ]
+    }
+  ]
+}

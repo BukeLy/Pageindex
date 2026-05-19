@@ -153,6 +153,18 @@ def main() -> int:
         summary = probe_fts(args)
         print(json.dumps(summary, ensure_ascii=False, indent=2), flush=True)
         return 0
+    if args.command == "build-term-index":
+        summary = build_term_index(args)
+        print(json.dumps(summary, ensure_ascii=False, indent=2), flush=True)
+        return 0
+    if args.command == "build-term-stats":
+        summary = build_term_stats(args)
+        print(json.dumps(summary, ensure_ascii=False, indent=2), flush=True)
+        return 0
+    if args.command == "probe-term-index":
+        summary = probe_term_index(args)
+        print(json.dumps(summary, ensure_ascii=False, indent=2), flush=True)
+        return 0
     if args.command == "run":
         summary = run_experiments(args)
         print(json.dumps(summary, ensure_ascii=False, indent=2), flush=True)
@@ -206,6 +218,21 @@ def parse_args() -> argparse.Namespace:
     probe_fts_parser.add_argument("--question-ids", default="")
     probe_fts_parser.add_argument("--limit-terms", type=int, default=18)
     probe_fts_parser.add_argument("--output", default="")
+
+    term_index = sub.add_parser("build-term-index", help="Build a semantic term index from generated metadata")
+    term_index.add_argument("--workspace", default=str(DEFAULT_DERIVED_WORKSPACE))
+    term_index.add_argument("--batch-size", type=int, default=20000)
+    term_index.add_argument("--max-docs", type=int, default=0)
+
+    term_stats = sub.add_parser("build-term-stats", help="Build source-specific semantic term document frequencies")
+    term_stats.add_argument("--workspace", default=str(DEFAULT_DERIVED_WORKSPACE))
+
+    probe_term_index = sub.add_parser("probe-term-index", help="Probe semantic term index recall")
+    probe_term_index.add_argument("--workspace", default=str(DEFAULT_DERIVED_WORKSPACE))
+    probe_term_index.add_argument("--question-set", default="timeout10", choices=sorted(QUESTION_SETS))
+    probe_term_index.add_argument("--question-ids", default="")
+    probe_term_index.add_argument("--limit-terms", type=int, default=24)
+    probe_term_index.add_argument("--output", default="")
 
     run = sub.add_parser("run", help="Run controlled small-question experiments")
     run.add_argument("--workspace", default=str(DEFAULT_DERIVED_WORKSPACE))
@@ -995,6 +1022,238 @@ def probe_metadata(args: argparse.Namespace) -> dict[str, Any]:
     output = Path(args.output).expanduser().resolve() if args.output else DEFAULT_RESULTS_DIR / f"metadata-probe-{time.strftime('%Y%m%d-%H%M%S')}.json"
     write_json(output, summary)
     return {"output": str(output), **{key: value for key, value in summary.items() if key != "questions"}}
+
+
+def build_term_index(args: argparse.Namespace) -> dict[str, Any]:
+    started = time.time()
+    workspace = Path(args.workspace).expanduser().resolve()
+    db_path = workspace / "filesystem.sqlite"
+    if not db_path.exists():
+        raise SystemExit(f"workspace is not registered: {workspace}")
+    with sqlite3.connect(db_path) as conn:
+        conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA synchronous = OFF")
+        conn.execute("PRAGMA journal_mode = WAL")
+        conn.execute("PRAGMA temp_store = MEMORY")
+        summary = populate_semantic_terms(conn, batch_size=args.batch_size, max_docs=args.max_docs)
+    summary.update({"workspace": str(workspace), "seconds": round(time.time() - started, 3)})
+    write_json(workspace.parent / "semantic_terms_summary.json", summary)
+    return summary
+
+
+def populate_semantic_terms(conn: sqlite3.Connection, *, batch_size: int, max_docs: int) -> dict[str, Any]:
+    conn.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS semantic_terms (
+            term TEXT NOT NULL,
+            file_ref TEXT NOT NULL,
+            source_type TEXT NOT NULL,
+            field TEXT NOT NULL,
+            weight REAL NOT NULL,
+            PRIMARY KEY(term, file_ref, field)
+        );
+        DROP INDEX IF EXISTS idx_semantic_terms_source_term;
+        DROP INDEX IF EXISTS idx_semantic_terms_file;
+        DELETE FROM semantic_terms;
+        """
+    )
+    total = conn.execute("SELECT COUNT(*) FROM files WHERE deleted_at IS NULL").fetchone()[0]
+    if max_docs > 0:
+        total = min(total, max_docs)
+    processed = 0
+    inserted = 0
+    source_counts: collections.Counter[str] = collections.Counter()
+    last_file_ref = ""
+    while True:
+        rows = conn.execute(
+            """
+            SELECT file_ref, source_type, metadata_json
+            FROM files
+            WHERE deleted_at IS NULL AND file_ref > ?
+            ORDER BY file_ref
+            LIMIT ?
+            """,
+            (last_file_ref, batch_size),
+        ).fetchall()
+        if not rows or (max_docs > 0 and processed >= max_docs):
+            break
+        if max_docs > 0 and processed + len(rows) > max_docs:
+            rows = rows[: max_docs - processed]
+        last_file_ref = rows[-1]["file_ref"]
+        term_rows = []
+        for row in rows:
+            metadata = safe_json_obj(row["metadata_json"])
+            source_type = metadata.get("source_type") or row["source_type"] or ""
+            source_counts[source_type] += 1
+            for term, field, weight in semantic_index_terms(metadata):
+                term_rows.append((term, row["file_ref"], source_type, field, weight))
+        if term_rows:
+            conn.executemany(
+                """
+                INSERT OR REPLACE INTO semantic_terms(term, file_ref, source_type, field, weight)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                term_rows,
+            )
+            inserted += len(term_rows)
+        processed += len(rows)
+        conn.commit()
+        LOGGER.info("indexed semantic terms %d/%d files", processed, total)
+        if max_docs > 0 and processed >= max_docs:
+            break
+    LOGGER.info("rebuilding semantic term indexes")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_semantic_terms_source_term ON semantic_terms(source_type, term)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_semantic_terms_file ON semantic_terms(file_ref)")
+    stats = rebuild_term_stats(conn)
+    conn.commit()
+    return {
+        "processed_files": processed,
+        "inserted_term_rows": inserted,
+        "semantic_terms_total": conn.execute("SELECT COUNT(*) FROM semantic_terms").fetchone()[0],
+        "unique_terms": conn.execute("SELECT COUNT(DISTINCT term) FROM semantic_terms").fetchone()[0],
+        "semantic_term_stats_total": stats["semantic_term_stats_total"],
+        "source_counts": dict(sorted(source_counts.items())),
+    }
+
+
+def build_term_stats(args: argparse.Namespace) -> dict[str, Any]:
+    started = time.time()
+    workspace = Path(args.workspace).expanduser().resolve()
+    with sqlite3.connect(workspace / "filesystem.sqlite") as conn:
+        conn.row_factory = sqlite3.Row
+        summary = rebuild_term_stats(conn)
+    summary.update({"workspace": str(workspace), "seconds": round(time.time() - started, 3)})
+    write_json(workspace.parent / "semantic_term_stats_summary.json", summary)
+    return summary
+
+
+def rebuild_term_stats(conn: sqlite3.Connection) -> dict[str, Any]:
+    LOGGER.info("rebuilding semantic term stats")
+    conn.executescript(
+        """
+        DROP TABLE IF EXISTS semantic_term_stats;
+        CREATE TABLE semantic_term_stats AS
+        SELECT source_type, term, COUNT(DISTINCT file_ref) AS df
+        FROM semantic_terms
+        GROUP BY source_type, term;
+        CREATE UNIQUE INDEX idx_semantic_term_stats_source_term
+          ON semantic_term_stats(source_type, term);
+        """
+    )
+    return {
+        "semantic_term_stats_total": conn.execute("SELECT COUNT(*) FROM semantic_term_stats").fetchone()[0],
+    }
+
+
+def semantic_index_terms(metadata: dict[str, str]) -> list[tuple[str, str, float]]:
+    weighted_fields = {
+        "source_type": 10.0,
+        "repo": 9.0,
+        "project": 9.0,
+        "channel": 8.0,
+        "customer": 10.0,
+        "source_bucket": 8.0,
+        "doc_type": 6.0,
+        "status": 5.0,
+        "domain": 5.0,
+        "topic": 8.0,
+        "title": 7.0,
+        "entities": 7.0,
+        "constraints": 7.0,
+        "summary": 4.0,
+        "intent": 4.0,
+    }
+    rows: list[tuple[str, str, float]] = []
+    for field, weight in weighted_fields.items():
+        text = metadata.get(field, "")
+        if not text:
+            continue
+        for raw in candidate_terms(text):
+            for alias in term_aliases(slug(raw)):
+                if not alias or alias in STOPWORDS or len(alias) < 3:
+                    continue
+                rows.append((alias, field, weight + term_weight_bonus(alias, raw)))
+    dedup: dict[tuple[str, str], float] = {}
+    for term, field, weight in rows:
+        key = (term, field)
+        dedup[key] = max(dedup.get(key, 0.0), weight)
+    ranked = sorted(((term, field, weight) for (term, field), weight in dedup.items()), key=lambda item: (-item[2], item[0], item[1]))
+    return ranked[:40]
+
+
+def term_weight_bonus(term: str, raw: str) -> float:
+    bonus = 0.0
+    if raw.isupper() and len(raw) >= 3:
+        bonus += 3
+    if re.search(r"\d", term):
+        bonus += 2
+    if re.search(r"[-_.+]", term):
+        bonus += 1
+    return bonus
+
+
+def probe_term_index(args: argparse.Namespace) -> dict[str, Any]:
+    started = time.time()
+    workspace = Path(args.workspace).expanduser().resolve()
+    questions = load_selected_questions(args)
+    with sqlite3.connect(workspace / "filesystem.sqlite") as conn:
+        conn.row_factory = sqlite3.Row
+        rows = [probe_one_question_term_index(conn, question, args.limit_terms) for question in questions]
+    summary = probe_summary(rows)
+    summary.update({"workspace": str(workspace), "seconds": round(time.time() - started, 3), "questions": rows})
+    output = Path(args.output).expanduser().resolve() if args.output else DEFAULT_RESULTS_DIR / f"term-index-probe-{time.strftime('%Y%m%d-%H%M%S')}.json"
+    write_json(output, summary)
+    return {"output": str(output), **{key: value for key, value in summary.items() if key != "questions"}}
+
+
+def probe_one_question_term_index(conn: sqlite3.Connection, question: dict[str, Any], limit_terms: int) -> dict[str, Any]:
+    terms = question_terms(question["question"], limit=limit_terms)
+    ids = semantic_term_probe_ids(conn, terms, question["source_types"], limit=200)
+    expected = set(question["expected_doc_ids"])
+    hit = bool(expected.intersection(ids))
+    return {
+        "question_id": question["question_id"],
+        "source_types": question["source_types"],
+        "expected_doc_ids": question["expected_doc_ids"],
+        "terms": terms,
+        "hit_any": hit,
+        "best_hit": {"candidate_count_lte_200": len(ids), "hit": hit} if hit else None,
+        "top_document_ids": ids[:20],
+    }
+
+
+def semantic_term_probe_ids(conn: sqlite3.Connection, terms: list[str], source_types: list[str], *, limit: int) -> list[str]:
+    terms = [slug(term) for term in terms if slug(term)]
+    if not terms:
+        return []
+    placeholders = ", ".join("?" for _ in terms)
+    source_clause = ""
+    params: list[Any] = [*terms]
+    if source_types:
+        source_placeholders = ", ".join("?" for _ in source_types)
+        source_clause = f"AND st.source_type IN ({source_placeholders})"
+        params.extend(source_types)
+    params.append(limit)
+    rows = conn.execute(
+        f"""
+        SELECT
+            f.external_id,
+            SUM(st.weight / (1.0 + (CAST(sts.df AS REAL) / 100.0))) AS score
+        FROM semantic_terms st
+        JOIN semantic_term_stats sts
+          ON sts.source_type = st.source_type
+         AND sts.term = st.term
+        JOIN files f ON f.file_ref = st.file_ref
+        WHERE st.term IN ({placeholders})
+          {source_clause}
+          AND f.deleted_at IS NULL
+        GROUP BY f.file_ref
+        ORDER BY score DESC, f.source_path
+        LIMIT ?
+        """,
+        params,
+    ).fetchall()
+    return [row["external_id"] for row in rows if row["external_id"]]
 
 
 def probe_one_question_metadata(
