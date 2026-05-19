@@ -23,6 +23,14 @@ question about default size limits should lead to searches for terms like
 `multipart upload`, `max_file_size`, `max_total_request_size`, `10MiB`, or
 `50MiB`.
 
+For exact-value questions asking for defaults, numeric limits, metric names,
+JSON schema fields, error payload fields, headers, config keys, queue token
+formats, contract addresses, GL codes, SKUs, or similar implementation facts,
+you must run at least one grep using a source-like identifier, code-like token,
+or unit before finalizing. Do not answer from merely similar documents. If the
+opened document does not contain the exact requested field/value, keep searching
+with a more specific grep.
+
 Refs look like ref_1, ref_2, and so on; use refs directly, not as path suffixes.
 Only after refs appear should you use `grep` on a ref for line evidence and
 then `cat <ref> --all` for the final candidate leaf documents. Do not answer
