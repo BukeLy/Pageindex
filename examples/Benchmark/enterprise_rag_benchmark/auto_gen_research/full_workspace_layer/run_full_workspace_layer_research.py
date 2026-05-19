@@ -15,8 +15,18 @@ import time
 from pathlib import Path
 from typing import Any, Iterable
 
+from dotenv import load_dotenv
 
 REPO_ROOT = Path(__file__).resolve().parents[5]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from pageindex.filesystem.semantic_index import (
+    SemanticIndexRecord,
+    SQLiteVecSemanticIndex,
+)
+
+
 BENCHMARK_DIR = REPO_ROOT / "examples" / "Benchmark" / "enterprise_rag_benchmark"
 RESEARCH_DIR = Path(__file__).resolve().parent
 PROMPTS_DIR = RESEARCH_DIR / "prompts"
@@ -29,6 +39,7 @@ DEFAULT_BASELINE_RESULTS = (
 )
 DEFAULT_DERIVED_WORKSPACE = RESEARCH_DIR / "workspaces" / "structured-metadata-folders-v1" / "workspace"
 DEFAULT_RESULTS_DIR = RESEARCH_DIR / "results"
+DEFAULT_VECTOR_INDEX_DIRNAME = "semantic_vector_indexes"
 
 QUESTION_SETS = {
     "timeout10": [
@@ -131,6 +142,8 @@ LOGGER = logging.getLogger("full_workspace_layer")
 
 
 def main() -> int:
+    load_dotenv(REPO_ROOT / ".env")
+    load_dotenv(BENCHMARK_DIR / ".env")
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     args = parse_args()
     if args.command == "build":
@@ -163,6 +176,18 @@ def main() -> int:
         return 0
     if args.command == "probe-term-index":
         summary = probe_term_index(args)
+        print(json.dumps(summary, ensure_ascii=False, indent=2), flush=True)
+        return 0
+    if args.command == "build-vector-index":
+        summary = build_vector_index(args)
+        print(json.dumps(summary, ensure_ascii=False, indent=2), flush=True)
+        return 0
+    if args.command == "probe-vector-index":
+        summary = probe_vector_index(args)
+        print(json.dumps(summary, ensure_ascii=False, indent=2), flush=True)
+        return 0
+    if args.command == "compare-vector-fields":
+        summary = compare_vector_fields(args)
         print(json.dumps(summary, ensure_ascii=False, indent=2), flush=True)
         return 0
     if args.command == "run":
@@ -233,6 +258,63 @@ def parse_args() -> argparse.Namespace:
     probe_term_index.add_argument("--question-ids", default="")
     probe_term_index.add_argument("--limit-terms", type=int, default=24)
     probe_term_index.add_argument("--output", default="")
+
+    vector_common = argparse.ArgumentParser(add_help=False)
+    vector_common.add_argument("--workspace", default=str(DEFAULT_DERIVED_WORKSPACE))
+    vector_common.add_argument(
+        "--field-mode",
+        default="metadata",
+        choices=["summary", "metadata", "fulltext"],
+        help=(
+            "Which document text goes into embeddings: summary only, generated metadata fields, "
+            "or source text preview."
+        ),
+    )
+    vector_common.add_argument("--index-name", default="")
+    vector_common.add_argument(
+        "--embedding-provider",
+        default=os.environ.get("PIFS_EMBEDDING_PROVIDER", "openai"),
+        choices=["openai", "hash"],
+        help="Use openai for real embeddings or hash for local smoke tests without API spend.",
+    )
+    vector_common.add_argument(
+        "--embedding-model",
+        default=os.environ.get("PIFS_EMBEDDING_MODEL", "text-embedding-3-small"),
+    )
+    vector_common.add_argument("--batch-size", type=int, default=64)
+    vector_common.add_argument("--max-docs", type=int, default=0)
+    vector_common.add_argument("--max-fulltext-chars", type=int, default=8000)
+
+    build_vector = sub.add_parser(
+        "build-vector-index",
+        parents=[vector_common],
+        help="Build a rebuildable sqlite-vec semantic recall index",
+    )
+    build_vector.add_argument("--reset", action="store_true")
+
+    probe_vector = sub.add_parser(
+        "probe-vector-index",
+        parents=[vector_common],
+        help="Probe vector index recall for selected benchmark questions",
+    )
+    probe_vector.add_argument("--question-set", default="timeout10", choices=sorted(QUESTION_SETS))
+    probe_vector.add_argument("--question-ids", default="")
+    probe_vector.add_argument("--candidate-limit", type=int, default=200)
+    probe_vector.add_argument("--fetch-multiplier", type=int, default=100)
+    probe_vector.add_argument("--output", default="")
+
+    compare_vector = sub.add_parser(
+        "compare-vector-fields",
+        parents=[vector_common],
+        help="Build and probe summary/metadata/fulltext vector indexes as a field ablation",
+    )
+    compare_vector.add_argument("--field-modes", default="summary,metadata,fulltext")
+    compare_vector.add_argument("--question-set", default="timeout10", choices=sorted(QUESTION_SETS))
+    compare_vector.add_argument("--question-ids", default="")
+    compare_vector.add_argument("--candidate-limit", type=int, default=200)
+    compare_vector.add_argument("--fetch-multiplier", type=int, default=100)
+    compare_vector.add_argument("--reset", action="store_true")
+    compare_vector.add_argument("--output", default="")
 
     run = sub.add_parser("run", help="Run controlled small-question experiments")
     run.add_argument("--workspace", default=str(DEFAULT_DERIVED_WORKSPACE))
@@ -1254,6 +1336,581 @@ def semantic_term_probe_ids(conn: sqlite3.Connection, terms: list[str], source_t
         params,
     ).fetchall()
     return [row["external_id"] for row in rows if row["external_id"]]
+
+
+def build_vector_index(args: argparse.Namespace) -> dict[str, Any]:
+    started = time.time()
+    workspace = Path(args.workspace).expanduser().resolve()
+    ensure_workspace(workspace)
+    index_path = vector_index_path(workspace, args.field_mode, args.index_name)
+    embedder = make_embedder(args.embedding_provider, args.embedding_model)
+    cache = EmbeddingCache(workspace / DEFAULT_VECTOR_INDEX_DIRNAME / "embedding_cache.sqlite")
+    index = SQLiteVecSemanticIndex(index_path)
+    source_rows = 0
+    indexed_rows = 0
+    skipped_empty = 0
+    initialized = False
+    if index_path.exists() and not args.reset:
+        try:
+            index.info()
+            initialized = True
+        except Exception:  # noqa: BLE001 - malformed research indexes are rebuilt.
+            initialized = False
+    if args.reset and index_path.exists():
+        index_path.unlink()
+
+    with sqlite3.connect(workspace / "filesystem.sqlite") as conn:
+        conn.row_factory = sqlite3.Row
+        for rows in iter_file_batches(conn, batch_size=args.batch_size, max_docs=args.max_docs):
+            source_rows += len(rows)
+            prepared = []
+            for row in rows:
+                metadata = safe_json_obj(row["metadata_json"])
+                text = vector_text_for_row(
+                    row,
+                    metadata,
+                    field_mode=args.field_mode,
+                    max_fulltext_chars=args.max_fulltext_chars,
+                )
+                if not text:
+                    skipped_empty += 1
+                    continue
+                prepared.append((row, metadata, text))
+            if not prepared:
+                continue
+            texts = [item[2] for item in prepared]
+            vectors = cache.embed_texts(
+                texts,
+                model=args.embedding_model,
+                provider=args.embedding_provider,
+                embedder=embedder,
+                batch_size=args.batch_size,
+            )
+            if not initialized:
+                index.reset(
+                    dimension=len(vectors[0]),
+                    metadata={
+                        "workspace": str(workspace),
+                        "field_mode": args.field_mode,
+                        "embedding_provider": args.embedding_provider,
+                        "embedding_model": args.embedding_model,
+                        "max_fulltext_chars": args.max_fulltext_chars,
+                    },
+                )
+                initialized = True
+            records = [
+                SemanticIndexRecord(
+                    file_ref=row["file_ref"],
+                    external_id=row["external_id"],
+                    source_type=metadata.get("source_type") or row["source_type"] or "",
+                    source_path=row["source_path"] or "",
+                    title=metadata.get("title") or row["title"] or "",
+                    text=text,
+                    vector=vector,
+                    metadata={
+                        "field_mode": args.field_mode,
+                        "text_chars": len(text),
+                        **index_metadata_projection(metadata),
+                    },
+                )
+                for (row, metadata, text), vector in zip(prepared, vectors)
+            ]
+            indexed_rows += index.upsert_many(records)
+            LOGGER.info(
+                "vector indexed mode=%s %d/%s files",
+                args.field_mode,
+                indexed_rows,
+                args.max_docs or "all",
+            )
+    if not initialized:
+        raise SystemExit("no non-empty documents were available for vector indexing")
+    summary = {
+        "workspace": str(workspace),
+        "index_path": str(index_path),
+        "field_mode": args.field_mode,
+        "embedding_provider": args.embedding_provider,
+        "embedding_model": args.embedding_model,
+        "source_rows": source_rows,
+        "indexed_rows": indexed_rows,
+        "skipped_empty": skipped_empty,
+        "seconds": round(time.time() - started, 3),
+        "index_info": index.info(),
+    }
+    write_json(index_path.with_suffix(".summary.json"), summary)
+    return summary
+
+
+def probe_vector_index(args: argparse.Namespace) -> dict[str, Any]:
+    started = time.time()
+    workspace = Path(args.workspace).expanduser().resolve()
+    ensure_workspace(workspace)
+    questions = load_selected_questions(args)
+    index = SQLiteVecSemanticIndex(vector_index_path(workspace, args.field_mode, args.index_name))
+    embedder = make_embedder(args.embedding_provider, args.embedding_model)
+    cache = EmbeddingCache(workspace / DEFAULT_VECTOR_INDEX_DIRNAME / "embedding_cache.sqlite")
+    rows = []
+    for question in questions:
+        vector = cache.embed_texts(
+            [question["question"]],
+            model=args.embedding_model,
+            provider=args.embedding_provider,
+            embedder=embedder,
+            batch_size=1,
+        )[0]
+        results = index.search(
+            vector,
+            limit=args.candidate_limit,
+            filters={"source_type": question["source_types"]} if question["source_types"] else None,
+            fetch_multiplier=args.fetch_multiplier,
+        )
+        rows.append(probe_one_question_vector(question, results))
+    summary = vector_probe_summary(rows)
+    summary.update(
+        {
+            "workspace": str(workspace),
+            "index_path": str(index.db_path),
+            "index_info": index.info(),
+            "field_mode": args.field_mode,
+            "embedding_provider": args.embedding_provider,
+            "embedding_model": args.embedding_model,
+            "candidate_limit": args.candidate_limit,
+            "fetch_multiplier": args.fetch_multiplier,
+            "seconds": round(time.time() - started, 3),
+            "questions": rows,
+        }
+    )
+    output = (
+        Path(args.output).expanduser().resolve()
+        if args.output
+        else DEFAULT_RESULTS_DIR
+        / f"vector-probe-{args.field_mode}-{args.embedding_provider}-{time.strftime('%Y%m%d-%H%M%S')}.json"
+    )
+    write_json(output, summary)
+    return {"output": str(output), **{key: value for key, value in summary.items() if key != "questions"}}
+
+
+def compare_vector_fields(args: argparse.Namespace) -> dict[str, Any]:
+    started = time.time()
+    modes = [item.strip() for item in args.field_modes.split(",") if item.strip()]
+    summaries = {}
+    output_dir = (
+        Path(args.output).expanduser().resolve()
+        if args.output
+        else DEFAULT_RESULTS_DIR / f"vector-field-ablation-{time.strftime('%Y%m%d-%H%M%S')}"
+    )
+    output_dir.mkdir(parents=True, exist_ok=True)
+    for mode in modes:
+        if mode not in {"summary", "metadata", "fulltext"}:
+            raise SystemExit(f"unknown vector field mode: {mode}")
+        build_args = argparse.Namespace(**{**vars(args), "field_mode": mode})
+        build_summary = build_vector_index(build_args)
+        probe_args = argparse.Namespace(
+            **{
+                **vars(args),
+                "field_mode": mode,
+                "output": str(output_dir / f"{mode}.probe.json"),
+            }
+        )
+        probe_summary = probe_vector_index(probe_args)
+        summaries[mode] = {
+            "build": build_summary,
+            "probe": probe_summary,
+        }
+    comparison = {
+        "workspace": str(Path(args.workspace).expanduser().resolve()),
+        "field_modes": modes,
+        "embedding_provider": args.embedding_provider,
+        "embedding_model": args.embedding_model,
+        "max_docs": args.max_docs,
+        "candidate_limit": args.candidate_limit,
+        "seconds": round(time.time() - started, 3),
+        "ranking": sorted(
+            [
+                {
+                    "field_mode": mode,
+                    "hit_at_1": value["probe"].get("hit_at_1", 0),
+                    "hit_at_5": value["probe"].get("hit_at_5", 0),
+                    "hit_at_10": value["probe"].get("hit_at_10", 0),
+                    "hit_at_50": value["probe"].get("hit_at_50", 0),
+                    "hit_at_limit": value["probe"].get("hit_at_limit", 0),
+                    "mean_best_rank": value["probe"].get("mean_best_rank", 0),
+                    "indexed_rows": value["build"].get("indexed_rows", 0),
+                }
+                for mode, value in summaries.items()
+            ],
+            key=lambda item: (
+                -item["hit_at_limit"],
+                item["mean_best_rank"] or 10**9,
+                -item["hit_at_10"],
+                item["field_mode"],
+            ),
+        ),
+        "summaries": summaries,
+    }
+    write_json(output_dir / "summary.json", comparison)
+    write_vector_ablation_summary(output_dir / "summary.md", comparison)
+    return {"output_dir": str(output_dir), "ranking": comparison["ranking"]}
+
+
+def probe_one_question_vector(
+    question: dict[str, Any],
+    results: list[Any],
+) -> dict[str, Any]:
+    expected = set(question["expected_doc_ids"])
+    ids = [result.external_id for result in results if result.external_id]
+    best_rank = next(
+        (index for index, doc_id in enumerate(ids, 1) if doc_id in expected),
+        None,
+    )
+    return {
+        "question_id": question["question_id"],
+        "source_types": question["source_types"],
+        "expected_doc_ids": question["expected_doc_ids"],
+        "hit_any": best_rank is not None,
+        "best_rank": best_rank,
+        "top_document_ids": ids[:20],
+        "top_hits": [
+            {
+                "rank": index,
+                "document_id": result.external_id,
+                "distance": result.distance,
+                "file_ref": result.file_ref,
+                "source_type": result.source_type,
+                "source_path": result.source_path,
+                "title": result.title,
+            }
+            for index, result in enumerate(results[:20], 1)
+        ],
+    }
+
+
+def vector_probe_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    ranks = [row["best_rank"] for row in rows if row.get("best_rank") is not None]
+    limit = max((len(row.get("top_document_ids") or []) for row in rows), default=0)
+    return {
+        "question_count": len(rows),
+        "hit_at_1": hit_at(rows, 1),
+        "hit_at_5": hit_at(rows, 5),
+        "hit_at_10": hit_at(rows, 10),
+        "hit_at_50": hit_at(rows, 50),
+        "hit_at_limit": len(ranks) / len(rows) if rows else 0,
+        "candidate_limit_observed": limit,
+        "mean_best_rank": avg([float(rank) for rank in ranks]),
+        "misses": [row["question_id"] for row in rows if not row["hit_any"]],
+    }
+
+
+def hit_at(rows: list[dict[str, Any]], k: int) -> float:
+    if not rows:
+        return 0
+    return sum(1 for row in rows if row.get("best_rank") is not None and row["best_rank"] <= k) / len(rows)
+
+
+def write_vector_ablation_summary(path: Path, comparison: dict[str, Any]) -> None:
+    lines = [
+        "# Semantic Vector Field Ablation",
+        "",
+        "| field mode | indexed docs | hit@1 | hit@5 | hit@10 | hit@50 | hit@limit | mean best rank |",
+        "|---|---:|---:|---:|---:|---:|---:|---:|",
+    ]
+    for row in comparison["ranking"]:
+        lines.append(
+            "| {mode} | {docs} | {h1:.3f} | {h5:.3f} | {h10:.3f} | {h50:.3f} | {hl:.3f} | {rank:.1f} |".format(
+                mode=row["field_mode"],
+                docs=row["indexed_rows"],
+                h1=row["hit_at_1"],
+                h5=row["hit_at_5"],
+                h10=row["hit_at_10"],
+                h50=row["hit_at_50"],
+                hl=row["hit_at_limit"],
+                rank=row["mean_best_rank"],
+            )
+        )
+    lines.extend(
+        [
+            "",
+            "## Interpretation Rule",
+            "",
+            "- `summary` tests whether one compact generated summary is enough.",
+            "- `metadata` tests the current recommended recall text: title, summary, intent, entities, constraints, topic, and semantic equivalents.",
+            "- `fulltext` tests raw source-text preview embedding without benchmark question/gold leakage.",
+        ]
+    )
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+class EmbeddingCache:
+    def __init__(self, db_path: Path):
+        self.db_path = db_path
+        self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        with self.connect() as conn:
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS embedding_cache (
+                    provider TEXT NOT NULL,
+                    model TEXT NOT NULL,
+                    text_hash TEXT NOT NULL,
+                    dimension INTEGER NOT NULL,
+                    vector_json TEXT NOT NULL,
+                    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                    PRIMARY KEY(provider, model, text_hash)
+                )
+                """
+            )
+            conn.commit()
+
+    def connect(self) -> sqlite3.Connection:
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        return conn
+
+    def embed_texts(
+        self,
+        texts: list[str],
+        *,
+        provider: str,
+        model: str,
+        embedder: Any,
+        batch_size: int,
+    ) -> list[list[float]]:
+        hashes = [SQLiteVecSemanticIndex.text_hash(text) for text in texts]
+        cached: dict[str, list[float]] = {}
+        with self.connect() as conn:
+            for text_hash in sorted(set(hashes)):
+                row = conn.execute(
+                    """
+                    SELECT vector_json
+                    FROM embedding_cache
+                    WHERE provider = ? AND model = ? AND text_hash = ?
+                    """,
+                    (provider, model, text_hash),
+                ).fetchone()
+                if row is not None:
+                    cached[text_hash] = json.loads(row["vector_json"])
+        missing_positions = [index for index, text_hash in enumerate(hashes) if text_hash not in cached]
+        for start in range(0, len(missing_positions), batch_size):
+            positions = missing_positions[start : start + batch_size]
+            batch_texts = [texts[index] for index in positions]
+            vectors = embedder.embed(batch_texts)
+            with self.connect() as conn:
+                conn.executemany(
+                    """
+                    INSERT OR REPLACE INTO embedding_cache(provider, model, text_hash, dimension, vector_json)
+                    VALUES (?, ?, ?, ?, ?)
+                    """,
+                    [
+                        (
+                            provider,
+                            model,
+                            hashes[index],
+                            len(vector),
+                            json.dumps(vector, separators=(",", ":")),
+                        )
+                        for index, vector in zip(positions, vectors)
+                    ],
+                )
+                conn.commit()
+            for index, vector in zip(positions, vectors):
+                cached[hashes[index]] = vector
+            LOGGER.info("embedded %d/%d uncached texts", min(start + len(positions), len(missing_positions)), len(missing_positions))
+        return [cached[text_hash] for text_hash in hashes]
+
+
+class OpenAIEmbeddingClient:
+    def __init__(self, model: str):
+        from openai import OpenAI
+
+        self.model = model
+        self.client = OpenAI(
+            api_key=os.environ.get("OPENAI_API_KEY"),
+            base_url=os.environ.get("OPENAI_BASE_URL") or None,
+        )
+
+    def embed(self, texts: list[str]) -> list[list[float]]:
+        response = self.client.embeddings.create(model=self.model, input=texts)
+        return [list(item.embedding) for item in sorted(response.data, key=lambda item: item.index)]
+
+
+class HashEmbeddingClient:
+    def __init__(self, dimensions: int = 256):
+        self.dimensions = dimensions
+
+    def embed(self, texts: list[str]) -> list[list[float]]:
+        return [self._embed_one(text) for text in texts]
+
+    def _embed_one(self, text: str) -> list[float]:
+        vector = [0.0] * self.dimensions
+        for term in keyword_terms(text)[:256]:
+            digest = hashlib.blake2b(term.encode("utf-8"), digest_size=8).digest()
+            bucket = int.from_bytes(digest[:4], "little") % self.dimensions
+            sign = 1.0 if digest[4] % 2 == 0 else -1.0
+            vector[bucket] += sign
+        norm = sum(value * value for value in vector) ** 0.5
+        if norm:
+            vector = [value / norm for value in vector]
+        return vector
+
+
+def make_embedder(provider: str, model: str) -> Any:
+    if provider == "openai":
+        return OpenAIEmbeddingClient(model)
+    if provider == "hash":
+        return HashEmbeddingClient()
+    raise SystemExit(f"unknown embedding provider: {provider}")
+
+
+def vector_index_path(workspace: Path, field_mode: str, index_name: str) -> Path:
+    name = index_name or f"{field_mode}"
+    safe_name = re.sub(r"[^A-Za-z0-9_.-]+", "-", name).strip("-") or field_mode
+    return workspace / DEFAULT_VECTOR_INDEX_DIRNAME / f"{safe_name}.sqlite"
+
+
+def ensure_workspace(workspace: Path) -> None:
+    if not (workspace / "filesystem.sqlite").exists():
+        raise SystemExit(f"workspace is not registered: {workspace}")
+
+
+def iter_file_batches(
+    conn: sqlite3.Connection,
+    *,
+    batch_size: int,
+    max_docs: int,
+) -> Iterable[list[sqlite3.Row]]:
+    processed = 0
+    last_file_ref = ""
+    while True:
+        rows = conn.execute(
+            """
+            SELECT file_ref, external_id, source_type, source_path, title,
+                   text_artifact_path, storage_uri, metadata_json
+            FROM files
+            WHERE deleted_at IS NULL AND file_ref > ?
+            ORDER BY file_ref
+            LIMIT ?
+            """,
+            (last_file_ref, batch_size),
+        ).fetchall()
+        if not rows or (max_docs > 0 and processed >= max_docs):
+            break
+        if max_docs > 0 and processed + len(rows) > max_docs:
+            rows = rows[: max_docs - processed]
+        last_file_ref = rows[-1]["file_ref"]
+        processed += len(rows)
+        yield rows
+
+
+def vector_text_for_row(
+    row: sqlite3.Row,
+    metadata: dict[str, Any],
+    *,
+    field_mode: str,
+    max_fulltext_chars: int,
+) -> str:
+    if field_mode == "summary":
+        return compact_vector_text(
+            [
+                metadata.get("summary"),
+                metadata.get("semantic_summary"),
+                metadata.get("title") or row["title"],
+            ],
+            max_chars=2000,
+        )
+    if field_mode == "metadata":
+        return metadata_recall_text(metadata, fallback_title=row["title"])
+    if field_mode == "fulltext":
+        raw = load_document_json(row)
+        return raw_document_text(raw, fallback_title=row["title"], max_chars=max_fulltext_chars)
+    raise ValueError(f"unknown vector field mode: {field_mode}")
+
+
+def metadata_recall_text(metadata: dict[str, Any], *, fallback_title: str) -> str:
+    fields = [
+        "title",
+        "summary",
+        "intent",
+        "entities",
+        "constraints",
+        "topic",
+        "domain",
+        "doc_type",
+        "source_bucket",
+        "repo",
+        "project",
+        "channel",
+        "space",
+        "customer",
+        "status",
+        "semantic_summary",
+        "semantic_topics",
+        "semantic_entities",
+        "semantic_constraints",
+        "semantic_problems",
+        "semantic_actions",
+        "semantic_systems",
+        "semantic_aliases",
+        "semantic_evidence_terms",
+        "semantic_measurements",
+        "semantic_events",
+        "semantic_time_hints",
+    ]
+    values = [metadata.get(field) for field in fields]
+    if fallback_title:
+        values.append(fallback_title)
+    return compact_vector_text(values, max_chars=6000)
+
+
+def raw_document_text(data: dict[str, Any], *, fallback_title: str, max_chars: int) -> str:
+    values = []
+    title = text_value(
+        data.get(data.get("title_field_name") or "")
+        or data.get("title")
+        or data.get("subject")
+        or data.get("summary")
+        or data.get("company_name")
+        or fallback_title
+    )
+    if title:
+        values.append(title)
+    for key in data.get("content_field_names") or []:
+        value = text_value(data.get(key))
+        if value:
+            values.append(value)
+    if not values:
+        for key, value in sorted(data.items()):
+            if key in {"dataset_doc_uuid", "document_id", "external_id", "file_ref", "original_location"}:
+                continue
+            if key.endswith("_id") or key.endswith("_uuid"):
+                continue
+            if isinstance(value, (dict, list, str, int, float, bool)):
+                values.append(f"{key}: {text_value(value)}")
+            if sum(len(item) for item in values) >= max_chars:
+                break
+    return compact_vector_text(values, max_chars=max_chars)
+
+
+def compact_vector_text(values: Iterable[Any], *, max_chars: int) -> str:
+    text = "\n".join(text_value(value) for value in values if text_value(value))
+    text = re.sub(r"\n{3,}", "\n\n", text).strip()
+    return text[:max_chars]
+
+
+def index_metadata_projection(metadata: dict[str, Any]) -> dict[str, Any]:
+    keys = [
+        "source_type",
+        "doc_type",
+        "source_bucket",
+        "domain",
+        "topic",
+        "repo",
+        "project",
+        "channel",
+        "space",
+        "customer",
+        "status",
+        "year",
+        "month",
+    ]
+    return {key: metadata.get(key, "") for key in keys if metadata.get(key)}
 
 
 def probe_one_question_metadata(
