@@ -1,0 +1,902 @@
+{
+  "question_count": 5,
+  "hit_any_count": 4,
+  "hit_any_rate": 0.8,
+  "best_candidate_count_avg": 0.0,
+  "misses": [
+    "qst_0017"
+  ],
+  "workspace": "/Users/chengjie/.codex/worktrees/6d00/PageIndex/examples/Benchmark/enterprise_rag_benchmark/auto_gen_research/full_workspace_layer/workspaces/structured-metadata-v1/workspace",
+  "seconds": 11.239,
+  "questions": [
+    {
+      "question_id": "qst_0016",
+      "source_types": [
+        "confluence"
+      ],
+      "expected_doc_ids": [
+        "dsid_ba7d1565b0694e359983bccaa4bf5977"
+      ],
+      "terms": [
+        "default before it expires",
+        "default-before-it-expires",
+        "defaultbeforeitexpires",
+        "default-before-it-expire",
+        "company",
+        "policy",
+        "long",
+        "contractor",
+        "access",
+        "acces",
+        "should",
+        "last",
+        "default",
+        "before",
+        "expires",
+        "expire",
+        "according",
+        "permissions"
+      ],
+      "hit_any": true,
+      "best_hit": {
+        "term": "acces",
+        "path": "/semantic/source=confluence/term/acces",
+        "files": 60,
+        "children": 0,
+        "hit": true
+      },
+      "top_probes": [
+        {
+          "term": "acces",
+          "path": "/semantic/source=confluence/term/acces",
+          "files": 60,
+          "children": 0,
+          "hit": true
+        },
+        {
+          "term": "access",
+          "path": "/semantic/source=confluence/term/access",
+          "files": 60,
+          "children": 0,
+          "hit": true
+        },
+        {
+          "term": "company",
+          "path": "/semantic/source=confluence/term/companywide",
+          "files": 129,
+          "children": 0,
+          "hit": true
+        },
+        {
+          "term": "company",
+          "path": "/semantic/source=confluence/term/company-wide",
+          "files": 131,
+          "children": 0,
+          "hit": true
+        },
+        {
+          "term": "company",
+          "path": "/semantic/source=confluence/bucket/company-handbook-00-overview",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "company",
+          "path": "/semantic/source=confluence/bucket/company-handbook-02-roles-and-career",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "access",
+          "path": "/semantic/source=confluence/term/access-exception",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "acces",
+          "path": "/semantic/source=confluence/term/access-exception",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "access",
+          "path": "/semantic/source=confluence/term/access-gateway",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "acces",
+          "path": "/semantic/source=confluence/term/access-gateway",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "access",
+          "path": "/semantic/source=confluence/term/access-reconstruction",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "acces",
+          "path": "/semantic/source=confluence/term/access-reconstruction",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "access",
+          "path": "/semantic/source=confluence/term/access-reduction",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "acces",
+          "path": "/semantic/source=confluence/term/access-reduction",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "access",
+          "path": "/semantic/source=confluence/term/access-request",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "acces",
+          "path": "/semantic/source=confluence/term/access-request",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "access",
+          "path": "/semantic/source=confluence/term/access-request-template",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "acces",
+          "path": "/semantic/source=confluence/term/access-request-template",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "access",
+          "path": "/semantic/source=confluence/term/access-to-award",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "acces",
+          "path": "/semantic/source=confluence/term/access-to-award",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        }
+      ]
+    },
+    {
+      "question_id": "qst_0017",
+      "source_types": [
+        "hubspot"
+      ],
+      "expected_doc_ids": [
+        "dsid_03af1e44970d4d6db6e85bc2c5fce8de"
+      ],
+      "terms": [
+        "SLA counteroffer for the maritime logistics SaaS customer using dedicated GPU capac",
+        "sla-counteroffer-maritime-logistics-saas-customer",
+        "slacounteroffermaritimelogisticssaascustomer",
+        "service",
+        "credit",
+        "percentages",
+        "percentage",
+        "were",
+        "proposed",
+        "tiered",
+        "uptime",
+        "sla",
+        "counteroffer",
+        "maritime",
+        "logistics",
+        "logistic",
+        "saas",
+        "customer"
+      ],
+      "hit_any": false,
+      "best_hit": null,
+      "top_probes": [
+        {
+          "term": "customer",
+          "path": "/semantic/source=hubspot/customer",
+          "files": 0,
+          "children": 14983,
+          "hit": false
+        },
+        {
+          "term": "service",
+          "path": "/semantic/source=hubspot/bucket/acacia-loop-services",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "customer",
+          "path": "/semantic/source=hubspot/bucket/aegis-customer-operations",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "customer",
+          "path": "/semantic/source=hubspot/bucket/aerolith-customer-sentry",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "customer",
+          "path": "/semantic/source=hubspot/bucket/aetherline-customerai",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "customer",
+          "path": "/semantic/source=hubspot/bucket/afterpath-customerops",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "logistics",
+          "path": "/semantic/source=hubspot/bucket/alderbridge-logistics-inc.",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "logistic",
+          "path": "/semantic/source=hubspot/bucket/alderbridge-logistics-inc.",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "logistics",
+          "path": "/semantic/source=hubspot/bucket/aldergate-logistics-ai",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "logistic",
+          "path": "/semantic/source=hubspot/bucket/aldergate-logistics-ai",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "saas",
+          "path": "/semantic/source=hubspot/bucket/ambergrove-saas-solutions",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "saas",
+          "path": "/semantic/source=hubspot/bucket/ambergrove-saasworks",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "customer",
+          "path": "/semantic/source=hubspot/bucket/amberleaf-customer-insights",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "customer",
+          "path": "/semantic/source=hubspot/bucket/amberstrand-customer-voice",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "logistics",
+          "path": "/semantic/source=hubspot/bucket/aperture-logistics-analytics",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "logistic",
+          "path": "/semantic/source=hubspot/bucket/aperture-logistics-analytics",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "service",
+          "path": "/semantic/source=hubspot/bucket/aperture-servicegate",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "logistics",
+          "path": "/semantic/source=hubspot/bucket/apex-cloud-logistics",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "logistic",
+          "path": "/semantic/source=hubspot/bucket/apex-cloud-logistics",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "saas",
+          "path": "/semantic/source=hubspot/bucket/apogee-saas-solutions",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        }
+      ]
+    },
+    {
+      "question_id": "qst_0110",
+      "source_types": [
+        "confluence"
+      ],
+      "expected_doc_ids": [
+        "dsid_2e4183d040b341cf843366e2c15402af"
+      ],
+      "terms": [
+        "rollout",
+        "ramp",
+        "schedule",
+        "time",
+        "window",
+        "used",
+        "canary",
+        "phase",
+        "validating",
+        "adaptive",
+        "degradation",
+        "behavior",
+        "serving",
+        "runtime",
+        "rollout ramp schedule",
+        "rollout-ramp-schedule",
+        "rolloutrampschedule",
+        "ramp schedule time"
+      ],
+      "hit_any": true,
+      "best_hit": {
+        "term": "runtime",
+        "path": "/semantic/source=confluence/topic/runtime",
+        "files": 67,
+        "children": 0,
+        "hit": true
+      },
+      "top_probes": [
+        {
+          "term": "runtime",
+          "path": "/semantic/source=confluence/topic/runtime",
+          "files": 67,
+          "children": 0,
+          "hit": true
+        },
+        {
+          "term": "degradation",
+          "path": "/semantic/source=confluence/term/degradation",
+          "files": 87,
+          "children": 0,
+          "hit": true
+        },
+        {
+          "term": "adaptive",
+          "path": "/semantic/source=confluence/term/adaptive",
+          "files": 92,
+          "children": 0,
+          "hit": true
+        },
+        {
+          "term": "time",
+          "path": "/semantic/source=confluence/bucket/eng-serving-runtime-runtime-architecture",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "serving",
+          "path": "/semantic/source=confluence/bucket/eng-serving-runtime-runtime-architecture",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "runtime",
+          "path": "/semantic/source=confluence/bucket/eng-serving-runtime-runtime-architecture",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "window",
+          "path": "/semantic/source=confluence/term/activation-window",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "window",
+          "path": "/semantic/source=confluence/term/activationwindow",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "adaptive",
+          "path": "/semantic/source=confluence/term/adaptive-alert-suppression-and-incident-context-enrichment-2027",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "adaptive",
+          "path": "/semantic/source=confluence/term/adaptive-fidelity-market-experiments-roadmap-2028-q1",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "adaptive",
+          "path": "/semantic/source=confluence/term/adaptive-fidelity-orchestration-and-evaluation-checklist-2026",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "adaptive",
+          "path": "/semantic/source=confluence/term/adaptive-metric-thresholds-and-incident-signal-conditioning-2026",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "adaptive",
+          "path": "/semantic/source=confluence/term/adaptive-model-fallback-and-fanout-proxy-integration-playbook-2026",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "adaptive",
+          "path": "/semantic/source=confluence/term/adaptive-notification-suppression-and-incident-context-enrichment-2026",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "adaptive",
+          "path": "/semantic/source=confluence/term/adaptive-probe-retargeting-telemetry-feedback-playbook-2026",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "adaptive",
+          "path": "/semantic/source=confluence/term/adaptive-request-prioritization-and-fairness-onboarding-playbook-2026",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "adaptive",
+          "path": "/semantic/source=confluence/term/adaptive-route-token-bundles-prd-2026-05",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "adaptive",
+          "path": "/semantic/source=confluence/term/adaptive-telemetry-fallback-cost-control-integration-2026",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "adaptive",
+          "path": "/semantic/source=confluence/term/adaptivealertsuppressionandincidentcontextenrichment2027",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "adaptive",
+          "path": "/semantic/source=confluence/term/adaptivefidelitymarketexperimentsroadmap2028q1",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        }
+      ]
+    },
+    {
+      "question_id": "qst_0128",
+      "source_types": [
+        "confluence"
+      ],
+      "expected_doc_ids": [
+        "dsid_319db001cae246bbbb16f441b64d9b82"
+      ],
+      "terms": [
+        "default business hours change window?",
+        "default-business-hours-change-window",
+        "defaultbusinesshourschangewindow",
+        "production",
+        "changes",
+        "change",
+        "normally",
+        "allowed",
+        "deployed",
+        "default",
+        "business",
+        "busines",
+        "hours",
+        "hour",
+        "window",
+        "production changes normally",
+        "production-changes-normally",
+        "productionchangesnormally"
+      ],
+      "hit_any": true,
+      "best_hit": {
+        "term": "change",
+        "path": "/semantic/source=confluence/topic/change-management",
+        "files": 11,
+        "children": 0,
+        "hit": true
+      },
+      "top_probes": [
+        {
+          "term": "change",
+          "path": "/semantic/source=confluence/topic/change-management",
+          "files": 11,
+          "children": 0,
+          "hit": true
+        },
+        {
+          "term": "production",
+          "path": "/semantic/source=confluence/term/production",
+          "files": 36,
+          "children": 0,
+          "hit": true
+        },
+        {
+          "term": "window",
+          "path": "/semantic/source=confluence/term/activation-window",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "window",
+          "path": "/semantic/source=confluence/term/activationwindow",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "hour",
+          "path": "/semantic/source=confluence/term/annotator-hour",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "hours",
+          "path": "/semantic/source=confluence/term/annotator-hours",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "hour",
+          "path": "/semantic/source=confluence/term/annotator-hours",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "hours",
+          "path": "/semantic/source=confluence/term/annotatorhours",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "hour",
+          "path": "/semantic/source=confluence/term/annotatorhours",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "production",
+          "path": "/semantic/source=confluence/term/boot-to-production",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "production",
+          "path": "/semantic/source=confluence/term/boottoproduction",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "business",
+          "path": "/semantic/source=confluence/term/business-driven",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "busines",
+          "path": "/semantic/source=confluence/term/business-driven",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "business",
+          "path": "/semantic/source=confluence/term/business-hour",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "busines",
+          "path": "/semantic/source=confluence/term/business-hour",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "hour",
+          "path": "/semantic/source=confluence/term/business-hour",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "business",
+          "path": "/semantic/source=confluence/term/business-hours",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "busines",
+          "path": "/semantic/source=confluence/term/business-hours",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "hours",
+          "path": "/semantic/source=confluence/term/business-hours",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "hour",
+          "path": "/semantic/source=confluence/term/business-hours",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        }
+      ]
+    },
+    {
+      "question_id": "qst_0161",
+      "source_types": [
+        "github"
+      ],
+      "expected_doc_ids": [
+        "dsid_2fb08b7571444bdf894607549642498f"
+      ],
+      "terms": [
+        "openai",
+        "compatibility",
+        "adapter",
+        "update",
+        "deployments",
+        "deployment",
+        "priority",
+        "order",
+        "does",
+        "normalizer",
+        "use",
+        "resolve",
+        "conflicting",
+        "tool",
+        "selection",
+        "hints",
+        "hint",
+        "openai compatibility adapter"
+      ],
+      "hit_any": true,
+      "best_hit": {
+        "term": "selection",
+        "path": "/semantic/source=github/term/tool-selection",
+        "files": 2,
+        "children": 0,
+        "hit": true
+      },
+      "top_probes": [
+        {
+          "term": "selection",
+          "path": "/semantic/source=github/term/tool-selection",
+          "files": 2,
+          "children": 0,
+          "hit": true
+        },
+        {
+          "term": "selection",
+          "path": "/semantic/source=github/term/toolselection",
+          "files": 2,
+          "children": 0,
+          "hit": true
+        },
+        {
+          "term": "hints",
+          "path": "/semantic/source=github/term/action-hints",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "hint",
+          "path": "/semantic/source=github/term/action-hints",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "hints",
+          "path": "/semantic/source=github/term/actionhints",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "hint",
+          "path": "/semantic/source=github/term/actionhints",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "use",
+          "path": "/semantic/source=github/term/adaptive-kernel-selection-and-fused-rotary-reshape-with-kv-reservation",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "selection",
+          "path": "/semantic/source=github/term/adaptive-kernel-selection-and-fused-rotary-reshape-with-kv-reservation",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "priority",
+          "path": "/semantic/source=github/term/adaptive-prefill-kernel-priority-and-kv-soft-eviction",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "tool",
+          "path": "/semantic/source=github/term/adaptive-response-format-handshake-metadata-and-human-readable-errors-for-tool-c",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "hints",
+          "path": "/semantic/source=github/term/adaptive-schema-coercion-and-runtime-hints-for-structured-output",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "hint",
+          "path": "/semantic/source=github/term/adaptive-schema-coercion-and-runtime-hints-for-structured-output",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "tool",
+          "path": "/semantic/source=github/term/adaptive-tool-routing",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "use",
+          "path": "/semantic/source=github/term/adaptivekernelselectionandfusedrotaryreshapewithkvreservation",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "selection",
+          "path": "/semantic/source=github/term/adaptivekernelselectionandfusedrotaryreshapewithkvreservation",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "priority",
+          "path": "/semantic/source=github/term/adaptiveprefillkernelpriorityandkvsofteviction",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "tool",
+          "path": "/semantic/source=github/term/adaptiveresponseformathandshakemetadataandhumanreadableerrorsfortoolc",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "hints",
+          "path": "/semantic/source=github/term/adaptiveschemacoercionandruntimehintsforstructuredoutput",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "hint",
+          "path": "/semantic/source=github/term/adaptiveschemacoercionandruntimehintsforstructuredoutput",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "tool",
+          "path": "/semantic/source=github/term/add-actor-rag-playground-tool-scheduler-and-plugin-scaffold",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        }
+      ]
+    }
+  ]
+}

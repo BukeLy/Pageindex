@@ -105,6 +105,26 @@ STOPWORDS = {
     "why",
     "will",
     "redwood",
+    "quick",
+    "sync",
+    "heads",
+    "head",
+    "heads-up",
+    "headsup",
+    "fyi",
+    "seeing",
+    "sudden",
+    "jump",
+    "need",
+    "someone",
+    "tomorrow",
+    "morning",
+    "planning",
+    "publish",
+    "check",
+    "notes",
+    "note",
+    "lab",
 }
 
 LOGGER = logging.getLogger("full_workspace_layer")
@@ -677,7 +697,95 @@ def semantic_folder_paths(metadata: dict[str, str]) -> list[str]:
         value = slug(metadata.get(field))
         if value:
             paths.append(f"/semantic/source={source_type}/{dimension}/{value}")
-    return paths[:7]
+    for term in semantic_keyword_terms(metadata, limit=10):
+        paths.append(f"/semantic/source={source_type}/term/{term}")
+    return paths[:17]
+
+
+def semantic_keyword_terms(metadata: dict[str, str], *, limit: int) -> list[str]:
+    source_type = slug(metadata.get("source_type"))
+    generic = {
+        source_type,
+        slug(metadata.get("doc_type")),
+        slug(metadata.get("source_bucket")),
+        "redwood",
+        "thread",
+        "quick",
+        "sync",
+        "notes",
+        "docs",
+        "doc",
+        "issue",
+        "support",
+        "customer",
+    }
+    terms: list[str] = []
+    field_quotas = [
+        ("entities", 2),
+        ("title", 2),
+        ("constraints", 2),
+        ("summary", 4),
+        ("intent", 3),
+    ]
+    for field, quota in field_quotas:
+        for term in ranked_field_terms(metadata.get(field, ""), field=field, limit=quota):
+            if term in generic or term in STOPWORDS:
+                continue
+            for alias in term_aliases(term):
+                if alias and alias not in generic and alias not in STOPWORDS and len(alias) >= 3:
+                    terms.append(alias)
+                    if len(dedupe(terms)) >= limit:
+                        return dedupe(terms)[:limit]
+    return dedupe(terms)[:limit]
+
+
+def ranked_field_terms(text: str, *, field: str, limit: int) -> list[str]:
+    if not text:
+        return []
+    text = re.sub(r"\b[A-Za-z][A-Za-z0-9_-]{1,24}:\s+", " ", text)
+    scored: dict[str, float] = {}
+    for raw in candidate_terms(text):
+        value = slug(raw)
+        if not value or value in STOPWORDS or len(value) < 3:
+            continue
+        if value.isdigit():
+            continue
+        score = 0.0
+        if raw.isupper() and len(raw) >= 3:
+            score += 6
+        if re.search(r"[-_.+]", value):
+            score += 4
+        if re.search(r"\d", value):
+            score += 3
+        if len(value) >= 8:
+            score += 1
+        if field in {"summary", "intent"} and not re.search(r"\d", value):
+            score += 2
+        if field == "constraints" and re.search(r"\d", value):
+            score -= 2
+        scored[value] = max(scored.get(value, 0.0), score)
+    return [term for term, _score in sorted(scored.items(), key=lambda item: (-item[1], item[0]))[:limit]]
+
+
+def candidate_terms(text: str) -> list[str]:
+    terms: list[str] = []
+    terms.extend(re.findall(r"\bv?\d+(?:\.\d+)+\b", text, flags=re.IGNORECASE))
+    terms.extend(re.findall(r"\b[A-Z]{2,}[A-Za-z0-9_-]*\b", text))
+    terms.extend(re.findall(r"\b[A-Za-z][A-Za-z0-9_+-]+(?:[-_+][A-Za-z0-9]+)+\b", text))
+    terms.extend(re.findall(r"\b[A-Za-z][A-Za-z0-9_+-]{2,}\b", text))
+    return dedupe(terms)
+
+
+def term_aliases(term: str) -> list[str]:
+    aliases = [term]
+    collapsed = term.replace("-", "").replace("_", "")
+    if collapsed != term:
+        aliases.append(collapsed)
+    if term.endswith("s") and len(term) > 4:
+        aliases.append(term[:-1])
+    if term.endswith("ies") and len(term) > 5:
+        aliases.append(term[:-3] + "y")
+    return aliases
 
 
 def metadata_value_rows(
@@ -1074,6 +1182,34 @@ def probe_one_question_folders(conn: sqlite3.Connection, question: dict[str, Any
 def folder_probe_rows(conn: sqlite3.Connection, term: str, source_types: list[str], *, limit: int) -> list[dict[str, Any]]:
     source_paths = [f"/semantic/source={slug(item)}%" for item in source_types] if source_types else ["/semantic/%"]
     source_clause = " OR ".join("fo.path LIKE ?" for _ in source_paths)
+    exact_paths = []
+    for source_type in source_types:
+        source = slug(source_type)
+        exact_paths.extend(
+            [
+                f"/semantic/source={source}/topic/{slug(term)}",
+                f"/semantic/source={source}/term/{slug(term)}",
+                f"/semantic/source={source}/customer/{slug(term)}",
+                f"/semantic/source={source}/bucket/{slug(term)}",
+            ]
+        )
+    exact_rows: list[dict[str, Any]] = []
+    if exact_paths:
+        placeholders = ", ".join("?" for _ in exact_paths)
+        rows = conn.execute(
+            f"""
+            SELECT
+                fo.folder_id,
+                fo.path,
+                (SELECT COUNT(DISTINCT ff.file_ref) FROM file_folders ff WHERE ff.folder_id = fo.folder_id) AS files,
+                (SELECT COUNT(*) FROM folders child WHERE child.parent_id = fo.folder_id) AS children
+            FROM folders fo
+            WHERE fo.path IN ({placeholders})
+            ORDER BY files ASC, fo.path
+            """,
+            exact_paths,
+        ).fetchall()
+        exact_rows = [dict(row) for row in rows]
     rows = conn.execute(
         f"""
         SELECT
@@ -1089,7 +1225,9 @@ def folder_probe_rows(conn: sqlite3.Connection, term: str, source_types: list[st
         """,
         [*source_paths, term, limit],
     ).fetchall()
-    return [dict(row) for row in rows]
+    seen = {row["path"] for row in exact_rows}
+    combined = exact_rows + [dict(row) for row in rows if row["path"] not in seen]
+    return combined[:limit]
 
 
 def folder_contains_expected(conn: sqlite3.Connection, folder_id_value: str, expected_doc_ids: set[str]) -> bool:
@@ -1148,7 +1286,12 @@ def question_terms(question: str, *, limit: int) -> list[str]:
         for i in range(0, max(0, len(raw_tokens) - n + 1)):
             terms.append(" ".join(raw_tokens[i : i + n]))
     terms.extend(re.findall(r"\b[A-Za-z][A-Za-z0-9_./:-]{3,}\b", question))
-    return dedupe(terms)[:limit]
+    expanded: list[str] = []
+    for term in terms:
+        expanded.append(term)
+        for alias in term_aliases(slug(term)):
+            expanded.append(alias)
+    return dedupe(expanded)[:limit]
 
 
 def run_experiments(args: argparse.Namespace) -> dict[str, Any]:

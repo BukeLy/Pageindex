@@ -1,0 +1,1801 @@
+{
+  "question_count": 10,
+  "hit_any_count": 10,
+  "hit_any_rate": 1.0,
+  "best_candidate_count_avg": 0.0,
+  "misses": [],
+  "workspace": "/Users/chengjie/.codex/worktrees/6d00/PageIndex/examples/Benchmark/enterprise_rag_benchmark/auto_gen_research/full_workspace_layer/workspaces/structured-metadata-v1/workspace",
+  "seconds": 32.967,
+  "questions": [
+    {
+      "question_id": "qst_0007",
+      "source_types": [
+        "google_drive"
+      ],
+      "expected_doc_ids": [
+        "dsid_72ec4a9962ba43e88acd61abbba1052d"
+      ],
+      "terms": [
+        "rolling",
+        "investigation",
+        "model",
+        "regression",
+        "policy-related",
+        "policyrelated",
+        "prompts",
+        "prompt",
+        "recent",
+        "deploy",
+        "was",
+        "average",
+        "triage",
+        "rubric",
+        "score",
+        "change",
+        "between",
+        "older"
+      ],
+      "hit_any": true,
+      "best_hit": {
+        "term": "rolling",
+        "path": "/semantic/source=google-drive/term/rolling-bias-bisection-log-jared",
+        "files": 1,
+        "children": 0,
+        "hit": true
+      },
+      "top_probes": [
+        {
+          "term": "rolling",
+          "path": "/semantic/source=google-drive/term/rolling-bias-bisection-log-jared",
+          "files": 1,
+          "children": 0,
+          "hit": true
+        },
+        {
+          "term": "rolling",
+          "path": "/semantic/source=google-drive/term/rollingbiasbisectionlogjared",
+          "files": 1,
+          "children": 0,
+          "hit": true
+        },
+        {
+          "term": "regression",
+          "path": "/semantic/source=google-drive/topic/regression",
+          "files": 96,
+          "children": 0,
+          "hit": true
+        },
+        {
+          "term": "change",
+          "path": "/semantic/source=google-drive/term/abuse-fingerprint-exchange-and-ratecap-validation-brief",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "change",
+          "path": "/semantic/source=google-drive/term/abusefingerprintexchangeandratecapvalidationbrief",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "change",
+          "path": "/semantic/source=google-drive/term/access-change",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "model",
+          "path": "/semantic/source=google-drive/term/access-model-transition-playbook",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "change",
+          "path": "/semantic/source=google-drive/term/accesschange",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "model",
+          "path": "/semantic/source=google-drive/term/accessmodeltransitionplaybook",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "rubric",
+          "path": "/semantic/source=google-drive/term/account-signal-prioritization-rubric",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "rubric",
+          "path": "/semantic/source=google-drive/term/accountsignalprioritizationrubric",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "model",
+          "path": "/semantic/source=google-drive/term/acknowledgement-topologies-cross-region-lease-model",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "model",
+          "path": "/semantic/source=google-drive/term/acknowledgementtopologiescrossregionleasemodel",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "regression",
+          "path": "/semantic/source=google-drive/term/ad-hoc-eval-scratchpad-regression-hypothese",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "regression",
+          "path": "/semantic/source=google-drive/term/ad-hoc-eval-scratchpad-regression-hypotheses",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "investigation",
+          "path": "/semantic/source=google-drive/term/adaptive-batching-backpressure-investigation-note",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "investigation",
+          "path": "/semantic/source=google-drive/term/adaptive-batching-backpressure-investigation-notes",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "investigation",
+          "path": "/semantic/source=google-drive/term/adaptivebatchingbackpressureinvestigationnotes",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "regression",
+          "path": "/semantic/source=google-drive/term/adhocevalscratchpadregressionhypotheses",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "score",
+          "path": "/semantic/source=google-drive/term/adoption-score",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        }
+      ]
+    },
+    {
+      "question_id": "qst_0009",
+      "source_types": [
+        "gmail"
+      ],
+      "expected_doc_ids": [
+        "dsid_85deb10a652742baaf28af6149600001"
+      ],
+      "terms": [
+        "edgepath",
+        "evaluation",
+        "email",
+        "thread",
+        "alternative",
+        "year",
+        "pricing",
+        "package",
+        "did",
+        "propose",
+        "instead",
+        "matching",
+        "competitor",
+        "percent",
+        "first-year",
+        "firstyear",
+        "discount",
+        "migration"
+      ],
+      "hit_any": true,
+      "best_hit": {
+        "term": "edgepath",
+        "path": "/semantic/source=gmail/customer/edgepath",
+        "files": 1,
+        "children": 0,
+        "hit": true
+      },
+      "top_probes": [
+        {
+          "term": "edgepath",
+          "path": "/semantic/source=gmail/customer/edgepath",
+          "files": 1,
+          "children": 0,
+          "hit": true
+        },
+        {
+          "term": "edgepath",
+          "path": "/semantic/source=gmail/term/edgepath-modeling",
+          "files": 1,
+          "children": 0,
+          "hit": true
+        },
+        {
+          "term": "edgepath",
+          "path": "/semantic/source=gmail/term/edgepathmodeling",
+          "files": 1,
+          "children": 0,
+          "hit": true
+        },
+        {
+          "term": "migration",
+          "path": "/semantic/source=gmail/term/migration",
+          "files": 335,
+          "children": 0,
+          "hit": true
+        },
+        {
+          "term": "did",
+          "path": "/semantic/source=gmail/customer/aaron-cho-candidate",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "did",
+          "path": "/semantic/source=gmail/customer/aaron-kline-candidate",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "did",
+          "path": "/semantic/source=gmail/customer/aaron-patel-candidate",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "did",
+          "path": "/semantic/source=gmail/customer/acme-ai-candidate-source",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "did",
+          "path": "/semantic/source=gmail/customer/acme-ai-priya-shah-candidate",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "did",
+          "path": "/semantic/source=gmail/customer/acme-analytics-candidate-alex-johnson",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "did",
+          "path": "/semantic/source=gmail/customer/acme-analytics-candidate-currently-at-acme",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "did",
+          "path": "/semantic/source=gmail/customer/acme-analytics-candidate-priya-shah",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "did",
+          "path": "/semantic/source=gmail/customer/acme-commerce-candidate-via-talentworks",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "did",
+          "path": "/semantic/source=gmail/customer/acme-corp-pilot-candidate",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "did",
+          "path": "/semantic/source=gmail/customer/acme-inc-candidate-referral",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "did",
+          "path": "/semantic/source=gmail/customer/acme-payments-candidate-current-employer",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "did",
+          "path": "/semantic/source=gmail/customer/acme-robotics-candidate-carlos-vega",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "did",
+          "path": "/semantic/source=gmail/customer/ada-patel-candidate",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "did",
+          "path": "/semantic/source=gmail/customer/adele-soriano-candidate",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "did",
+          "path": "/semantic/source=gmail/customer/aditi-rao-candidate",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        }
+      ]
+    },
+    {
+      "question_id": "qst_0011",
+      "source_types": [
+        "confluence"
+      ],
+      "expected_doc_ids": [
+        "dsid_46a4cb87db414e769f2df86f01626948"
+      ],
+      "terms": [
+        "long",
+        "validity",
+        "period",
+        "telemetry",
+        "driven",
+        "runbook",
+        "author",
+        "certification",
+        "operator",
+        "training",
+        "bootcamp",
+        "long validity period",
+        "long-validity-period",
+        "longvalidityperiod",
+        "validity period telemetry",
+        "validity-period-telemetry",
+        "validityperiodtelemetry",
+        "period telemetry driven"
+      ],
+      "hit_any": true,
+      "best_hit": {
+        "term": "training",
+        "path": "/semantic/source=confluence/topic/training",
+        "files": 5,
+        "children": 0,
+        "hit": true
+      },
+      "top_probes": [
+        {
+          "term": "training",
+          "path": "/semantic/source=confluence/topic/training",
+          "files": 5,
+          "children": 0,
+          "hit": true
+        },
+        {
+          "term": "bootcamp",
+          "path": "/semantic/source=confluence/term/bootcamp",
+          "files": 6,
+          "children": 0,
+          "hit": true
+        },
+        {
+          "term": "runbook",
+          "path": "/semantic/source=confluence/bucket/eng-infra-runbooks",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "runbook",
+          "path": "/semantic/source=confluence/bucket/eng-sre-runbooks",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "telemetry",
+          "path": "/semantic/source=confluence/term/adaptive-probe-retargeting-telemetry-feedback-playbook-2026",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "telemetry",
+          "path": "/semantic/source=confluence/term/adaptive-telemetry-fallback-cost-control-integration-2026",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "telemetry",
+          "path": "/semantic/source=confluence/term/adaptiveproberetargetingtelemetryfeedbackplaybook2026",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "telemetry",
+          "path": "/semantic/source=confluence/term/adaptivetelemetryfallbackcostcontrolintegration2026",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "telemetry",
+          "path": "/semantic/source=confluence/term/adr-telemetry-metapipeline-backpressure-2026",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "telemetry",
+          "path": "/semantic/source=confluence/term/adrtelemetrymetapipelinebackpressure2026",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "telemetry",
+          "path": "/semantic/source=confluence/term/alert-fatigue-tuning-through-telemetry-deduplication-retrospective",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "telemetry",
+          "path": "/semantic/source=confluence/term/alertfatiguetuningthroughtelemetrydeduplicationretrospective",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "runbook",
+          "path": "/semantic/source=confluence/term/allocating-burn-and-recovery-runbook-for-heterogeneous-inference-workload",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "runbook",
+          "path": "/semantic/source=confluence/term/allocating-burn-and-recovery-runbook-for-heterogeneous-inference-workloads",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "runbook",
+          "path": "/semantic/source=confluence/term/allocatingburnandrecoveryrunbookforheterogeneousinferenceworkloads",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "telemetry",
+          "path": "/semantic/source=confluence/term/allocation-telemetry",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "telemetry",
+          "path": "/semantic/source=confluence/term/allocationtelemetry",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "driven",
+          "path": "/semantic/source=confluence/term/apdex-driven",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "driven",
+          "path": "/semantic/source=confluence/term/apdexdriven",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "driven",
+          "path": "/semantic/source=confluence/term/attribute-driven",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        }
+      ]
+    },
+    {
+      "question_id": "qst_0018",
+      "source_types": [
+        "linear"
+      ],
+      "expected_doc_ids": [
+        "dsid_1f81f208f51a4aacaca226109bbedc72"
+      ],
+      "terms": [
+        "incident",
+        "writeup",
+        "cache",
+        "ghost",
+        "entries",
+        "entrie",
+        "entry",
+        "causing",
+        "gradual",
+        "memory",
+        "growth",
+        "oom",
+        "during",
+        "surge",
+        "metric",
+        "name",
+        "was",
+        "added"
+      ],
+      "hit_any": true,
+      "best_hit": {
+        "term": "entrie",
+        "path": "/semantic/source=linear/term/entrie",
+        "files": 3,
+        "children": 0,
+        "hit": true
+      },
+      "top_probes": [
+        {
+          "term": "entrie",
+          "path": "/semantic/source=linear/term/entrie",
+          "files": 3,
+          "children": 0,
+          "hit": true
+        },
+        {
+          "term": "entries",
+          "path": "/semantic/source=linear/term/entries",
+          "files": 3,
+          "children": 0,
+          "hit": true
+        },
+        {
+          "term": "entrie",
+          "path": "/semantic/source=linear/term/entries",
+          "files": 3,
+          "children": 0,
+          "hit": true
+        },
+        {
+          "term": "entry",
+          "path": "/semantic/source=linear/term/entry",
+          "files": 5,
+          "children": 0,
+          "hit": true
+        },
+        {
+          "term": "during",
+          "path": "/semantic/source=linear/term/during",
+          "files": 594,
+          "children": 0,
+          "hit": true
+        },
+        {
+          "term": "memory",
+          "path": "/semantic/source=linear/term/adaptive-evict-and-index-stitcher-runtime-patch-for-gpu-memory-leak",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "cache",
+          "path": "/semantic/source=linear/term/adaptive-kv-cache-calibration-with-error-bounded-int8-fp8-profile",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "cache",
+          "path": "/semantic/source=linear/term/adaptive-kv-cache-calibration-with-error-bounded-int8-fp8-profiles",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "memory",
+          "path": "/semantic/source=linear/term/adaptiveevictandindexstitcherruntimepatchforgpumemoryleak",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "cache",
+          "path": "/semantic/source=linear/term/adaptivekvcachecalibrationwitherrorboundedint8fp8profiles",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "cache",
+          "path": "/semantic/source=linear/term/adr-prefix-kv-cache-hit-rate-definition",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "cache",
+          "path": "/semantic/source=linear/term/adrprefixkvcachehitratedefinition",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "cache",
+          "path": "/semantic/source=linear/term/agg-cache-policie",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "cache",
+          "path": "/semantic/source=linear/term/agg-cache-policies",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "cache",
+          "path": "/semantic/source=linear/term/agg-cache-policy",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "cache",
+          "path": "/semantic/source=linear/term/aggcachepolicies",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "metric",
+          "path": "/semantic/source=linear/term/analytics-metrics-service",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "metric",
+          "path": "/semantic/source=linear/term/analyticsmetricsservice",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "metric",
+          "path": "/semantic/source=linear/term/asymmetric-flow",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "metric",
+          "path": "/semantic/source=linear/term/asymmetric-horizon",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        }
+      ]
+    },
+    {
+      "question_id": "qst_0021",
+      "source_types": [
+        "confluence"
+      ],
+      "expected_doc_ids": [
+        "dsid_d7f0edbaa28147da807b5b85ea495bd1"
+      ],
+      "terms": [
+        "expected",
+        "turnaround",
+        "time",
+        "security",
+        "approve",
+        "access",
+        "acces",
+        "high",
+        "risk",
+        "internal",
+        "tool",
+        "role",
+        "governance",
+        "process",
+        "proces",
+        "expected turnaround time",
+        "expected-turnaround-time",
+        "expectedturnaroundtime"
+      ],
+      "hit_any": true,
+      "best_hit": {
+        "term": "role",
+        "path": "/semantic/source=confluence/term/cross-role",
+        "files": 2,
+        "children": 0,
+        "hit": true
+      },
+      "top_probes": [
+        {
+          "term": "role",
+          "path": "/semantic/source=confluence/term/cross-role",
+          "files": 2,
+          "children": 0,
+          "hit": true
+        },
+        {
+          "term": "role",
+          "path": "/semantic/source=confluence/term/crossrole",
+          "files": 2,
+          "children": 0,
+          "hit": true
+        },
+        {
+          "term": "role",
+          "path": "/semantic/source=confluence/bucket/company-handbook-02-roles-and-career",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "time",
+          "path": "/semantic/source=confluence/bucket/eng-serving-runtime-runtime-architecture",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "security",
+          "path": "/semantic/source=confluence/bucket/incident-response-security",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "security",
+          "path": "/semantic/source=confluence/bucket/security-and-compliance-secure-sdlc",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "access",
+          "path": "/semantic/source=confluence/term/access-exception",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "acces",
+          "path": "/semantic/source=confluence/term/access-exception",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "access",
+          "path": "/semantic/source=confluence/term/access-gateway",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "acces",
+          "path": "/semantic/source=confluence/term/access-gateway",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "access",
+          "path": "/semantic/source=confluence/term/access-reconstruction",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "acces",
+          "path": "/semantic/source=confluence/term/access-reconstruction",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "access",
+          "path": "/semantic/source=confluence/term/access-reduction",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "acces",
+          "path": "/semantic/source=confluence/term/access-reduction",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "access",
+          "path": "/semantic/source=confluence/term/access-request",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "acces",
+          "path": "/semantic/source=confluence/term/access-request",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "access",
+          "path": "/semantic/source=confluence/term/access-request-template",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "acces",
+          "path": "/semantic/source=confluence/term/access-request-template",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "access",
+          "path": "/semantic/source=confluence/term/access-to-award",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "acces",
+          "path": "/semantic/source=confluence/term/access-to-award",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        }
+      ]
+    },
+    {
+      "question_id": "qst_0028",
+      "source_types": [
+        "slack"
+      ],
+      "expected_doc_ids": [
+        "dsid_7c0157af909c4a6190e00e1fc6b92b73"
+      ],
+      "terms": [
+        "steps",
+        "step",
+        "commands",
+        "command",
+        "were",
+        "recommended",
+        "creating",
+        "pushing",
+        "signed",
+        "annotated",
+        "git",
+        "tag",
+        "then",
+        "making",
+        "draft",
+        "github",
+        "release",
+        "steps commands were"
+      ],
+      "hit_any": true,
+      "best_hit": {
+        "term": "annotated",
+        "path": "/semantic/source=slack/term/annotated+signed",
+        "files": 3,
+        "children": 0,
+        "hit": true
+      },
+      "top_probes": [
+        {
+          "term": "annotated",
+          "path": "/semantic/source=slack/term/annotated+signed",
+          "files": 3,
+          "children": 0,
+          "hit": true
+        },
+        {
+          "term": "tag",
+          "path": "/semantic/source=slack/term/tag",
+          "files": 30,
+          "children": 0,
+          "hit": true
+        },
+        {
+          "term": "annotated",
+          "path": "/semantic/source=slack/term/annotated",
+          "files": 82,
+          "children": 0,
+          "hit": true
+        },
+        {
+          "term": "tag",
+          "path": "/semantic/source=slack/term/a-staged",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "tag",
+          "path": "/semantic/source=slack/term/a100-staging",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "tag",
+          "path": "/semantic/source=slack/term/a100staging",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "tag",
+          "path": "/semantic/source=slack/term/a10x1-staging",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "tag",
+          "path": "/semantic/source=slack/term/a10x1staging",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "release",
+          "path": "/semantic/source=slack/term/a1b2c3d-release-2026-03-20",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "release",
+          "path": "/semantic/source=slack/term/a1b2c3drelease20260320",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "release",
+          "path": "/semantic/source=slack/term/aaron-release",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "release",
+          "path": "/semantic/source=slack/term/aaronrelease",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "tag",
+          "path": "/semantic/source=slack/term/ab-stagger-ramp",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "tag",
+          "path": "/semantic/source=slack/term/ab12-untag-2026",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "tag",
+          "path": "/semantic/source=slack/term/ab12untag2026",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "tag",
+          "path": "/semantic/source=slack/term/abc-stage",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "tag",
+          "path": "/semantic/source=slack/term/abcstage",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "tag",
+          "path": "/semantic/source=slack/term/abi-tag",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "tag",
+          "path": "/semantic/source=slack/term/abitag",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "tag",
+          "path": "/semantic/source=slack/term/abstaggerramp",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        }
+      ]
+    },
+    {
+      "question_id": "qst_0030",
+      "source_types": [
+        "linear"
+      ],
+      "expected_doc_ids": [
+        "dsid_54525a33e2d44d4a9b665feaf8fab624"
+      ],
+      "terms": [
+        "console",
+        "feature",
+        "compares",
+        "compare",
+        "canary",
+        "a-b",
+        "ab",
+        "cohorts",
+        "cohort",
+        "links",
+        "link",
+        "metric",
+        "anomalies",
+        "anomalie",
+        "anomaly",
+        "request",
+        "traces",
+        "trace"
+      ],
+      "hit_any": true,
+      "best_hit": {
+        "term": "a-b",
+        "path": "/semantic/source=linear/term/a-b",
+        "files": 247,
+        "children": 0,
+        "hit": true
+      },
+      "top_probes": [
+        {
+          "term": "a-b",
+          "path": "/semantic/source=linear/term/a-b",
+          "files": 247,
+          "children": 0,
+          "hit": true
+        },
+        {
+          "term": "ab",
+          "path": "/semantic/source=linear/term/abac-lite",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "ab",
+          "path": "/semantic/source=linear/term/abbreviation",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "ab",
+          "path": "/semantic/source=linear/term/abc",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "ab",
+          "path": "/semantic/source=linear/term/abc123",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "ab",
+          "path": "/semantic/source=linear/term/abc123-profile-param",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "ab",
+          "path": "/semantic/source=linear/term/abc123profileparam",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "ab",
+          "path": "/semantic/source=linear/term/abcar",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "ab",
+          "path": "/semantic/source=linear/term/abcd",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "ab",
+          "path": "/semantic/source=linear/term/abg",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "ab",
+          "path": "/semantic/source=linear/term/abi-incompatible",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "ab",
+          "path": "/semantic/source=linear/term/abi-sensitive",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "ab",
+          "path": "/semantic/source=linear/term/abi-stable",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "ab",
+          "path": "/semantic/source=linear/term/abi-style",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "ab",
+          "path": "/semantic/source=linear/term/abiincompatible",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "ab",
+          "path": "/semantic/source=linear/term/abisensitive",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "ab",
+          "path": "/semantic/source=linear/term/abistable",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "ab",
+          "path": "/semantic/source=linear/term/abistyle",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "ab",
+          "path": "/semantic/source=linear/term/able",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "ab",
+          "path": "/semantic/source=linear/term/abnormal",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        }
+      ]
+    },
+    {
+      "question_id": "qst_0047",
+      "source_types": [
+        "google_drive"
+      ],
+      "expected_doc_ids": [
+        "dsid_7a2cfe4b7e574e6995f33e64bbdbf426"
+      ],
+      "terms": [
+        "some",
+        "reducing",
+        "few-shot",
+        "fewshot",
+        "example",
+        "copying",
+        "tradeoff",
+        "was",
+        "noted",
+        "rotating",
+        "order",
+        "exemplars",
+        "exemplar",
+        "prompts",
+        "prompt",
+        "some reducing few-shot",
+        "some-reducing-few-shot",
+        "somereducingfewshot"
+      ],
+      "hit_any": true,
+      "best_hit": {
+        "term": "fewshot",
+        "path": "/semantic/source=google-drive/topic/fewshot",
+        "files": 45,
+        "children": 0,
+        "hit": true
+      },
+      "top_probes": [
+        {
+          "term": "fewshot",
+          "path": "/semantic/source=google-drive/topic/fewshot",
+          "files": 45,
+          "children": 0,
+          "hit": true
+        },
+        {
+          "term": "fewshot",
+          "path": "/semantic/source=google-drive/term/fewshot",
+          "files": 171,
+          "children": 0,
+          "hit": true
+        },
+        {
+          "term": "few-shot",
+          "path": "/semantic/source=google-drive/term/few-shot",
+          "files": 211,
+          "children": 0,
+          "hit": true
+        },
+        {
+          "term": "order",
+          "path": "/semantic/source=google-drive/term/ack-order",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "order",
+          "path": "/semantic/source=google-drive/term/ackorder",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "example",
+          "path": "/semantic/source=google-drive/term/anti-example",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "example",
+          "path": "/semantic/source=google-drive/term/antiexample",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "order",
+          "path": "/semantic/source=google-drive/term/apply-order",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "order",
+          "path": "/semantic/source=google-drive/term/applyorder",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "example",
+          "path": "/semantic/source=google-drive/term/attestation-cli-playbook-and-evidence-example",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "example",
+          "path": "/semantic/source=google-drive/term/attestation-cli-playbook-and-evidence-examples",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "example",
+          "path": "/semantic/source=google-drive/term/attestationcliplaybookandevidenceexamples",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "prompt",
+          "path": "/semantic/source=google-drive/term/avg-prompt",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "prompt",
+          "path": "/semantic/source=google-drive/term/avgprompt",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "prompt",
+          "path": "/semantic/source=google-drive/term/backstop-fallback-prompt",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "prompt",
+          "path": "/semantic/source=google-drive/term/backstopfallbackprompt",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "prompt",
+          "path": "/semantic/source=google-drive/term/base-prompt",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "prompt",
+          "path": "/semantic/source=google-drive/term/baseprompt",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "order",
+          "path": "/semantic/source=google-drive/term/border-muted",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "order",
+          "path": "/semantic/source=google-drive/term/bordermuted",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        }
+      ]
+    },
+    {
+      "question_id": "qst_0051",
+      "source_types": [
+        "slack"
+      ],
+      "expected_doc_ids": [
+        "dsid_27bd877a9fb74bcaa4e93871f28f3f4d"
+      ],
+      "terms": [
+        "cost-aware",
+        "costaware",
+        "model",
+        "routing",
+        "proposal",
+        "telemetry",
+        "fields",
+        "field",
+        "were",
+        "suggested",
+        "emit",
+        "team",
+        "can",
+        "analyze",
+        "decisions",
+        "decision",
+        "tradeoffs",
+        "tradeoff"
+      ],
+      "hit_any": true,
+      "best_hit": {
+        "term": "costaware",
+        "path": "/semantic/source=slack/term/costaware",
+        "files": 119,
+        "children": 0,
+        "hit": true
+      },
+      "top_probes": [
+        {
+          "term": "costaware",
+          "path": "/semantic/source=slack/term/costaware",
+          "files": 119,
+          "children": 0,
+          "hit": true
+        },
+        {
+          "term": "cost-aware",
+          "path": "/semantic/source=slack/term/cost-aware",
+          "files": 123,
+          "children": 0,
+          "hit": true
+        },
+        {
+          "term": "can",
+          "path": "/semantic/source=slack/term/a100x-canada-eu",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "can",
+          "path": "/semantic/source=slack/term/a100xcanadaeu",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "can",
+          "path": "/semantic/source=slack/term/a40-canary",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "can",
+          "path": "/semantic/source=slack/term/a40canary",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "can",
+          "path": "/semantic/source=slack/term/ab-ratecanary",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "routing",
+          "path": "/semantic/source=slack/term/abc-routing-editor-v2",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "routing",
+          "path": "/semantic/source=slack/term/abcd-console-routing",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "routing",
+          "path": "/semantic/source=slack/term/abcd-routing-obsv",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "routing",
+          "path": "/semantic/source=slack/term/abcdconsolerouting",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "routing",
+          "path": "/semantic/source=slack/term/abcdroutingobsv",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "routing",
+          "path": "/semantic/source=slack/term/abcroutingeditorv2",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "can",
+          "path": "/semantic/source=slack/term/abratecanary",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "proposal",
+          "path": "/semantic/source=slack/term/accept-frame-suppress-handshake-proposal",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "model",
+          "path": "/semantic/source=slack/term/accept-model-ver",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "model",
+          "path": "/semantic/source=slack/term/accept-model-vers",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "can",
+          "path": "/semantic/source=slack/term/accept-queue-canary-resume-debug-tweak",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "telemetry",
+          "path": "/semantic/source=slack/term/accept-telemetry",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "field",
+          "path": "/semantic/source=slack/term/accepted-old-field",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        }
+      ]
+    },
+    {
+      "question_id": "qst_0056",
+      "source_types": [
+        "slack"
+      ],
+      "expected_doc_ids": [
+        "dsid_42fcb5c1e0394276b37ecf4308e227ac"
+      ],
+      "terms": [
+        "recent",
+        "gpu",
+        "incident",
+        "us-east",
+        "useast",
+        "driver",
+        "update",
+        "load",
+        "balancer",
+        "network",
+        "setting",
+        "change",
+        "was",
+        "suspected",
+        "contributing",
+        "nccl",
+        "watchdog",
+        "timeouts"
+      ],
+      "hit_any": true,
+      "best_hit": {
+        "term": "useast",
+        "path": "/semantic/source=slack/term/useast",
+        "files": 428,
+        "children": 0,
+        "hit": true
+      },
+      "top_probes": [
+        {
+          "term": "useast",
+          "path": "/semantic/source=slack/term/useast",
+          "files": 428,
+          "children": 0,
+          "hit": true
+        },
+        {
+          "term": "us-east",
+          "path": "/semantic/source=slack/term/us-east",
+          "files": 496,
+          "children": 0,
+          "hit": true
+        },
+        {
+          "term": "nccl",
+          "path": "/semantic/source=slack/term/nccl",
+          "files": 544,
+          "children": 0,
+          "hit": true
+        },
+        {
+          "term": "gpu",
+          "path": "/semantic/source=slack/term/a-gpu-sku",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "load",
+          "path": "/semantic/source=slack/term/a-load",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "gpu",
+          "path": "/semantic/source=slack/term/a03-gpu",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "gpu",
+          "path": "/semantic/source=slack/term/a03gpu",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "us-east",
+          "path": "/semantic/source=slack/term/a10-embedder-us-east-2",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "gpu",
+          "path": "/semantic/source=slack/term/a100-40gb-gpu",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "gpu",
+          "path": "/semantic/source=slack/term/a100-40gb-gpus",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "gpu",
+          "path": "/semantic/source=slack/term/a100-64-gpu-3",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "gpu",
+          "path": "/semantic/source=slack/term/a100-8gpu",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "us-east",
+          "path": "/semantic/source=slack/term/a100-us-east1",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "gpu",
+          "path": "/semantic/source=slack/term/a10040gbgpus",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "gpu",
+          "path": "/semantic/source=slack/term/a10064gpu3",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "gpu",
+          "path": "/semantic/source=slack/term/a1008gpu",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "useast",
+          "path": "/semantic/source=slack/term/a100useast1",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "useast",
+          "path": "/semantic/source=slack/term/a10embedderuseast2",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "gpu",
+          "path": "/semantic/source=slack/term/a2-highgpu-1-g",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        },
+        {
+          "term": "gpu",
+          "path": "/semantic/source=slack/term/a2-highgpu-4g",
+          "files": 1,
+          "children": 0,
+          "hit": false
+        }
+      ]
+    }
+  ]
+}
