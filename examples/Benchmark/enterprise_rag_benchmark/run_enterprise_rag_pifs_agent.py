@@ -116,6 +116,7 @@ def main() -> int:
                 reasoning_effort=args.reasoning_effort,
                 reasoning_summary=args.reasoning_summary,
                 max_seconds=args.max_seconds,
+                max_turns=args.max_turns,
                 agent_retries=args.agent_retries,
                 agent_retry_delay=args.agent_retry_delay,
             )
@@ -167,6 +168,7 @@ def main() -> int:
         "reasoning_effort": args.reasoning_effort,
         "reasoning_summary": args.reasoning_summary,
         "max_seconds": args.max_seconds,
+        "max_turns_safety_cap": args.max_turns,
         "agent_retries": args.agent_retries,
         "agent_retry_delay": args.agent_retry_delay,
         "timeout_count": timeout_count,
@@ -236,6 +238,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--model", default=os.environ.get("PIFS_AGENT_MODEL", "gpt-4.1-mini"))
     parser.add_argument("--base-url", default=os.environ.get("OPENAI_BASE_URL"))
     parser.add_argument("--max-seconds", type=float, default=float(os.environ.get("PIFS_MAX_SECONDS", "60")))
+    parser.add_argument(
+        "--max-turns",
+        type=int,
+        default=int(os.environ.get("PIFS_MAX_TURNS", "200")),
+        help="Safety cap only. Official benchmark limiting should come from --max-seconds.",
+    )
     parser.add_argument(
         "--agent-retries",
         type=int,
@@ -317,6 +325,7 @@ def run_question(
     reasoning_effort: str | None,
     reasoning_summary: str | None,
     max_seconds: float,
+    max_turns: int,
     agent_retries: int,
     agent_retry_delay: float,
 ) -> dict[str, Any]:
@@ -349,6 +358,7 @@ def run_question(
                     reasoning_effort=reasoning_effort,
                     reasoning_summary=reasoning_summary,
                     max_seconds=max_seconds,
+                    max_turns=max_turns,
                     output_type=PIFSAgentAnswer,
                     agent_log=agent_log,
                 )
