@@ -405,6 +405,10 @@ def is_retryable_agent_error(exc: Exception) -> bool:
         "RateLimitError",
         "InternalServerError",
         "ServiceUnavailableError",
+        "RemoteProtocolError",
+        "ReadError",
+        "ConnectError",
+        "WriteError",
     }:
         return True
     status_code = getattr(exc, "status_code", None)
