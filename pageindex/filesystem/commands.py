@@ -203,6 +203,33 @@ class PIFSCommandExecutor:
             if recursive:
                 children = self.filesystem.browse(normalized, recursive=False, limit=1000)["folders"]
                 if children:
+                    direct_results = self.filesystem.search(
+                        query=query,
+                        scope={"folder_path": normalized, "recursive": False},
+                        metadata_filter=where,
+                        limit=limit,
+                    )
+                    if direct_results:
+                        return {
+                            "mode": "files",
+                            "query": query,
+                            "scope": normalized,
+                            "data": self._grep_file_hits_from_results(direct_results, query),
+                        }
+                    if where is None:
+                        direct_source_hits = self._grep_source_file_hits(
+                            normalized,
+                            query,
+                            limit=limit,
+                            direct_only=True,
+                        )
+                        if direct_source_hits:
+                            return {
+                                "mode": "files",
+                                "query": query,
+                                "scope": normalized,
+                                "data": direct_source_hits,
+                            }
                     ranked = self._rank_child_folders(
                         query=query,
                         children=children,
@@ -579,7 +606,14 @@ class PIFSCommandExecutor:
         ranked.sort(key=lambda item: (-item["matched_files"], item["path"]))
         return ranked[:limit]
 
-    def _grep_source_file_hits(self, folder_path: str, query: str, *, limit: int) -> list[dict[str, Any]]:
+    def _grep_source_file_hits(
+        self,
+        folder_path: str,
+        query: str,
+        *,
+        limit: int,
+        direct_only: bool = False,
+    ) -> list[dict[str, Any]]:
         source_dir = self._source_dir_for_folder(folder_path)
         source_root = self._source_root()
         if source_dir is None or source_root is None:
@@ -588,6 +622,8 @@ class PIFSCommandExecutor:
         for path in self._rg_candidate_files(query, source_dir, max_files=max(limit * 10, 50)):
             file_row = self._file_row_for_storage(path)
             if not file_row:
+                continue
+            if direct_only and self._folder_path_for_source_path(file_row["source_path"]) != folder_path:
                 continue
             reference_id = self.filesystem._reference_for(file_row["file_ref"])
             line_number, text = self._first_matching_source_line(path, query)
@@ -766,6 +802,11 @@ class PIFSCommandExecutor:
             "title": row["title"],
             "source_path": row["source_path"],
         }
+
+    @staticmethod
+    def _folder_path_for_source_path(source_path: str) -> str:
+        parent = str(Path(source_path).parent).strip(".")
+        return "/" + parent.strip("/") if parent and parent != "." else "/"
 
     def _folder_paths_for_file(self, file_ref: str | None) -> list[str]:
         if not file_ref:
