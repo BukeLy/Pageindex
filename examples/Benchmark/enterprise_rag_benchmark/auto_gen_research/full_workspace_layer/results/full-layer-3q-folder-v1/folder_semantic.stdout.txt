@@ -1,0 +1,56 @@
+
+[benchmark question]
+qst_0007: In a rolling investigation of a model regression on policy-related prompts after a recent deploy, what was the average triage rubric score change between the older baseline build and the newer optimized build in the first comparison run?
+[benchmark retry] qst_0007 attempt=1 error=APIConnectionError: Connection error.; sleeping 5s
+
+[benchmark question result]
+{"question_id": "qst_0007", "document_ids": [], "expected_doc_ids": ["dsid_72ec4a9962ba43e88acd61abbba1052d"], "doc_hit": false, "error": "APIConnectionError: Connection error."}
+
+[benchmark question]
+qst_0009: In the EdgePath evaluation email thread, what alternative Year 1 pricing package did Redwood propose instead of matching the competitor's 50 percent first-year discount and migration credit?
+[benchmark retry] qst_0009 attempt=1 error=APIConnectionError: Connection error.; sleeping 5s
+
+[benchmark question result]
+{"question_id": "qst_0009", "document_ids": [], "expected_doc_ids": ["dsid_85deb10a652742baaf28af6149600001"], "doc_hit": false, "error": "APIConnectionError: Connection error."}
+
+[benchmark question]
+qst_0011: How long is the validity period for the telemetry driven runbook author certification from the operator training bootcamp?
+[benchmark retry] qst_0011 attempt=1 error=APIConnectionError: Connection error.; sleeping 5s
+
+[benchmark question result]
+{"question_id": "qst_0011", "document_ids": [], "expected_doc_ids": ["dsid_46a4cb87db414e769f2df86f01626948"], "doc_hit": false, "error": "APIConnectionError: Connection error."}
+
+[benchmark run summary]
+{
+  "questions": 3,
+  "question_ids": [
+    "qst_0007",
+    "qst_0009",
+    "qst_0011"
+  ],
+  "source_types": [
+    "confluence",
+    "gmail",
+    "google_drive"
+  ],
+  "workspace": "/Users/chengjie/.codex/worktrees/6d00/PageIndex/examples/Benchmark/enterprise_rag_benchmark/auto_gen_research/full_workspace_layer/workspaces/structured-metadata-v1/workspace",
+  "dataset_root": "/Users/chengjie/.codex/worktrees/6d00/PageIndex/examples/Benchmark/enterprise_rag_benchmark/dataset",
+  "model": "gpt-5.4-mini",
+  "base_url": "https://api.openai.com/v1",
+  "stream_mode": "off",
+  "retrieval_mode": "folder",
+  "system_prompt_file": "/Users/chengjie/.codex/worktrees/6d00/PageIndex/examples/Benchmark/enterprise_rag_benchmark/prompts/pifs_agent_system.md",
+  "question_prompt_file": "/Users/chengjie/.codex/worktrees/6d00/PageIndex/examples/Benchmark/enterprise_rag_benchmark/auto_gen_research/full_workspace_layer/prompts/pifs_question_folder_semantic.md",
+  "reasoning_effort": "low",
+  "reasoning_summary": null,
+  "max_seconds": 60.0,
+  "max_turns_safety_cap": 200,
+  "agent_retries": 1,
+  "agent_retry_delay": 5.0,
+  "timeout_count": 0,
+  "avg_seconds": 8.200999999999999,
+  "doc_hit_rate": 0.0,
+  "skip_agent": false,
+  "answers_path": "/Users/chengjie/.codex/worktrees/6d00/PageIndex/examples/Benchmark/enterprise_rag_benchmark/runs/full-layer-3q-folder-v1-folder_semantic/answers.jsonl",
+  "results_path": "/Users/chengjie/.codex/worktrees/6d00/PageIndex/examples/Benchmark/enterprise_rag_benchmark/runs/full-layer-3q-folder-v1-folder_semantic/results.jsonl"
+}

@@ -129,6 +129,10 @@ def main() -> int:
         summary = probe_folders(args)
         print(json.dumps(summary, ensure_ascii=False, indent=2), flush=True)
         return 0
+    if args.command == "probe-fts":
+        summary = probe_fts(args)
+        print(json.dumps(summary, ensure_ascii=False, indent=2), flush=True)
+        return 0
     if args.command == "run":
         summary = run_experiments(args)
         print(json.dumps(summary, ensure_ascii=False, indent=2), flush=True)
@@ -175,6 +179,13 @@ def parse_args() -> argparse.Namespace:
     probe_folders_parser.add_argument("--question-ids", default="")
     probe_folders_parser.add_argument("--limit-terms", type=int, default=18)
     probe_folders_parser.add_argument("--output", default="")
+
+    probe_fts_parser = sub.add_parser("probe-fts", help="Probe compact FTS recall without opening documents")
+    probe_fts_parser.add_argument("--workspace", default=str(DEFAULT_DERIVED_WORKSPACE))
+    probe_fts_parser.add_argument("--question-set", default="timeout10", choices=sorted(QUESTION_SETS))
+    probe_fts_parser.add_argument("--question-ids", default="")
+    probe_fts_parser.add_argument("--limit-terms", type=int, default=18)
+    probe_fts_parser.add_argument("--output", default="")
 
     run = sub.add_parser("run", help="Run controlled small-question experiments")
     run.add_argument("--workspace", default=str(DEFAULT_DERIVED_WORKSPACE))
@@ -918,29 +929,28 @@ def metadata_probe_ids(
     *,
     limit: int,
 ) -> list[str]:
-    params: list[Any] = [field_ids[field], term]
-    source_clause = ""
+    joins = ""
+    params: list[Any] = []
     if source_types and "source_type" in field_ids:
         placeholders = ", ".join("?" for _ in source_types)
-        source_clause = f"""
-            AND EXISTS (
-                SELECT 1 FROM metadata_values smv
-                WHERE smv.file_ref = f.file_ref
-                  AND smv.field_id = ?
-                  AND smv.value_text IN ({placeholders})
-            )
+        joins = f"""
+            JOIN metadata_values smv
+              ON smv.file_ref = f.file_ref
+             AND smv.field_id = ?
+             AND smv.value_text IN ({placeholders})
         """
         params.extend([field_ids["source_type"], *source_types])
-    params.append(limit)
+    params.extend([field_ids[field], term, limit])
     rows = conn.execute(
         f"""
         SELECT DISTINCT f.external_id
-        FROM metadata_values mv
-        JOIN files f ON f.file_ref = mv.file_ref
+        FROM files f
+        {joins}
+        JOIN metadata_values mv
+          ON mv.file_ref = f.file_ref
+         AND mv.field_id = ?
+         AND lower(mv.value_text) LIKE '%' || lower(?) || '%'
         WHERE f.deleted_at IS NULL
-          AND mv.field_id = ?
-          AND lower(mv.value_text) LIKE '%' || lower(?) || '%'
-          {source_clause}
         ORDER BY f.source_path
         LIMIT ?
         """,
@@ -961,6 +971,77 @@ def probe_folders(args: argparse.Namespace) -> dict[str, Any]:
     output = Path(args.output).expanduser().resolve() if args.output else DEFAULT_RESULTS_DIR / f"folder-probe-{time.strftime('%Y%m%d-%H%M%S')}.json"
     write_json(output, summary)
     return {"output": str(output), **{key: value for key, value in summary.items() if key != "questions"}}
+
+
+def probe_fts(args: argparse.Namespace) -> dict[str, Any]:
+    started = time.time()
+    workspace = Path(args.workspace).expanduser().resolve()
+    questions = load_selected_questions(args)
+    with sqlite3.connect(workspace / "filesystem.sqlite") as conn:
+        conn.row_factory = sqlite3.Row
+        rows = [probe_one_question_fts(conn, question, args.limit_terms) for question in questions]
+    summary = probe_summary(rows)
+    summary.update({"workspace": str(workspace), "seconds": round(time.time() - started, 3), "questions": rows})
+    output = Path(args.output).expanduser().resolve() if args.output else DEFAULT_RESULTS_DIR / f"fts-probe-{time.strftime('%Y%m%d-%H%M%S')}.json"
+    write_json(output, summary)
+    return {"output": str(output), **{key: value for key, value in summary.items() if key != "questions"}}
+
+
+def probe_one_question_fts(conn: sqlite3.Connection, question: dict[str, Any], limit_terms: int) -> dict[str, Any]:
+    terms = question_terms(question["question"], limit=limit_terms)
+    expected = set(question["expected_doc_ids"])
+    probes = []
+    for query in fts_queries(terms):
+        ids = fts_probe_ids(conn, query, question["source_types"], limit=200)
+        if not ids:
+            continue
+        probes.append({"query": query, "candidate_count_lte_200": len(ids), "hit": bool(expected.intersection(ids))})
+    probes.sort(key=lambda item: (not item["hit"], item["candidate_count_lte_200"], item["query"]))
+    return {
+        "question_id": question["question_id"],
+        "source_types": question["source_types"],
+        "expected_doc_ids": question["expected_doc_ids"],
+        "terms": terms,
+        "hit_any": any(item["hit"] for item in probes),
+        "best_hit": next((item for item in probes if item["hit"]), None),
+        "top_probes": probes[:20],
+    }
+
+
+def fts_probe_ids(conn: sqlite3.Connection, query: str, source_types: list[str], *, limit: int) -> list[str]:
+    params: list[Any] = [query]
+    source_clause = ""
+    if source_types:
+        placeholders = ", ".join("?" for _ in source_types)
+        source_clause = f"AND f.source_type IN ({placeholders})"
+        params.extend(source_types)
+    params.append(limit)
+    rows = conn.execute(
+        f"""
+        SELECT DISTINCT f.external_id
+        FROM file_fts
+        JOIN files f ON f.file_ref = file_fts.file_ref
+        WHERE file_fts MATCH ?
+          AND f.deleted_at IS NULL
+          {source_clause}
+        ORDER BY bm25(file_fts)
+        LIMIT ?
+        """,
+        params,
+    ).fetchall()
+    return [row["external_id"] for row in rows if row["external_id"]]
+
+
+def fts_queries(terms: list[str]) -> list[str]:
+    queries = []
+    for term in terms:
+        tokens = [token for token in re.findall(r"[A-Za-z0-9_]+", term.lower()) if len(token) >= 3]
+        if not tokens:
+            continue
+        queries.append(" ".join(tokens))
+        if len(tokens) > 1:
+            queries.append(" OR ".join(tokens))
+    return dedupe(queries)[:24]
 
 
 def probe_one_question_folders(conn: sqlite3.Connection, question: dict[str, Any], limit_terms: int) -> dict[str, Any]:
