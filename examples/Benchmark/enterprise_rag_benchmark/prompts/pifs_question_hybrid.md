@@ -10,6 +10,13 @@ contain matching files. When `grep -R` on a folder returns folder matches,
 choose a narrower folder and run `grep -R` again there.
 Do not use `ls --where` or `tree --where`.
 
+For implementation-detail questions, do not stop at a broad natural-language
+grep. Also try compact source-like terms from the question: snake_case names,
+config names, metric names, HTTP fields, units, error codes, or quoted phrases
+that are likely to appear in the document. For example, a question about
+default size limits should lead to searches for terms like `max`, `limit`,
+`default`, and likely config-field variants.
+
 Refs look like ref_1, ref_2, and so on; use refs directly, not as path suffixes.
 Only after refs appear should you use `grep` on a ref for line evidence and
 then `cat <ref> --all` for the final candidate leaf documents. Do not answer
