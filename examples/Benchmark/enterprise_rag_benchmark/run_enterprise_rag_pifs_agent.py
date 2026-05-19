@@ -94,45 +94,55 @@ def main() -> int:
         max_questions=args.max_questions,
     )
 
-    results = []
-    for question in questions:
-        print(f"\n[benchmark question]\n{question.question_id}: {question.question}", flush=True)
-        result = run_question(
-            filesystem,
-            question,
-            model=args.model,
-            retrieval_mode=args.retrieval_mode,
-            system_prompt=system_prompt,
-            question_prompt_template=question_prompt_template,
-            skip_agent=args.skip_agent,
-            verbose=args.verbose,
-            stream_mode=args.stream_mode,
-            reasoning_effort=args.reasoning_effort,
-            reasoning_summary=args.reasoning_summary,
-            max_seconds=args.max_seconds,
-        )
-        results.append(result)
-        print("\n[benchmark question result]", flush=True)
-        print(
-            json.dumps(
-                {
-                    "question_id": result["question_id"],
-                    "document_ids": result["document_ids"],
-                    "expected_doc_ids": result["expected_doc_ids"],
-                    "doc_hit": result["doc_hit"],
-                    "error": result["error"],
-                },
-                ensure_ascii=False,
-            ),
-            flush=True,
-        )
-
     results_path = run_dir / "results.jsonl"
-    with results_path.open("w", encoding="utf-8") as f:
-        for result in results:
-            f.write(json.dumps(result, ensure_ascii=False) + "\n")
     answers_path = run_dir / "answers.jsonl"
-    EnterpriseRAGBenchmark.write_answers(answers_path, results)
+    results = []
+    with (
+        results_path.open("w", encoding="utf-8", buffering=1) as results_file,
+        answers_path.open("w", encoding="utf-8", buffering=1) as answers_file,
+    ):
+        for question in questions:
+            print(f"\n[benchmark question]\n{question.question_id}: {question.question}", flush=True)
+            result = run_question(
+                filesystem,
+                question,
+                model=args.model,
+                retrieval_mode=args.retrieval_mode,
+                system_prompt=system_prompt,
+                question_prompt_template=question_prompt_template,
+                skip_agent=args.skip_agent,
+                verbose=args.verbose,
+                stream_mode=args.stream_mode,
+                reasoning_effort=args.reasoning_effort,
+                reasoning_summary=args.reasoning_summary,
+                max_seconds=args.max_seconds,
+            )
+            results.append(result)
+            results_file.write(json.dumps(result, ensure_ascii=False) + "\n")
+            answers_file.write(
+                json.dumps(EnterpriseRAGBenchmark.answer_row(result), ensure_ascii=False) + "\n"
+            )
+            print("\n[benchmark question result]", flush=True)
+            print(
+                json.dumps(
+                    {
+                        "question_id": result["question_id"],
+                        "document_ids": result["document_ids"],
+                        "expected_doc_ids": result["expected_doc_ids"],
+                        "doc_hit": result["doc_hit"],
+                        "error": result["error"],
+                    },
+                    ensure_ascii=False,
+                ),
+                flush=True,
+            )
+            write_progress_summary(
+                run_dir / "progress_summary.json",
+                results=results,
+                questions=questions,
+                answers_path=answers_path,
+                results_path=results_path,
+            )
 
     timeout_count = sum(
         1
@@ -169,6 +179,46 @@ def main() -> int:
     print("\n[benchmark run summary]", flush=True)
     print(json.dumps(summary, ensure_ascii=False, indent=2), flush=True)
     return 0
+
+
+def write_progress_summary(
+    path: Path,
+    *,
+    results: list[dict[str, Any]],
+    questions: list[EnterpriseRAGQuestion],
+    answers_path: Path,
+    results_path: Path,
+) -> None:
+    timeout_count = sum(
+        1
+        for result in results
+        if result.get("error") and "MaxSecondsExceeded" in str(result.get("error"))
+    )
+    seconds_values = [float(result.get("seconds") or 0) for result in results]
+    path.write_text(
+        json.dumps(
+            {
+                "completed_questions": len(results),
+                "total_questions": len(questions),
+                "last_question_id": results[-1]["question_id"] if results else None,
+                "doc_hit_rate_so_far": (
+                    sum(1 for result in results if result["doc_hit"]) / len(results)
+                    if results
+                    else 0
+                ),
+                "timeout_count_so_far": timeout_count,
+                "avg_seconds_so_far": (
+                    sum(seconds_values) / len(seconds_values) if seconds_values else 0
+                ),
+                "answers_path": str(answers_path),
+                "results_path": str(results_path),
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
 
 
 def parse_args() -> argparse.Namespace:

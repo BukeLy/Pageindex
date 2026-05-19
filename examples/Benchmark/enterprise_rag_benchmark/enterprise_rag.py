@@ -51,12 +51,17 @@ class EnterpriseRAGBenchmark:
         answers_path.parent.mkdir(parents=True, exist_ok=True)
         with answers_path.open("w", encoding="utf-8") as f:
             for answer in answers:
-                row = {
-                    "question_id": answer["question_id"],
-                    "answer": answer.get("answer", ""),
-                    "document_ids": list(answer.get("document_ids") or []),
-                }
-                f.write(json.dumps(row, ensure_ascii=False) + "\n")
+                f.write(
+                    json.dumps(EnterpriseRAGBenchmark.answer_row(answer), ensure_ascii=False) + "\n"
+                )
+
+    @staticmethod
+    def answer_row(answer: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "question_id": answer["question_id"],
+            "answer": answer.get("answer", ""),
+            "document_ids": list(answer.get("document_ids") or []),
+        }
 
     def _register_document(
         self,
