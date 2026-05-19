@@ -1,0 +1,87 @@
+{
+  "workspace": "examples/Benchmark/enterprise_rag_benchmark/auto_gen_research/full_workspace_layer/workspaces/structured-metadata-v1/workspace",
+  "file_count": 511958,
+  "embedding_model": "text-embedding-3-small",
+  "embedding_dimensions": 256,
+  "vector_backend": "sqlite-vec",
+  "indexes": [
+    "metadata-256-full",
+    "fulltext-256-2k"
+  ],
+  "answerable_question_count": 470,
+  "experiments": [
+    {
+      "name": "metadata_vector_top200",
+      "result_path": "results/vector-probe-metadata-openai-20260520-021455.json",
+      "answerable_hit_at_limit": 0.777,
+      "avg_question_seconds": 0.101,
+      "p95_question_seconds": 0.432,
+      "note": "Older result did not persist answerable metrics; value computed from local probe output."
+    },
+    {
+      "name": "fulltext_2k_vector_top200",
+      "result_path": "results/vector-probe-fulltext-openai-20260520-031319.json",
+      "answerable_hit_at_limit": 0.7957,
+      "answerable_hit_at_50": 0.7085,
+      "avg_question_seconds": 0.0981,
+      "p95_question_seconds": 0.421
+    },
+    {
+      "name": "metadata_fulltext_union_top200",
+      "result_path": "results/vector-union-openai-20260520-031621.json",
+      "answerable_hit_at_limit": 0.8106,
+      "answerable_hit_at_50": 0.7043,
+      "avg_question_seconds": 0.2072,
+      "p95_question_seconds": 0.855
+    },
+    {
+      "name": "metadata_fulltext_union_top500",
+      "result_path": "results/vector-union-openai-20260520-033733.json",
+      "answerable_hit_at_limit": 0.8723,
+      "answerable_hit_at_50": 0.7064,
+      "avg_question_seconds": 0.2113,
+      "p95_question_seconds": 0.876
+    },
+    {
+      "name": "metadata_fulltext_union_top750",
+      "result_path": "results/vector-union-openai-20260520-033955.json",
+      "answerable_hit_at_limit": 0.8915,
+      "answerable_hit_at_50": 0.7043,
+      "avg_question_seconds": 0.2077,
+      "p95_question_seconds": 0.874
+    },
+    {
+      "name": "metadata_fulltext_union_top1000",
+      "result_path": "results/vector-union-openai-20260520-033533.json",
+      "answerable_hit_at_limit": 0.9064,
+      "answerable_hit_at_50": 0.7064,
+      "avg_question_seconds": 0.217,
+      "p95_question_seconds": 0.863
+    },
+    {
+      "name": "vector_group_top1000_with_doc_type",
+      "result_path": "results/vector-groups-openai-20260520-034822.json",
+      "answerable_hit_at_limit": 0.9064,
+      "answerable_group_hit_at_5": 0.966,
+      "answerable_group_hit_at_10": 0.9851,
+      "answerable_group_hit_at_20": 0.9957,
+      "note": "Inflated by broad doc_type groups; use only as fallback signal."
+    },
+    {
+      "name": "vector_group_top1000_without_doc_type",
+      "result_path": "results/vector-groups-openai-20260520-035054.json",
+      "answerable_hit_at_limit": 0.9064,
+      "answerable_group_hit_at_5": 0.8106,
+      "answerable_group_hit_at_10": 0.8681,
+      "answerable_group_hit_at_20": 0.9043,
+      "note": "More realistic folder projection using source_bucket/topic/customer/repo/project/channel/space."
+    }
+  ],
+  "recommended_research_direction": {
+    "core_default": "No LLM reranker by default.",
+    "semantic_recall": "Use rebuildable sqlite-vec metadata + source-preview indexes.",
+    "candidate_pool": "At the current corpus scale, retrieve around top1000 internally.",
+    "agent_output": "Do not print top1000 rows. Aggregate into compact folder-like metadata groups and expose top refs per group.",
+    "next_core_candidate": "search --semantic should return shell-like group rows plus short snippets, then let the agent narrow and cat evidence."
+  }
+}

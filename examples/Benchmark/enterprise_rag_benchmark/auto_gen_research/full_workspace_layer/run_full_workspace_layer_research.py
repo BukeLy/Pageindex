@@ -9,6 +9,7 @@ import os
 import re
 import shutil
 import sqlite3
+import struct
 import subprocess
 import sys
 import time
@@ -23,6 +24,7 @@ if str(REPO_ROOT) not in sys.path:
 
 from pageindex.filesystem.semantic_index import (
     SemanticIndexRecord,
+    SemanticSearchResult,
     SQLiteVecSemanticIndex,
 )
 
@@ -186,6 +188,18 @@ def main() -> int:
         summary = probe_vector_index(args)
         print(json.dumps(summary, ensure_ascii=False, indent=2), flush=True)
         return 0
+    if args.command == "probe-vector-rerank":
+        summary = probe_vector_rerank(args)
+        print(json.dumps(summary, ensure_ascii=False, indent=2), flush=True)
+        return 0
+    if args.command == "probe-vector-union":
+        summary = probe_vector_union(args)
+        print(json.dumps(summary, ensure_ascii=False, indent=2), flush=True)
+        return 0
+    if args.command == "probe-vector-groups":
+        summary = probe_vector_groups(args)
+        print(json.dumps(summary, ensure_ascii=False, indent=2), flush=True)
+        return 0
     if args.command == "compare-vector-fields":
         summary = compare_vector_fields(args)
         print(json.dumps(summary, ensure_ascii=False, indent=2), flush=True)
@@ -241,6 +255,7 @@ def parse_args() -> argparse.Namespace:
     probe_fts_parser.add_argument("--workspace", default=str(DEFAULT_DERIVED_WORKSPACE))
     probe_fts_parser.add_argument("--question-set", default="timeout10", choices=sorted(QUESTION_SETS))
     probe_fts_parser.add_argument("--question-ids", default="")
+    probe_fts_parser.add_argument("--all-questions", action="store_true")
     probe_fts_parser.add_argument("--limit-terms", type=int, default=18)
     probe_fts_parser.add_argument("--output", default="")
 
@@ -264,10 +279,10 @@ def parse_args() -> argparse.Namespace:
     vector_common.add_argument(
         "--field-mode",
         default="metadata",
-        choices=["summary", "metadata", "fulltext"],
+        choices=["summary", "metadata", "fulltext", "sampled_fulltext"],
         help=(
             "Which document text goes into embeddings: summary only, generated metadata fields, "
-            "or source text preview."
+            "source text preview, or sampled salient source text."
         ),
     )
     vector_common.add_argument("--index-name", default="")
@@ -280,6 +295,18 @@ def parse_args() -> argparse.Namespace:
     vector_common.add_argument(
         "--embedding-model",
         default=os.environ.get("PIFS_EMBEDDING_MODEL", "text-embedding-3-small"),
+    )
+    vector_common.add_argument(
+        "--embedding-dimensions",
+        type=int,
+        default=int(os.environ.get("PIFS_EMBEDDING_DIMENSIONS", "256")),
+        help="Embedding dimensions for models that support shortening. 256 keeps local full-workspace indexes small.",
+    )
+    vector_common.add_argument(
+        "--embedding-timeout",
+        type=float,
+        default=float(os.environ.get("PIFS_EMBEDDING_TIMEOUT", "60")),
+        help="Seconds before one embedding API request times out.",
     )
     vector_common.add_argument("--batch-size", type=int, default=64)
     vector_common.add_argument("--max-docs", type=int, default=0)
@@ -299,9 +326,60 @@ def parse_args() -> argparse.Namespace:
     )
     probe_vector.add_argument("--question-set", default="timeout10", choices=sorted(QUESTION_SETS))
     probe_vector.add_argument("--question-ids", default="")
+    probe_vector.add_argument("--all-questions", action="store_true")
     probe_vector.add_argument("--candidate-limit", type=int, default=200)
     probe_vector.add_argument("--fetch-multiplier", type=int, default=100)
     probe_vector.add_argument("--output", default="")
+
+    rerank_vector = sub.add_parser(
+        "probe-vector-rerank",
+        parents=[vector_common],
+        help="Probe vector recall plus cheap LLM reranking outside PIFS core",
+    )
+    rerank_vector.add_argument("--question-set", default="timeout10", choices=sorted(QUESTION_SETS))
+    rerank_vector.add_argument("--question-ids", default="")
+    rerank_vector.add_argument("--all-questions", action="store_true")
+    rerank_vector.add_argument("--candidate-limit", type=int, default=50)
+    rerank_vector.add_argument("--rerank-limit", type=int, default=20)
+    rerank_vector.add_argument("--fetch-multiplier", type=int, default=100)
+    rerank_vector.add_argument("--reranker-provider", default=os.environ.get("PIFS_RERANKER_PROVIDER", "openai"), choices=["openai", "heuristic"])
+    rerank_vector.add_argument("--reranker-model", default=os.environ.get("PIFS_RERANKER_MODEL", "gpt-4.1-nano"))
+    rerank_vector.add_argument("--reranker-timeout", type=float, default=float(os.environ.get("PIFS_RERANKER_TIMEOUT", "25")))
+    rerank_vector.add_argument("--output", default="")
+
+    union_vector = sub.add_parser(
+        "probe-vector-union",
+        parents=[vector_common],
+        help="Probe reciprocal-rank union across multiple semantic recall indexes",
+    )
+    union_vector.add_argument("--index-specs", default="metadata:metadata-256-full,fulltext:fulltext-256-2k")
+    union_vector.add_argument("--question-set", default="timeout10", choices=sorted(QUESTION_SETS))
+    union_vector.add_argument("--question-ids", default="")
+    union_vector.add_argument("--all-questions", action="store_true")
+    union_vector.add_argument("--per-index-limit", type=int, default=200)
+    union_vector.add_argument("--candidate-limit", type=int, default=200)
+    union_vector.add_argument("--fetch-multiplier", type=int, default=100)
+    union_vector.add_argument("--output", default="")
+
+    group_vector = sub.add_parser(
+        "probe-vector-groups",
+        parents=[vector_common],
+        help="Probe whether deep vector candidates can be compressed into useful metadata group rows",
+    )
+    group_vector.add_argument("--index-specs", default="metadata:metadata-256-full,fulltext:fulltext-256-2k")
+    group_vector.add_argument("--question-set", default="timeout10", choices=sorted(QUESTION_SETS))
+    group_vector.add_argument("--question-ids", default="")
+    group_vector.add_argument("--all-questions", action="store_true")
+    group_vector.add_argument("--per-index-limit", type=int, default=1000)
+    group_vector.add_argument("--candidate-limit", type=int, default=1000)
+    group_vector.add_argument("--fetch-multiplier", type=int, default=300)
+    group_vector.add_argument(
+        "--group-fields",
+        default="source_bucket,topic,customer,repo,project,channel,space,doc_type",
+        help="Comma-separated metadata fields used to aggregate deep vector candidates.",
+    )
+    group_vector.add_argument("--group-limit", type=int, default=20)
+    group_vector.add_argument("--output", default="")
 
     compare_vector = sub.add_parser(
         "compare-vector-fields",
@@ -311,6 +389,7 @@ def parse_args() -> argparse.Namespace:
     compare_vector.add_argument("--field-modes", default="summary,metadata,fulltext")
     compare_vector.add_argument("--question-set", default="timeout10", choices=sorted(QUESTION_SETS))
     compare_vector.add_argument("--question-ids", default="")
+    compare_vector.add_argument("--all-questions", action="store_true")
     compare_vector.add_argument("--candidate-limit", type=int, default=200)
     compare_vector.add_argument("--fetch-multiplier", type=int, default=100)
     compare_vector.add_argument("--reset", action="store_true")
@@ -1343,8 +1422,14 @@ def build_vector_index(args: argparse.Namespace) -> dict[str, Any]:
     workspace = Path(args.workspace).expanduser().resolve()
     ensure_workspace(workspace)
     index_path = vector_index_path(workspace, args.field_mode, args.index_name)
-    embedder = make_embedder(args.embedding_provider, args.embedding_model)
+    embedder = make_embedder(
+        args.embedding_provider,
+        args.embedding_model,
+        dimensions=args.embedding_dimensions,
+        timeout=args.embedding_timeout,
+    )
     cache = EmbeddingCache(workspace / DEFAULT_VECTOR_INDEX_DIRNAME / "embedding_cache.sqlite")
+    cache_model = embedding_cache_model_key(args.embedding_model, args.embedding_dimensions)
     index = SQLiteVecSemanticIndex(index_path)
     source_rows = 0
     indexed_rows = 0
@@ -1381,7 +1466,7 @@ def build_vector_index(args: argparse.Namespace) -> dict[str, Any]:
             texts = [item[2] for item in prepared]
             vectors = cache.embed_texts(
                 texts,
-                model=args.embedding_model,
+                model=cache_model,
                 provider=args.embedding_provider,
                 embedder=embedder,
                 batch_size=args.batch_size,
@@ -1394,6 +1479,7 @@ def build_vector_index(args: argparse.Namespace) -> dict[str, Any]:
                         "field_mode": args.field_mode,
                         "embedding_provider": args.embedding_provider,
                         "embedding_model": args.embedding_model,
+                        "embedding_dimensions": args.embedding_dimensions,
                         "max_fulltext_chars": args.max_fulltext_chars,
                     },
                 )
@@ -1430,6 +1516,7 @@ def build_vector_index(args: argparse.Namespace) -> dict[str, Any]:
         "field_mode": args.field_mode,
         "embedding_provider": args.embedding_provider,
         "embedding_model": args.embedding_model,
+        "embedding_dimensions": args.embedding_dimensions,
         "source_rows": source_rows,
         "indexed_rows": indexed_rows,
         "skipped_empty": skipped_empty,
@@ -1446,13 +1533,20 @@ def probe_vector_index(args: argparse.Namespace) -> dict[str, Any]:
     ensure_workspace(workspace)
     questions = load_selected_questions(args)
     index = SQLiteVecSemanticIndex(vector_index_path(workspace, args.field_mode, args.index_name))
-    embedder = make_embedder(args.embedding_provider, args.embedding_model)
+    embedder = make_embedder(
+        args.embedding_provider,
+        args.embedding_model,
+        dimensions=args.embedding_dimensions,
+        timeout=args.embedding_timeout,
+    )
     cache = EmbeddingCache(workspace / DEFAULT_VECTOR_INDEX_DIRNAME / "embedding_cache.sqlite")
+    cache_model = embedding_cache_model_key(args.embedding_model, args.embedding_dimensions)
     rows = []
     for question in questions:
+        question_started = time.time()
         vector = cache.embed_texts(
             [question["question"]],
-            model=args.embedding_model,
+            model=cache_model,
             provider=args.embedding_provider,
             embedder=embedder,
             batch_size=1,
@@ -1463,7 +1557,9 @@ def probe_vector_index(args: argparse.Namespace) -> dict[str, Any]:
             filters={"source_type": question["source_types"]} if question["source_types"] else None,
             fetch_multiplier=args.fetch_multiplier,
         )
-        rows.append(probe_one_question_vector(question, results))
+        row = probe_one_question_vector(question, results)
+        row["seconds"] = round(time.time() - question_started, 3)
+        rows.append(row)
     summary = vector_probe_summary(rows)
     summary.update(
         {
@@ -1473,6 +1569,7 @@ def probe_vector_index(args: argparse.Namespace) -> dict[str, Any]:
             "field_mode": args.field_mode,
             "embedding_provider": args.embedding_provider,
             "embedding_model": args.embedding_model,
+            "embedding_dimensions": args.embedding_dimensions,
             "candidate_limit": args.candidate_limit,
             "fetch_multiplier": args.fetch_multiplier,
             "seconds": round(time.time() - started, 3),
@@ -1489,6 +1586,422 @@ def probe_vector_index(args: argparse.Namespace) -> dict[str, Any]:
     return {"output": str(output), **{key: value for key, value in summary.items() if key != "questions"}}
 
 
+def probe_vector_rerank(args: argparse.Namespace) -> dict[str, Any]:
+    started = time.time()
+    workspace = Path(args.workspace).expanduser().resolve()
+    ensure_workspace(workspace)
+    questions = load_selected_questions(args)
+    index = SQLiteVecSemanticIndex(vector_index_path(workspace, args.field_mode, args.index_name))
+    embedder = make_embedder(
+        args.embedding_provider,
+        args.embedding_model,
+        dimensions=args.embedding_dimensions,
+        timeout=args.embedding_timeout,
+    )
+    cache = EmbeddingCache(workspace / DEFAULT_VECTOR_INDEX_DIRNAME / "embedding_cache.sqlite")
+    cache_model = embedding_cache_model_key(args.embedding_model, args.embedding_dimensions)
+    reranker = make_reranker(
+        args.reranker_provider,
+        args.reranker_model,
+        timeout=args.reranker_timeout,
+    )
+    rows = []
+    with sqlite3.connect(workspace / "filesystem.sqlite") as conn:
+        conn.row_factory = sqlite3.Row
+        for question in questions:
+            LOGGER.info(
+                "vector+rerank question=%s candidates=%d rerank_limit=%d",
+                question["question_id"],
+                args.candidate_limit,
+                args.rerank_limit,
+            )
+            vector = cache.embed_texts(
+                [question["question"]],
+                model=cache_model,
+                provider=args.embedding_provider,
+                embedder=embedder,
+                batch_size=1,
+            )[0]
+            vector_results = index.search(
+                vector,
+                limit=args.candidate_limit,
+                filters={"source_type": question["source_types"]} if question["source_types"] else None,
+                fetch_multiplier=args.fetch_multiplier,
+            )
+            candidates = candidate_details_for_results(conn, vector_results[: args.rerank_limit])
+            try:
+                reranked = reranker.rerank(question["question"], candidates)
+                error = None
+            except Exception as exc:  # noqa: BLE001 - research runner records failures.
+                LOGGER.warning("rerank failed question=%s error=%s", question["question_id"], exc)
+                reranked = candidates
+                error = f"{type(exc).__name__}: {exc}"
+            row = probe_one_question_rerank(question, vector_results, reranked)
+            row["rerank_error"] = error
+            rows.append(row)
+    summary = rerank_probe_summary(rows)
+    summary.update(
+        {
+            "workspace": str(workspace),
+            "index_path": str(index.db_path),
+            "index_info": index.info(),
+            "field_mode": args.field_mode,
+            "embedding_provider": args.embedding_provider,
+            "embedding_model": args.embedding_model,
+            "embedding_dimensions": args.embedding_dimensions,
+            "candidate_limit": args.candidate_limit,
+            "rerank_limit": args.rerank_limit,
+            "fetch_multiplier": args.fetch_multiplier,
+            "reranker_provider": args.reranker_provider,
+            "reranker_model": args.reranker_model,
+            "reranker_timeout": args.reranker_timeout,
+            "seconds": round(time.time() - started, 3),
+            "questions": rows,
+        }
+    )
+    output = (
+        Path(args.output).expanduser().resolve()
+        if args.output
+        else DEFAULT_RESULTS_DIR
+        / f"vector-rerank-{args.field_mode}-{args.reranker_provider}-{time.strftime('%Y%m%d-%H%M%S')}.json"
+    )
+    write_json(output, summary)
+    return {"output": str(output), **{key: value for key, value in summary.items() if key != "questions"}}
+
+
+def probe_vector_union(args: argparse.Namespace) -> dict[str, Any]:
+    started = time.time()
+    workspace = Path(args.workspace).expanduser().resolve()
+    ensure_workspace(workspace)
+    questions = load_selected_questions(args)
+    specs = parse_vector_index_specs(args.index_specs)
+    indexes = [
+        (field_mode, index_name, SQLiteVecSemanticIndex(vector_index_path(workspace, field_mode, index_name)))
+        for field_mode, index_name in specs
+    ]
+    embedder = make_embedder(
+        args.embedding_provider,
+        args.embedding_model,
+        dimensions=args.embedding_dimensions,
+        timeout=args.embedding_timeout,
+    )
+    cache = EmbeddingCache(workspace / DEFAULT_VECTOR_INDEX_DIRNAME / "embedding_cache.sqlite")
+    cache_model = embedding_cache_model_key(args.embedding_model, args.embedding_dimensions)
+    rows = []
+    for question in questions:
+        question_started = time.time()
+        vector = cache.embed_texts(
+            [question["question"]],
+            model=cache_model,
+            provider=args.embedding_provider,
+            embedder=embedder,
+            batch_size=1,
+        )[0]
+        result_sets = {}
+        for field_mode, _index_name, index in indexes:
+            result_sets[field_mode] = index.search(
+                vector,
+                limit=args.per_index_limit,
+                filters={"source_type": question["source_types"]} if question["source_types"] else None,
+                fetch_multiplier=args.fetch_multiplier,
+            )
+        merged = merge_vector_result_sets(result_sets, limit=args.candidate_limit)
+        row = probe_one_question_vector(question, merged)
+        row["seconds"] = round(time.time() - question_started, 3)
+        row["index_specs"] = [{"field_mode": field, "index_name": name} for field, name in specs]
+        rows.append(row)
+    summary = vector_probe_summary(rows)
+    summary.update(
+        {
+            "workspace": str(workspace),
+            "index_specs": [{"field_mode": field, "index_name": name} for field, name in specs],
+            "embedding_provider": args.embedding_provider,
+            "embedding_model": args.embedding_model,
+            "embedding_dimensions": args.embedding_dimensions,
+            "per_index_limit": args.per_index_limit,
+            "candidate_limit": args.candidate_limit,
+            "fetch_multiplier": args.fetch_multiplier,
+            "seconds": round(time.time() - started, 3),
+            "questions": rows,
+        }
+    )
+    output = (
+        Path(args.output).expanduser().resolve()
+        if args.output
+        else DEFAULT_RESULTS_DIR
+        / f"vector-union-{args.embedding_provider}-{time.strftime('%Y%m%d-%H%M%S')}.json"
+    )
+    write_json(output, summary)
+    return {"output": str(output), **{key: value for key, value in summary.items() if key != "questions"}}
+
+
+def probe_vector_groups(args: argparse.Namespace) -> dict[str, Any]:
+    started = time.time()
+    workspace = Path(args.workspace).expanduser().resolve()
+    ensure_workspace(workspace)
+    questions = load_selected_questions(args)
+    specs = parse_vector_index_specs(args.index_specs)
+    group_fields = [item.strip() for item in args.group_fields.split(",") if item.strip()]
+    indexes = [
+        (field_mode, index_name, SQLiteVecSemanticIndex(vector_index_path(workspace, field_mode, index_name)))
+        for field_mode, index_name in specs
+    ]
+    embedder = make_embedder(
+        args.embedding_provider,
+        args.embedding_model,
+        dimensions=args.embedding_dimensions,
+        timeout=args.embedding_timeout,
+    )
+    cache = EmbeddingCache(workspace / DEFAULT_VECTOR_INDEX_DIRNAME / "embedding_cache.sqlite")
+    cache_model = embedding_cache_model_key(args.embedding_model, args.embedding_dimensions)
+    rows = []
+    with sqlite3.connect(workspace / "filesystem.sqlite") as conn:
+        conn.row_factory = sqlite3.Row
+        for question in questions:
+            question_started = time.time()
+            vector = cache.embed_texts(
+                [question["question"]],
+                model=cache_model,
+                provider=args.embedding_provider,
+                embedder=embedder,
+                batch_size=1,
+            )[0]
+            result_sets = {}
+            for field_mode, _index_name, index in indexes:
+                result_sets[field_mode] = index.search(
+                    vector,
+                    limit=args.per_index_limit,
+                    filters={"source_type": question["source_types"]} if question["source_types"] else None,
+                    fetch_multiplier=args.fetch_multiplier,
+                )
+            merged = merge_vector_result_sets(result_sets, limit=args.candidate_limit)
+            groups = aggregate_vector_groups(merged, group_fields=group_fields, limit=args.group_limit)
+            expected_keys = expected_metadata_group_keys(conn, question["expected_doc_ids"], group_fields)
+            group_rank = first_group_rank(groups, expected_keys)
+            vector_row = probe_one_question_vector(question, merged)
+            rows.append(
+                {
+                    **vector_row,
+                    "group_best_rank": group_rank,
+                    "group_hit_any": group_rank is not None,
+                    "expected_group_keys": sorted(expected_keys)[:40],
+                    "top_groups": groups,
+                    "seconds": round(time.time() - question_started, 3),
+                }
+            )
+    summary = vector_group_probe_summary(rows)
+    summary.update(
+        {
+            "workspace": str(workspace),
+            "index_specs": [{"field_mode": field, "index_name": name} for field, name in specs],
+            "embedding_provider": args.embedding_provider,
+            "embedding_model": args.embedding_model,
+            "embedding_dimensions": args.embedding_dimensions,
+            "per_index_limit": args.per_index_limit,
+            "candidate_limit": args.candidate_limit,
+            "fetch_multiplier": args.fetch_multiplier,
+            "group_fields": group_fields,
+            "group_limit": args.group_limit,
+            "seconds": round(time.time() - started, 3),
+            "questions": rows,
+        }
+    )
+    output = (
+        Path(args.output).expanduser().resolve()
+        if args.output
+        else DEFAULT_RESULTS_DIR
+        / f"vector-groups-{args.embedding_provider}-{time.strftime('%Y%m%d-%H%M%S')}.json"
+    )
+    write_json(output, summary)
+    return {"output": str(output), **{key: value for key, value in summary.items() if key != "questions"}}
+
+
+def aggregate_vector_groups(
+    results: list[SemanticSearchResult],
+    *,
+    group_fields: list[str],
+    limit: int,
+) -> list[dict[str, Any]]:
+    groups: dict[str, dict[str, Any]] = {}
+    for rank, result in enumerate(results, 1):
+        for field in group_fields:
+            for value in group_values(result.metadata.get(field)):
+                key = f"{field}={value}"
+                group = groups.setdefault(
+                    key,
+                    {
+                        "key": key,
+                        "field": field,
+                        "value": value,
+                        "score": 0.0,
+                        "candidate_count": 0,
+                        "best_rank": rank,
+                        "top_document_ids": [],
+                    },
+                )
+                group["score"] += 1.0 / (rank + 60.0)
+                group["candidate_count"] += 1
+                group["best_rank"] = min(int(group["best_rank"]), rank)
+                if result.external_id and result.external_id not in group["top_document_ids"]:
+                    group["top_document_ids"].append(result.external_id)
+                    group["top_document_ids"] = group["top_document_ids"][:5]
+    ranked = sorted(
+        groups.values(),
+        key=lambda item: (-float(item["score"]), int(item["best_rank"]), -int(item["candidate_count"]), item["key"]),
+    )
+    return [
+        {
+            **item,
+            "score": round(float(item["score"]), 6),
+        }
+        for item in ranked[:limit]
+    ]
+
+
+def expected_metadata_group_keys(
+    conn: sqlite3.Connection,
+    expected_doc_ids: list[str],
+    group_fields: list[str],
+) -> set[str]:
+    if not expected_doc_ids:
+        return set()
+    placeholders = ", ".join("?" for _ in expected_doc_ids)
+    rows = conn.execute(
+        f"""
+        SELECT metadata_json
+        FROM files
+        WHERE external_id IN ({placeholders})
+          AND deleted_at IS NULL
+        """,
+        expected_doc_ids,
+    ).fetchall()
+    keys: set[str] = set()
+    for row in rows:
+        metadata = safe_json_obj(row["metadata_json"])
+        for field in group_fields:
+            for value in group_values(metadata.get(field)):
+                keys.add(f"{field}={value}")
+    return keys
+
+
+def first_group_rank(groups: list[dict[str, Any]], expected_keys: set[str]) -> int | None:
+    if not expected_keys:
+        return None
+    return next((index for index, group in enumerate(groups, 1) if group["key"] in expected_keys), None)
+
+
+def vector_group_probe_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    answerable_rows = [row for row in rows if row.get("expected_doc_ids")]
+    question_seconds = [float(row.get("seconds") or 0) for row in rows]
+    return {
+        **vector_probe_summary(rows),
+        "group_hit_at_1": group_hit_at(rows, 1),
+        "group_hit_at_3": group_hit_at(rows, 3),
+        "group_hit_at_5": group_hit_at(rows, 5),
+        "group_hit_at_10": group_hit_at(rows, 10),
+        "group_hit_at_20": group_hit_at(rows, 20),
+        "answerable_group_hit_at_1": group_hit_at(answerable_rows, 1),
+        "answerable_group_hit_at_3": group_hit_at(answerable_rows, 3),
+        "answerable_group_hit_at_5": group_hit_at(answerable_rows, 5),
+        "answerable_group_hit_at_10": group_hit_at(answerable_rows, 10),
+        "answerable_group_hit_at_20": group_hit_at(answerable_rows, 20),
+        "group_misses": [row["question_id"] for row in rows if row.get("expected_doc_ids") and not row["group_hit_any"]],
+        "avg_question_seconds": avg(question_seconds),
+        "p95_question_seconds": percentile(question_seconds, 0.95),
+        "max_question_seconds": max(question_seconds, default=0),
+    }
+
+
+def group_hit_at(rows: list[dict[str, Any]], k: int) -> float:
+    if not rows:
+        return 0
+    return sum(1 for row in rows if row.get("group_best_rank") is not None and row["group_best_rank"] <= k) / len(rows)
+
+
+def group_values(value: Any) -> list[str]:
+    if value is None:
+        return []
+    raw_values: list[str] = []
+    if isinstance(value, list):
+        raw_values = [text_value(item) for item in value]
+    else:
+        text = text_value(value)
+        if "," in text or "\n" in text:
+            raw_values = re.split(r"[,\n]+", text)
+        else:
+            raw_values = [text]
+    normalized = []
+    for item in raw_values:
+        compact = re.sub(r"\s+", " ", str(item)).strip().lower()
+        if not compact or compact in {"unknown", "n/a", "none", "null"}:
+            continue
+        if len(compact) > 80:
+            continue
+        normalized.append(compact)
+    return dedupe(normalized)
+
+
+def parse_vector_index_specs(raw: str) -> list[tuple[str, str]]:
+    specs = []
+    for item in raw.split(","):
+        item = item.strip()
+        if not item:
+            continue
+        if ":" in item:
+            field_mode, index_name = item.split(":", 1)
+        else:
+            field_mode, index_name = item, item
+        specs.append((field_mode.strip(), index_name.strip()))
+    if not specs:
+        raise SystemExit("--index-specs must include at least one field:index entry")
+    return specs
+
+
+def merge_vector_result_sets(
+    result_sets: dict[str, list[SemanticSearchResult]],
+    *,
+    limit: int,
+) -> list[SemanticSearchResult]:
+    scored: dict[str, dict[str, Any]] = {}
+    for field_mode, results in result_sets.items():
+        for rank, result in enumerate(results, 1):
+            item = scored.setdefault(
+                result.file_ref,
+                {
+                    "score": 0.0,
+                    "best_rank": rank,
+                    "result": result,
+                    "sources": [],
+                },
+            )
+            item["score"] += 1.0 / (rank + 60.0)
+            item["best_rank"] = min(int(item["best_rank"]), rank)
+            if result.distance < item["result"].distance:
+                item["result"] = result
+            item["sources"].append({"field_mode": field_mode, "rank": rank, "distance": result.distance})
+    merged = []
+    for item in sorted(scored.values(), key=lambda value: (-value["score"], value["best_rank"])):
+        result = item["result"]
+        metadata = dict(result.metadata)
+        metadata["union_score"] = item["score"]
+        metadata["union_sources"] = item["sources"]
+        merged.append(
+            SemanticSearchResult(
+                file_ref=result.file_ref,
+                distance=-float(item["score"]),
+                external_id=result.external_id,
+                source_type=result.source_type,
+                source_path=result.source_path,
+                title=result.title,
+                text_hash=result.text_hash,
+                metadata=metadata,
+            )
+        )
+        if len(merged) >= limit:
+            break
+    return merged
+
+
 def compare_vector_fields(args: argparse.Namespace) -> dict[str, Any]:
     started = time.time()
     modes = [item.strip() for item in args.field_modes.split(",") if item.strip()]
@@ -1500,7 +2013,7 @@ def compare_vector_fields(args: argparse.Namespace) -> dict[str, Any]:
     )
     output_dir.mkdir(parents=True, exist_ok=True)
     for mode in modes:
-        if mode not in {"summary", "metadata", "fulltext"}:
+        if mode not in {"summary", "metadata", "fulltext", "sampled_fulltext"}:
             raise SystemExit(f"unknown vector field mode: {mode}")
         build_args = argparse.Namespace(**{**vars(args), "field_mode": mode})
         build_summary = build_vector_index(build_args)
@@ -1521,6 +2034,7 @@ def compare_vector_fields(args: argparse.Namespace) -> dict[str, Any]:
         "field_modes": modes,
         "embedding_provider": args.embedding_provider,
         "embedding_model": args.embedding_model,
+        "embedding_dimensions": args.embedding_dimensions,
         "max_docs": args.max_docs,
         "candidate_limit": args.candidate_limit,
         "seconds": round(time.time() - started, 3),
@@ -1566,6 +2080,7 @@ def probe_one_question_vector(
         "question_id": question["question_id"],
         "source_types": question["source_types"],
         "expected_doc_ids": question["expected_doc_ids"],
+        "candidate_count": len(results),
         "hit_any": best_rank is not None,
         "best_rank": best_rank,
         "top_document_ids": ids[:20],
@@ -1584,18 +2099,164 @@ def probe_one_question_vector(
     }
 
 
-def vector_probe_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
-    ranks = [row["best_rank"] for row in rows if row.get("best_rank") is not None]
-    limit = max((len(row.get("top_document_ids") or []) for row in rows), default=0)
+def candidate_details_for_results(
+    conn: sqlite3.Connection,
+    results: list[Any],
+) -> list[dict[str, Any]]:
+    if not results:
+        return []
+    file_refs = [result.file_ref for result in results]
+    placeholders = ", ".join("?" for _ in file_refs)
+    rows_by_ref = {
+        row["file_ref"]: row
+        for row in conn.execute(
+            f"""
+            SELECT file_ref, external_id, source_type, source_path, title, metadata_json
+            FROM files
+            WHERE file_ref IN ({placeholders})
+            """,
+            file_refs,
+        ).fetchall()
+    }
+    candidates = []
+    for rank, result in enumerate(results, 1):
+        row = rows_by_ref.get(result.file_ref)
+        metadata = safe_json_obj(row["metadata_json"] if row else "{}")
+        candidates.append(
+            {
+                "rank": rank,
+                "file_ref": result.file_ref,
+                "document_id": result.external_id,
+                "source_type": result.source_type,
+                "source_path": result.source_path,
+                "title": result.title,
+                "vector_distance": result.distance,
+                "metadata": {
+                    key: metadata.get(key, "")
+                    for key in rerank_metadata_fields(metadata)
+                    if metadata.get(key)
+                },
+            }
+        )
+    return candidates
+
+
+def rerank_metadata_fields(metadata: dict[str, Any]) -> list[str]:
+    if "semantic_summary" in metadata:
+        return [
+            "semantic_summary",
+            "semantic_topics",
+            "semantic_entities",
+            "semantic_constraints",
+            "semantic_problems",
+            "semantic_actions",
+            "semantic_evidence_terms",
+            "semantic_measurements",
+            "semantic_time_hints",
+        ]
+    return [
+        "summary",
+        "intent",
+        "entities",
+        "constraints",
+        "topic",
+        "domain",
+        "doc_type",
+        "repo",
+        "project",
+        "channel",
+        "space",
+        "customer",
+        "status",
+        "year",
+        "month",
+    ]
+
+
+def probe_one_question_rerank(
+    question: dict[str, Any],
+    vector_results: list[Any],
+    reranked: list[dict[str, Any]],
+) -> dict[str, Any]:
+    expected = set(question["expected_doc_ids"])
+    vector_ids = [result.external_id for result in vector_results if result.external_id]
+    reranked_ids = [row["document_id"] for row in reranked if row.get("document_id")]
+    vector_rank = first_expected_rank(vector_ids, expected)
+    rerank_rank = first_expected_rank(reranked_ids, expected)
+    return {
+        "question_id": question["question_id"],
+        "source_types": question["source_types"],
+        "expected_doc_ids": question["expected_doc_ids"],
+        "vector_best_rank": vector_rank,
+        "rerank_best_rank": rerank_rank,
+        "vector_hit_any": vector_rank is not None,
+        "rerank_hit_any": rerank_rank is not None,
+        "vector_top_document_ids": vector_ids[:20],
+        "reranked_top_document_ids": reranked_ids[:20],
+        "reranked": reranked[:20],
+    }
+
+
+def first_expected_rank(ids: list[str], expected: set[str]) -> int | None:
+    return next((index for index, doc_id in enumerate(ids, 1) if doc_id in expected), None)
+
+
+def rerank_probe_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    vector_ranks = [row["vector_best_rank"] for row in rows if row.get("vector_best_rank") is not None]
+    rerank_ranks = [row["rerank_best_rank"] for row in rows if row.get("rerank_best_rank") is not None]
     return {
         "question_count": len(rows),
+        "vector_hit_at_1": rank_hit_at(rows, "vector_best_rank", 1),
+        "vector_hit_at_3": rank_hit_at(rows, "vector_best_rank", 3),
+        "vector_hit_at_5": rank_hit_at(rows, "vector_best_rank", 5),
+        "vector_hit_at_10": rank_hit_at(rows, "vector_best_rank", 10),
+        "vector_hit_at_50": rank_hit_at(rows, "vector_best_rank", 50),
+        "vector_hit_at_limit": len(vector_ranks) / len(rows) if rows else 0,
+        "rerank_hit_at_1": rank_hit_at(rows, "rerank_best_rank", 1),
+        "rerank_hit_at_3": rank_hit_at(rows, "rerank_best_rank", 3),
+        "rerank_hit_at_5": rank_hit_at(rows, "rerank_best_rank", 5),
+        "rerank_hit_at_10": rank_hit_at(rows, "rerank_best_rank", 10),
+        "rerank_hit_at_limit": len(rerank_ranks) / len(rows) if rows else 0,
+        "vector_mean_best_rank": avg([float(rank) for rank in vector_ranks]),
+        "rerank_mean_best_rank": avg([float(rank) for rank in rerank_ranks]),
+        "vector_misses": [row["question_id"] for row in rows if not row["vector_hit_any"]],
+        "rerank_misses": [row["question_id"] for row in rows if not row["rerank_hit_any"]],
+    }
+
+
+def rank_hit_at(rows: list[dict[str, Any]], key: str, k: int) -> float:
+    if not rows:
+        return 0
+    return sum(1 for row in rows if row.get(key) is not None and row[key] <= k) / len(rows)
+
+
+def vector_probe_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    ranks = [row["best_rank"] for row in rows if row.get("best_rank") is not None]
+    limit = max((int(row.get("candidate_count") or 0) for row in rows), default=0)
+    question_seconds = [float(row.get("seconds") or 0) for row in rows]
+    answerable_rows = [row for row in rows if row.get("expected_doc_ids")]
+    return {
+        "question_count": len(rows),
+        "answerable_question_count": len(answerable_rows),
         "hit_at_1": hit_at(rows, 1),
         "hit_at_5": hit_at(rows, 5),
         "hit_at_10": hit_at(rows, 10),
         "hit_at_50": hit_at(rows, 50),
         "hit_at_limit": len(ranks) / len(rows) if rows else 0,
+        "answerable_hit_at_1": hit_at(answerable_rows, 1),
+        "answerable_hit_at_5": hit_at(answerable_rows, 5),
+        "answerable_hit_at_10": hit_at(answerable_rows, 10),
+        "answerable_hit_at_50": hit_at(answerable_rows, 50),
+        "answerable_hit_at_limit": (
+            sum(1 for row in answerable_rows if row.get("best_rank") is not None) / len(answerable_rows)
+            if answerable_rows
+            else 0
+        ),
         "candidate_limit_observed": limit,
         "mean_best_rank": avg([float(rank) for rank in ranks]),
+        "avg_question_seconds": avg(question_seconds),
+        "p95_question_seconds": percentile(question_seconds, 0.95),
+        "max_question_seconds": max(question_seconds, default=0),
         "misses": [row["question_id"] for row in rows if not row["hit_any"]],
     }
 
@@ -1651,12 +2312,21 @@ class EmbeddingCache:
                     model TEXT NOT NULL,
                     text_hash TEXT NOT NULL,
                     dimension INTEGER NOT NULL,
-                    vector_json TEXT NOT NULL,
+                    vector_blob BLOB,
+                    vector_json TEXT,
                     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
                     PRIMARY KEY(provider, model, text_hash)
                 )
                 """
             )
+            columns = {
+                row["name"]
+                for row in conn.execute("PRAGMA table_info(embedding_cache)").fetchall()
+            }
+            if "vector_blob" not in columns:
+                conn.execute("ALTER TABLE embedding_cache ADD COLUMN vector_blob BLOB")
+            if "vector_json" not in columns:
+                conn.execute("ALTER TABLE embedding_cache ADD COLUMN vector_json TEXT")
             conn.commit()
 
     def connect(self) -> sqlite3.Connection:
@@ -1679,14 +2349,14 @@ class EmbeddingCache:
             for text_hash in sorted(set(hashes)):
                 row = conn.execute(
                     """
-                    SELECT vector_json
+                    SELECT vector_blob, vector_json
                     FROM embedding_cache
                     WHERE provider = ? AND model = ? AND text_hash = ?
                     """,
                     (provider, model, text_hash),
                 ).fetchone()
                 if row is not None:
-                    cached[text_hash] = json.loads(row["vector_json"])
+                    cached[text_hash] = decode_vector(row["vector_blob"], row["vector_json"])
         missing_positions = [index for index, text_hash in enumerate(hashes) if text_hash not in cached]
         for start in range(0, len(missing_positions), batch_size):
             positions = missing_positions[start : start + batch_size]
@@ -1695,8 +2365,10 @@ class EmbeddingCache:
             with self.connect() as conn:
                 conn.executemany(
                     """
-                    INSERT OR REPLACE INTO embedding_cache(provider, model, text_hash, dimension, vector_json)
-                    VALUES (?, ?, ?, ?, ?)
+                    INSERT OR REPLACE INTO embedding_cache(
+                        provider, model, text_hash, dimension, vector_blob, vector_json
+                    )
+                    VALUES (?, ?, ?, ?, ?, '')
                     """,
                     [
                         (
@@ -1704,7 +2376,7 @@ class EmbeddingCache:
                             model,
                             hashes[index],
                             len(vector),
-                            json.dumps(vector, separators=(",", ":")),
+                            encode_vector(vector),
                         )
                         for index, vector in zip(positions, vectors)
                     ],
@@ -1717,18 +2389,87 @@ class EmbeddingCache:
 
 
 class OpenAIEmbeddingClient:
-    def __init__(self, model: str):
+    def __init__(self, model: str, *, dimensions: int, timeout: float):
+        from openai import OpenAI
+
+        self.model = model
+        self.dimensions = dimensions
+        self.client = OpenAI(
+            api_key=os.environ.get("OPENAI_API_KEY"),
+            base_url=os.environ.get("OPENAI_BASE_URL") or None,
+            timeout=timeout,
+        )
+
+    def embed(self, texts: list[str]) -> list[list[float]]:
+        kwargs: dict[str, Any] = {"model": self.model, "input": texts}
+        if self.dimensions > 0:
+            kwargs["dimensions"] = self.dimensions
+        response = self.client.embeddings.create(**kwargs)
+        return [list(item.embedding) for item in sorted(response.data, key=lambda item: item.index)]
+
+
+class OpenAIRerankerClient:
+    def __init__(self, model: str, *, timeout: float):
         from openai import OpenAI
 
         self.model = model
         self.client = OpenAI(
             api_key=os.environ.get("OPENAI_API_KEY"),
             base_url=os.environ.get("OPENAI_BASE_URL") or None,
+            timeout=timeout,
         )
 
-    def embed(self, texts: list[str]) -> list[list[float]]:
-        response = self.client.embeddings.create(model=self.model, input=texts)
-        return [list(item.embedding) for item in sorted(response.data, key=lambda item: item.index)]
+    def rerank(self, question: str, candidates: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        if not candidates:
+            return []
+        response = self.client.chat.completions.create(
+            model=self.model,
+            temperature=0,
+            response_format={"type": "json_object"},
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "You rerank candidate enterprise documents for retrieval. "
+                        "Use only the candidate metadata provided. Do not answer the question. "
+                        "Return strict JSON with key ranked, an array of objects: "
+                        "{rank:int, document_id:string, score:number, reason:string}. "
+                        "Rank the most likely evidence document first."
+                    ),
+                },
+                {
+                    "role": "user",
+                    "content": json.dumps(
+                        {
+                            "question": question,
+                            "candidates": compact_rerank_candidates(candidates),
+                        },
+                        ensure_ascii=False,
+                    ),
+                },
+            ],
+        )
+        text = response.choices[0].message.content or "{}"
+        ranked_ids = parse_rerank_ids(text)
+        return merge_rerank_order(candidates, ranked_ids)
+
+
+class HeuristicRerankerClient:
+    def rerank(self, question: str, candidates: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        question_terms_set = set(question_terms(question, limit=40))
+        rows = []
+        for candidate in candidates:
+            haystack = json.dumps(candidate, ensure_ascii=False).lower()
+            score = sum(1 for term in question_terms_set if term and term.lower() in haystack)
+            rows.append(
+                {
+                    **candidate,
+                    "score": score,
+                    "reason": "term-overlap heuristic",
+                }
+            )
+        rows.sort(key=lambda item: (-float(item["score"]), item["rank"]))
+        return [{**row, "rank": index} for index, row in enumerate(rows, 1)]
 
 
 class HashEmbeddingClient:
@@ -1751,12 +2492,114 @@ class HashEmbeddingClient:
         return vector
 
 
-def make_embedder(provider: str, model: str) -> Any:
+def make_embedder(provider: str, model: str, *, dimensions: int, timeout: float) -> Any:
     if provider == "openai":
-        return OpenAIEmbeddingClient(model)
+        return OpenAIEmbeddingClient(model, dimensions=dimensions, timeout=timeout)
     if provider == "hash":
-        return HashEmbeddingClient()
+        return HashEmbeddingClient(dimensions=dimensions if dimensions > 0 else 256)
     raise SystemExit(f"unknown embedding provider: {provider}")
+
+
+def embedding_cache_model_key(model: str, dimensions: int) -> str:
+    return f"{model}:dimensions={dimensions}" if dimensions > 0 else model
+
+
+def make_reranker(provider: str, model: str, *, timeout: float) -> Any:
+    if provider == "openai":
+        return OpenAIRerankerClient(model, timeout=timeout)
+    if provider == "heuristic":
+        return HeuristicRerankerClient()
+    raise SystemExit(f"unknown reranker provider: {provider}")
+
+
+def compact_rerank_candidates(candidates: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    compact = []
+    for candidate in candidates:
+        metadata = candidate.get("metadata") or {}
+        compact.append(
+            {
+                "candidate_rank": candidate.get("rank"),
+                "document_id": candidate.get("document_id"),
+                "source_type": candidate.get("source_type"),
+                "title": candidate.get("title"),
+                "source_path": candidate.get("source_path"),
+                "vector_distance": candidate.get("vector_distance"),
+                "metadata": {
+                    key: truncate_text(text_value(value), 700)
+                    for key, value in metadata.items()
+                    if text_value(value)
+                },
+            }
+        )
+    return compact
+
+
+def parse_rerank_ids(text: str) -> list[str]:
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError:
+        match = re.search(r"\{.*\}", text, flags=re.DOTALL)
+        data = json.loads(match.group(0)) if match else {}
+    ranked = data.get("ranked", []) if isinstance(data, dict) else []
+    ids = []
+    if isinstance(ranked, list):
+        for item in ranked:
+            if isinstance(item, dict) and item.get("document_id"):
+                ids.append(str(item["document_id"]))
+            elif isinstance(item, str):
+                ids.append(item)
+    return dedupe(ids)
+
+
+def merge_rerank_order(
+    candidates: list[dict[str, Any]],
+    ranked_ids: list[str],
+) -> list[dict[str, Any]]:
+    by_id = {
+        str(candidate.get("document_id")): candidate
+        for candidate in candidates
+        if candidate.get("document_id")
+    }
+    ordered = []
+    seen = set()
+    for doc_id in ranked_ids:
+        candidate = by_id.get(doc_id)
+        if not candidate or doc_id in seen:
+            continue
+        seen.add(doc_id)
+        ordered.append(
+            {
+                **candidate,
+                "score": len(ranked_ids) - len(ordered),
+                "reason": "llm-reranked",
+            }
+        )
+    for candidate in candidates:
+        doc_id = str(candidate.get("document_id"))
+        if doc_id in seen:
+            continue
+        ordered.append({**candidate, "score": 0, "reason": "kept-vector-order"})
+    return [{**row, "rank": index} for index, row in enumerate(ordered, 1)]
+
+
+def truncate_text(text: str, limit: int) -> str:
+    return text if len(text) <= limit else text[: limit - 3] + "..."
+
+
+def encode_vector(vector: list[float]) -> bytes:
+    return struct.pack(f"<{len(vector)}f", *vector)
+
+
+def decode_vector(blob: bytes | None, vector_json: str | None) -> list[float]:
+    if blob:
+        if len(blob) % 4 != 0:
+            raise ValueError("invalid cached vector blob length")
+        return list(struct.unpack(f"<{len(blob) // 4}f", blob))
+    if vector_json:
+        value = json.loads(vector_json)
+        if isinstance(value, list):
+            return [float(item) for item in value]
+    raise ValueError("cached embedding row does not contain a vector")
 
 
 def vector_index_path(workspace: Path, field_mode: str, index_name: str) -> Path:
@@ -1820,6 +2663,9 @@ def vector_text_for_row(
     if field_mode == "fulltext":
         raw = load_document_json(row)
         return raw_document_text(raw, fallback_title=row["title"], max_chars=max_fulltext_chars)
+    if field_mode == "sampled_fulltext":
+        raw = load_document_json(row)
+        return sampled_document_text(raw, fallback_title=row["title"], max_chars=max_fulltext_chars)
     raise ValueError(f"unknown vector field mode: {field_mode}")
 
 
@@ -1886,6 +2732,126 @@ def raw_document_text(data: dict[str, Any], *, fallback_title: str, max_chars: i
             if sum(len(item) for item in values) >= max_chars:
                 break
     return compact_vector_text(values, max_chars=max_chars)
+
+
+def sampled_document_text(data: dict[str, Any], *, fallback_title: str, max_chars: int) -> str:
+    title = text_value(
+        data.get(data.get("title_field_name") or "")
+        or data.get("title")
+        or data.get("subject")
+        or data.get("summary")
+        or data.get("company_name")
+        or fallback_title
+    )
+    body_parts = [
+        body_text_value(data.get(key))
+        for key in data.get("content_field_names") or []
+        if body_text_value(data.get(key))
+    ]
+    if not body_parts:
+        return raw_document_text(data, fallback_title=fallback_title, max_chars=max_chars)
+    body = normalize_document_body("\n\n".join(body_parts))
+    if not body:
+        return compact_vector_text([title], max_chars=max_chars)
+    title_budget = min(len(title), max_chars // 5)
+    body_budget = max(0, max_chars - title_budget - 64)
+    salient = salient_document_lines(body, max_chars=int(body_budget * 0.82))
+    sampled_budget = max(0, body_budget - len(salient) - 32)
+    sampled = sample_text_windows(body, max_chars=sampled_budget)
+    return compact_vector_text([title, salient, sampled], max_chars=max_chars)
+
+
+def normalize_document_body(text: str) -> str:
+    normalized = text.replace("\\r\\n", "\n").replace("\\n", "\n").replace("\\t", "\t")
+    normalized = normalized.replace("\r\n", "\n").replace("\r", "\n")
+    return re.sub(r"\n{3,}", "\n\n", normalized).strip()
+
+
+def body_text_value(value: Any) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, list):
+        return "\n\n".join(item for item in (body_text_value(item) for item in value) if item)
+    if isinstance(value, dict):
+        parts = []
+        for key, item in value.items():
+            text = body_text_value(item)
+            if text:
+                parts.append(f"{key}: {text}")
+        return "\n".join(parts)
+    return str(value).strip()
+
+
+def salient_document_lines(text: str, *, max_chars: int) -> str:
+    if max_chars <= 0:
+        return ""
+    keyword_re = re.compile(
+        r"\b(default|limit|max|min|target|threshold|timeout|retention|window|"
+        r"deadline|sla|rpo|rto|p50|p95|p99|must|required|requires|approved|"
+        r"owner|decision|rollback|failover|fallback|hierarchy|sequence|order|"
+        r"primary|standby|emergency|region|incident|severity|sev\d|permitted|"
+        r"allowed|disallowed|encrypted|audit|compliance)\b",
+        flags=re.IGNORECASE,
+    )
+    numeric_re = re.compile(
+        r"\b\d+(?:\.\d+)?\s*(?:MiB|GiB|MB|GB|ms|m|sec|seconds|minutes|hours|days|%|tokens?)\b",
+        flags=re.IGNORECASE,
+    )
+    source_lines = [
+        re.sub(r"\s+", " ", line).strip()
+        for line in re.split(r"[\n\r]+", text)
+    ]
+    candidates = []
+    for position, normalized in enumerate(source_lines):
+        if len(normalized) < 12:
+            continue
+        keyword_matches = keyword_re.findall(normalized)
+        numeric_matches = numeric_re.findall(normalized)
+        if keyword_matches or numeric_matches:
+            score = len(keyword_matches) + (2 * len(numeric_matches))
+            if re.search(r"\b(RPO|RTO|SLA|p50|p95|p99|Sev\d)\b", normalized):
+                score += 3
+            if re.search(r"\b(hierarchy|sequence|order|primary|standby|emergency)\b", normalized, flags=re.IGNORECASE):
+                score += 2
+            candidates.append((score, position))
+    lines = []
+    seen_positions = set()
+    for _score, position in sorted(candidates, key=lambda item: (-item[0], item[1])):
+        for neighbor in (position - 2, position - 1, position, position + 1):
+            if neighbor < 0 or neighbor >= len(source_lines) or neighbor in seen_positions:
+                continue
+            normalized = source_lines[neighbor]
+            if len(normalized) < 12:
+                continue
+            lines.append(normalized)
+            seen_positions.add(neighbor)
+            if sum(len(item) + 1 for item in lines) >= max_chars:
+                break
+        if sum(len(item) + 1 for item in lines) >= max_chars:
+            break
+    return "\n".join(dedupe(lines))[:max_chars]
+
+
+def sample_text_windows(text: str, *, max_chars: int) -> str:
+    if len(text) <= max_chars:
+        return text
+    window_count = 4
+    window = max(200, max_chars // window_count)
+    starts = [
+        0,
+        max(0, len(text) // 3 - window // 2),
+        max(0, (2 * len(text)) // 3 - window // 2),
+        max(0, len(text) - window),
+    ]
+    intervals = sorted((start, min(len(text), start + window)) for start in starts)
+    merged: list[tuple[int, int]] = []
+    for start, end in intervals:
+        if not merged or start > merged[-1][1]:
+            merged.append((start, end))
+        else:
+            merged[-1] = (merged[-1][0], max(merged[-1][1], end))
+    chunks = [text[start:end].strip() for start, end in merged if text[start:end].strip()]
+    return "\n...\n".join(chunks)[:max_chars]
 
 
 def compact_vector_text(values: Iterable[Any], *, max_chars: int) -> str:
@@ -2331,6 +3297,8 @@ def strategy_command(
 
 
 def selected_question_ids(args: argparse.Namespace) -> list[str]:
+    if getattr(args, "all_questions", False):
+        return [row["question_id"] for row in read_jsonl(BENCHMARK_DIR / "dataset" / "questions.jsonl")]
     if args.question_ids:
         return [item.strip() for item in args.question_ids.split(",") if item.strip()]
     return QUESTION_SETS[args.question_set]
@@ -2459,6 +3427,14 @@ def write_json(path: Path, data: Any) -> None:
 def avg(values: Iterable[float]) -> float:
     values = list(values)
     return sum(values) / len(values) if values else 0.0
+
+
+def percentile(values: Iterable[float], quantile: float) -> float:
+    sorted_values = sorted(values)
+    if not sorted_values:
+        return 0.0
+    index = min(len(sorted_values) - 1, max(0, int(round((len(sorted_values) - 1) * quantile))))
+    return sorted_values[index]
 
 
 def field_id(name: str) -> str:
