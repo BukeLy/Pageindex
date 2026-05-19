@@ -22,6 +22,7 @@ class PIFSCommandExecutor:
     ALLOWED_COMMANDS = {"ls", "tree", "find", "grep", "cat", "stat", "mkdir", "cp"}
     ALLOWED_PIPE_FILTERS = {"head", "tail", "grep", "sed"}
     MAX_TREE_DEPTH = 4
+    MAX_LS_RENDER_FILES = 25
     MAX_STAT_METADATA_FIELDS = 8
 
     def __init__(self, filesystem: PageIndexFileSystem, *, json_output: bool = False):
@@ -183,6 +184,8 @@ class PIFSCommandExecutor:
             arg = args[i]
             if arg in {"-R", "-r", "--recursive"}:
                 recursive = True
+            elif arg in {"-n", "--line-number", "-i", "--ignore-case"}:
+                pass
             elif arg == "--where":
                 i += 1
                 where = args[i]
@@ -406,8 +409,14 @@ class PIFSCommandExecutor:
             lines.append(
                 f"{name} folders={folder.get('children_count', 0)} files={folder.get('file_count', 0)}"
             )
-        for file in data.get("files", []):
+        files = data.get("files", [])
+        for file in files[: self.MAX_LS_RENDER_FILES]:
             lines.append(self._file_row_text(file))
+        if len(files) > self.MAX_LS_RENDER_FILES:
+            remaining = len(files) - self.MAX_LS_RENDER_FILES
+            lines.append(
+                f"# ... {remaining} more files omitted from ls output; use grep/find to search this folder"
+            )
         return "\n".join(lines)
 
     def _render_tree(self, data: Any) -> str:

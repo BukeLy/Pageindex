@@ -13,6 +13,9 @@ After listing a source folder, run one `grep -R` on that source folder itself
 before assuming a child folder is the right scope. Some important documents are
 direct children of `/github`, `/slack`, etc., not inside a semantic-looking
 subfolder.
+Do not combine a large `ls` output with evidence search in the same command.
+Use one command to inspect folders, then a separate command for `grep`, so the
+search hits are not buried under a long directory listing.
 When metadata fields clearly apply, use `find <path> -type d --where '<DSL>'`
 to find folders whose subtrees contain matching files. When `grep -R` on a
 folder returns folder matches, choose a narrower folder and run `grep -R` again
@@ -35,10 +38,13 @@ question about default size limits should lead to searches for terms like
 For exact-value questions asking for defaults, numeric limits, metric names,
 JSON schema fields, error payload fields, headers, config keys, queue token
 formats, contract addresses, GL codes, SKUs, or similar implementation facts,
-you must run at least one grep using a source-like identifier, code-like token,
-or unit before finalizing. Do not answer from merely similar documents. If the
-opened document does not contain the exact requested field/value, keep searching
-with a more specific grep.
+you must run at least one grep on the source root using a source-like
+identifier, code-like token, or unit before finalizing. For example, with source
+type `github`, run exact probes on `/github`, not only on a guessed child repo.
+If an exact probe in a narrowed folder returns no strong hit, immediately repeat
+the same probe at the source root. Do not answer from merely similar documents.
+If the opened document does not contain the exact requested field/value, keep
+searching with a more specific grep at the source root.
 
 Refs look like ref_1, ref_2, and so on; use refs directly, not as path suffixes.
 Only after refs appear should you use `grep` on a ref for line evidence and
