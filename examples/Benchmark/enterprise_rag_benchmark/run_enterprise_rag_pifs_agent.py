@@ -116,6 +116,8 @@ def main() -> int:
                 reasoning_effort=args.reasoning_effort,
                 reasoning_summary=args.reasoning_summary,
                 max_seconds=args.max_seconds,
+                agent_retries=args.agent_retries,
+                agent_retry_delay=args.agent_retry_delay,
             )
             results.append(result)
             results_file.write(json.dumps(result, ensure_ascii=False) + "\n")
@@ -165,6 +167,8 @@ def main() -> int:
         "reasoning_effort": args.reasoning_effort,
         "reasoning_summary": args.reasoning_summary,
         "max_seconds": args.max_seconds,
+        "agent_retries": args.agent_retries,
+        "agent_retry_delay": args.agent_retry_delay,
         "timeout_count": timeout_count,
         "avg_seconds": sum(seconds_values) / len(seconds_values) if seconds_values else 0,
         "doc_hit_rate": (
@@ -232,6 +236,18 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--model", default=os.environ.get("PIFS_AGENT_MODEL", "gpt-4.1-mini"))
     parser.add_argument("--base-url", default=os.environ.get("OPENAI_BASE_URL"))
     parser.add_argument("--max-seconds", type=float, default=float(os.environ.get("PIFS_MAX_SECONDS", "60")))
+    parser.add_argument(
+        "--agent-retries",
+        type=int,
+        default=int(os.environ.get("PIFS_AGENT_RETRIES", "3")),
+        help="Retry transient agent/API failures this many times per question.",
+    )
+    parser.add_argument(
+        "--agent-retry-delay",
+        type=float,
+        default=float(os.environ.get("PIFS_AGENT_RETRY_DELAY", "5")),
+        help="Initial seconds to wait before retrying transient agent/API failures.",
+    )
     parser.add_argument(
         "--retrieval-mode",
         default=os.environ.get("PIFS_RETRIEVAL_MODE", "hybrid"),
@@ -301,6 +317,8 @@ def run_question(
     reasoning_effort: str | None,
     reasoning_summary: str | None,
     max_seconds: float,
+    agent_retries: int,
+    agent_retry_delay: float,
 ) -> dict[str, Any]:
     prompt = agent_prompt(
         question,
@@ -312,27 +330,42 @@ def run_question(
     agent_log: list[dict[str, Any]] = []
     parsed = {"answer": "", "document_ids": [], "citations": []}
     started = time.time()
+    attempts = 0
     if skip_agent:
         error = "skipped"
     else:
-        try:
-            raw_output = run_pifs_agent(
-                filesystem,
-                prompt,
-                model=model,
-                root="/",
-                system_prompt=system_prompt,
-                verbose=verbose,
-                stream_mode=stream_mode,
-                reasoning_effort=reasoning_effort,
-                reasoning_summary=reasoning_summary,
-                max_seconds=max_seconds,
-                output_type=PIFSAgentAnswer,
-                agent_log=agent_log,
-            )
-            parsed = parse_agent_json(raw_output)
-        except Exception as exc:  # noqa: BLE001 - benchmark runner records failures.
-            error = f"{type(exc).__name__}: {exc}"
+        max_attempts = max(1, agent_retries + 1)
+        for attempt in range(1, max_attempts + 1):
+            attempts = attempt
+            try:
+                raw_output = run_pifs_agent(
+                    filesystem,
+                    prompt,
+                    model=model,
+                    root="/",
+                    system_prompt=system_prompt,
+                    verbose=verbose,
+                    stream_mode=stream_mode,
+                    reasoning_effort=reasoning_effort,
+                    reasoning_summary=reasoning_summary,
+                    max_seconds=max_seconds,
+                    output_type=PIFSAgentAnswer,
+                    agent_log=agent_log,
+                )
+                parsed = parse_agent_json(raw_output)
+                error = None
+                break
+            except Exception as exc:  # noqa: BLE001 - benchmark runner records failures.
+                error = f"{type(exc).__name__}: {exc}"
+                if attempt >= max_attempts or not is_retryable_agent_error(exc):
+                    break
+                delay = max(0, agent_retry_delay) * attempt
+                print(
+                    f"[benchmark retry] {question.question_id} attempt={attempt} "
+                    f"error={error}; sleeping {delay:g}s",
+                    flush=True,
+                )
+                time.sleep(delay)
     expected = set(question.expected_doc_ids)
     document_ids = list(dict.fromkeys(str(item) for item in parsed.get("document_ids", [])))
     seconds = time.time() - started
@@ -349,8 +382,23 @@ def run_question(
         "raw_output": raw_output,
         "agent_log": agent_log,
         "error": error,
+        "attempts": attempts,
         "seconds": round(seconds, 3),
     }
+
+
+def is_retryable_agent_error(exc: Exception) -> bool:
+    name = type(exc).__name__
+    if name in {
+        "APIConnectionError",
+        "APITimeoutError",
+        "RateLimitError",
+        "InternalServerError",
+        "ServiceUnavailableError",
+    }:
+        return True
+    status_code = getattr(exc, "status_code", None)
+    return isinstance(status_code, int) and (status_code == 429 or status_code >= 500)
 
 
 def agent_prompt(
