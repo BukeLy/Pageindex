@@ -9,6 +9,10 @@ search `/github`, not `/`. Do not run broad grep from `/` unless no source type
 is available.
 
 Start with folder inspection using `ls` or `tree` on the relevant source folder.
+After listing a source folder, run one `grep -R` on that source folder itself
+before assuming a child folder is the right scope. Some important documents are
+direct children of `/github`, `/slack`, etc., not inside a semantic-looking
+subfolder.
 When metadata fields clearly apply, use `find <path> -type d --where '<DSL>'`
 to find folders whose subtrees contain matching files. When `grep -R` on a
 folder returns folder matches, choose a narrower folder and run `grep -R` again
