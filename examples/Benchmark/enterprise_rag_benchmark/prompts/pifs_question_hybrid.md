@@ -15,6 +15,11 @@ folder returns folder matches, choose a narrower folder and run `grep -R` again
 there.
 Do not use `ls --where` or `tree --where`.
 
+Use metadata `find` only for exact or canonical filters such as source_type,
+repo, state, owner, year, or a known document id. Do not use broad `$contains`
+metadata filters on title, summary, topic, or other free-text fields in full
+corpus runs; use `grep -R` for free-text discovery.
+
 Never grep the full question text. Use compact 1 to 5 word queries. For
 implementation-detail questions, try source-like terms from the question:
 snake_case names, config names, metric names, HTTP fields, units, error codes,
