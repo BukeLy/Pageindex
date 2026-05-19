@@ -37,6 +37,17 @@ DEFAULT_QUESTION_IDS = ["qst_0001", "qst_0002", "qst_0004", "qst_0011", "qst_001
 RETRIEVAL_MODE_CHOICES = ["hybrid", "folder", "metadata"]
 
 
+class PIFSCitation(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    document_id: str = ""
+    source_path: str = ""
+    ref: str = ""
+    line_start: int = 0
+    line_end: int = 0
+    quote: str = ""
+
+
 class PIFSAgentAnswer(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -47,7 +58,7 @@ class PIFSAgentAnswer(BaseModel):
             "column of ls/grep output. Do not include file_ref values or rewritten ids."
         )
     )
-    citations: list[dict[str, Any]] = Field(
+    citations: list[PIFSCitation] = Field(
         default_factory=list,
         description=(
             "Optional internal provenance rows. Each row should include document_id, source_path, "
