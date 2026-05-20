@@ -15,6 +15,41 @@ scale.
 - `sources.md`: papers, systems, and local implementation references that
   inspired the experiment. Keep this updated when adding new ideas so future
   writeups can cite the original source.
+- `run_projection_recall.py`: local JSON/profile based offline recall preflight.
+  It does not require DuckDB, a vector DB, or external APIs.
+
+## Current Smoke
+
+Run:
+
+```bash
+uv run python examples/Benchmark/enterprise_rag_benchmark/auto_gen_research/entity_relation_research/run_projection_recall.py \
+  --candidate-limit 100
+```
+
+Input:
+
+- 100 selected EnterpriseRAG questions from
+  `auto_gen_research/results/20260515-100docs-agent-eval/selected_questions.json`.
+- 100 selected documents from
+  `auto_gen_research/results/20260515-100docs-agent-eval/selected_documents.json`.
+- Generated document profiles from `auto_gen_research/generated/doc_profiles.json`.
+
+Latest result:
+
+- `baseline_metadata_text`: hit@50 `0.99`
+- `summary_only_text`: hit@50 `0.99`
+- `entity_constraint_projection`: hit@50 `0.91`
+- `entity_relation_projection`: hit@50 `0.98`
+- `hybrid_projection_text`: hit@50 `1.00`
+
+Interpretation:
+
+- Pure entity/constraint projection is too lossy.
+- Adding relation text recovers much of the missing signal.
+- Hybrid projection is the only tested variant with no misses at hit@100 in the
+  100-doc profile universe.
+- This is still a small profile-based smoke, not full-corpus proof.
 
 ## Boundary
 
