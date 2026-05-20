@@ -117,6 +117,27 @@ RELATION_VERBS = {
     "validates",
 }
 
+SOURCE_HINTS = {
+    "github": {
+        "github",
+        "pull request",
+        "pr",
+        "merge",
+        "reviewer",
+        "runtime",
+        "api",
+        "sdk",
+    },
+    "gmail": {"email", "thread", "inbox", "message", "vendor", "contract"},
+    "slack": {"slack", "channel", "security team", "incident channel", "thread"},
+    "jira": {"jira", "ticket", "issue", "sprint", "epic", "bug"},
+    "linear": {"linear", "issue", "ticket", "roadmap", "engineering task"},
+    "confluence": {"confluence", "policy", "runbook", "kb", "knowledge base", "page"},
+    "google_drive": {"google drive", "doc", "document", "deck", "spreadsheet", "report"},
+    "fireflies": {"meeting", "call", "transcript", "handoff", "standup"},
+    "hubspot": {"hubspot", "customer", "account", "deal", "sales", "founder"},
+}
+
 
 @dataclass(frozen=True)
 class Question:
@@ -339,10 +360,21 @@ def run_experiment(
             ranked = score_query(inverted, query_texts, limit=candidate_limit)
             ranked_ids = [doc_id for doc_id, _score in ranked]
             row["strategy_results"][strategy_name] = strategy_result(question.expected_doc_ids, ranked_ids)
+
+        extra_rankings = advanced_strategy_rankings(
+            question,
+            docs=docs,
+            field_texts=strategies,
+            indexes=indexes,
+            query_parts=query_parts,
+            limit=candidate_limit,
+        )
+        for strategy_name, ranked_ids in extra_rankings.items():
+            row["strategy_results"][strategy_name] = strategy_result(question.expected_doc_ids, ranked_ids)
         rows.append(row)
     summary = {
         strategy_name: summarize_strategy(rows, strategy_name)
-        for strategy_name in strategies
+        for strategy_name in rows[0]["strategy_results"]
     }
     return {
         "summary": summary,
@@ -353,6 +385,291 @@ def run_experiment(
             "source_counts": dict(collections.Counter(doc.source_type for doc in docs).most_common()),
         },
     }
+
+
+def advanced_strategy_rankings(
+    question: Question,
+    *,
+    docs: list[Document],
+    field_texts: dict[str, dict[str, str]],
+    indexes: dict[str, dict[str, Any]],
+    query_parts: dict[str, list[str]],
+    limit: int,
+) -> dict[str, list[str]]:
+    question_text = question.question
+    entity_constraint_query = " ".join(query_parts.get("entity_constraint") or [])
+    entity_relation_query = " ".join(query_parts.get("entity_relation") or [])
+    source_hints = classify_source_hints(question_text)
+    return {
+        "rrf_summary_metadata_relation": rrf_fuse_rankings(
+            [
+                ranked_ids(score_query(indexes["summary_only_text"], [question_text], limit=limit)),
+                ranked_ids(score_query(indexes["baseline_metadata_text"], [question_text], limit=limit)),
+                ranked_ids(score_query(indexes["entity_relation_projection"], query_parts["entity_relation"], limit=limit)),
+            ],
+            limit=limit,
+        ),
+        "multi_probe_rrf": rrf_fuse_rankings(
+            multi_probe_rankings(question_text, indexes=indexes, query_parts=query_parts, limit=limit),
+            limit=limit,
+        ),
+        "pseudo_late_interaction": pseudo_late_interaction_rank(
+            indexes=indexes,
+            question_text=question_text,
+            entity_constraint_query=entity_constraint_query,
+            entity_relation_query=entity_relation_query,
+            limit=limit,
+        ),
+        "constraint_exact_boost": constraint_exact_boost_rank(
+            base_index=indexes["hybrid_projection_text"],
+            field_text=field_texts["hybrid_projection_text"],
+            question_text=question_text,
+            query_parts=query_parts,
+            limit=limit,
+        ),
+        "source_hint_boost": source_hint_boost_rank(
+            docs=docs,
+            base_index=indexes["hybrid_projection_text"],
+            question_text=question_text,
+            source_hints=source_hints,
+            limit=limit,
+        ),
+        "prf_metadata_expansion": pseudo_relevance_feedback_rank(
+            indexes=indexes,
+            field_texts=field_texts,
+            question_text=question_text,
+            limit=limit,
+        ),
+        "hybrid_rrf_exact_source": hybrid_rrf_exact_source_rank(
+            docs=docs,
+            field_texts=field_texts,
+            indexes=indexes,
+            question_text=question_text,
+            query_parts=query_parts,
+            source_hints=source_hints,
+            limit=limit,
+        ),
+    }
+
+
+def ranked_ids(ranked: list[tuple[str, float]]) -> list[str]:
+    return [doc_id for doc_id, _score in ranked]
+
+
+def multi_probe_rankings(
+    question_text: str,
+    *,
+    indexes: dict[str, dict[str, Any]],
+    query_parts: dict[str, list[str]],
+    limit: int,
+) -> list[list[str]]:
+    probes = [
+        [question_text],
+        query_parts.get("entity_constraint") or [question_text],
+        query_parts.get("entity_relation") or [question_text],
+    ]
+    fields = [
+        "summary_only_text",
+        "baseline_metadata_text",
+        "entity_relation_projection",
+        "hybrid_projection_text",
+    ]
+    rankings = []
+    for field in fields:
+        for probe in probes:
+            rankings.append(ranked_ids(score_query(indexes[field], probe, limit=limit)))
+    return rankings
+
+
+def rrf_fuse_rankings(
+    rankings: list[list[str]],
+    *,
+    limit: int,
+    k: int = 60,
+    weights: list[float] | None = None,
+) -> list[str]:
+    scores: dict[str, float] = collections.defaultdict(float)
+    for ranking_index, ranking in enumerate(rankings):
+        weight = weights[ranking_index] if weights and ranking_index < len(weights) else 1.0
+        for rank, doc_id in enumerate(ranking, start=1):
+            scores[doc_id] += weight / (k + rank)
+    return [doc_id for doc_id, _score in sorted(scores.items(), key=lambda item: (-item[1], item[0]))[:limit]]
+
+
+def pseudo_late_interaction_rank(
+    *,
+    indexes: dict[str, dict[str, Any]],
+    question_text: str,
+    entity_constraint_query: str,
+    entity_relation_query: str,
+    limit: int,
+) -> list[str]:
+    channels = [
+        ("summary_only_text", [question_text], 0.7),
+        ("baseline_metadata_text", [question_text], 1.0),
+        ("entity_constraint_projection", [entity_constraint_query or question_text], 0.85),
+        ("entity_relation_projection", [entity_relation_query or question_text], 1.2),
+        ("hybrid_projection_text", [question_text, entity_relation_query], 1.0),
+    ]
+    scores: dict[str, float] = collections.defaultdict(float)
+    for field, query_texts, weight in channels:
+        raw_scores = score_query_scores(indexes[field], query_texts)
+        max_score = max(raw_scores.values(), default=1.0) or 1.0
+        for doc_id, score in raw_scores.items():
+            scores[doc_id] += weight * (score / max_score)
+    return [doc_id for doc_id, _score in sorted(scores.items(), key=lambda item: (-item[1], item[0]))[:limit]]
+
+
+def constraint_exact_boost_rank(
+    *,
+    base_index: dict[str, Any],
+    field_text: dict[str, str],
+    question_text: str,
+    query_parts: dict[str, list[str]],
+    limit: int,
+) -> list[str]:
+    scores = normalized_scores(score_query_scores(base_index, [question_text, *query_parts.get("entity_relation", [])]))
+    exact_terms = exact_recall_terms(question_text, query_parts=query_parts)
+    for doc_id, text in field_text.items():
+        overlap = exact_overlap_score(text, exact_terms)
+        if overlap:
+            scores[doc_id] = scores.get(doc_id, 0.0) + overlap
+    return [doc_id for doc_id, _score in sorted(scores.items(), key=lambda item: (-item[1], item[0]))[:limit]]
+
+
+def source_hint_boost_rank(
+    *,
+    docs: list[Document],
+    base_index: dict[str, Any],
+    question_text: str,
+    source_hints: set[str],
+    limit: int,
+) -> list[str]:
+    scores = normalized_scores(score_query_scores(base_index, [question_text]))
+    source_by_doc = {doc.doc_id: doc.source_type for doc in docs}
+    for doc_id, source_type in source_by_doc.items():
+        if source_type in source_hints:
+            scores[doc_id] = scores.get(doc_id, 0.0) + 0.22
+    return [doc_id for doc_id, _score in sorted(scores.items(), key=lambda item: (-item[1], item[0]))[:limit]]
+
+
+def pseudo_relevance_feedback_rank(
+    *,
+    indexes: dict[str, dict[str, Any]],
+    field_texts: dict[str, dict[str, str]],
+    question_text: str,
+    limit: int,
+) -> list[str]:
+    seed_ids = ranked_ids(score_query(indexes["summary_only_text"], [question_text], limit=min(8, limit)))
+    expansion = feedback_terms(
+        seed_ids,
+        field_text=field_texts["baseline_metadata_text"],
+        original_query=question_text,
+        limit=16,
+    )
+    expanded_query = " ".join([question_text, *expansion])
+    return rrf_fuse_rankings(
+        [
+            ranked_ids(score_query(indexes["summary_only_text"], [question_text], limit=limit)),
+            ranked_ids(score_query(indexes["baseline_metadata_text"], [expanded_query], limit=limit)),
+            ranked_ids(score_query(indexes["hybrid_projection_text"], [expanded_query], limit=limit)),
+        ],
+        limit=limit,
+        weights=[0.8, 1.0, 1.1],
+    )
+
+
+def hybrid_rrf_exact_source_rank(
+    *,
+    docs: list[Document],
+    field_texts: dict[str, dict[str, str]],
+    indexes: dict[str, dict[str, Any]],
+    question_text: str,
+    query_parts: dict[str, list[str]],
+    source_hints: set[str],
+    limit: int,
+) -> list[str]:
+    rrf_ids = rrf_fuse_rankings(
+        [
+            ranked_ids(score_query(indexes["summary_only_text"], [question_text], limit=limit)),
+            ranked_ids(score_query(indexes["baseline_metadata_text"], [question_text], limit=limit)),
+            ranked_ids(score_query(indexes["entity_relation_projection"], query_parts["entity_relation"], limit=limit)),
+            ranked_ids(score_query(indexes["hybrid_projection_text"], [question_text, *query_parts["entity_relation"]], limit=limit)),
+        ],
+        limit=limit,
+        weights=[0.7, 1.0, 1.1, 1.2],
+    )
+    source_by_doc = {doc.doc_id: doc.source_type for doc in docs}
+    exact_terms = exact_recall_terms(question_text, query_parts=query_parts)
+    scores: dict[str, float] = {}
+    for rank, doc_id in enumerate(rrf_ids, start=1):
+        score = 1.0 / rank
+        score += exact_overlap_score(field_texts["hybrid_projection_text"].get(doc_id, ""), exact_terms)
+        if source_by_doc.get(doc_id) in source_hints:
+            score += 0.12
+        scores[doc_id] = score
+    return [doc_id for doc_id, _score in sorted(scores.items(), key=lambda item: (-item[1], item[0]))[:limit]]
+
+
+def feedback_terms(
+    seed_ids: list[str],
+    *,
+    field_text: dict[str, str],
+    original_query: str,
+    limit: int,
+) -> list[str]:
+    query_tokens = set(tokens(original_query))
+    counts: collections.Counter[str] = collections.Counter()
+    for doc_id in seed_ids:
+        counts.update(tokens(field_text.get(doc_id, "")))
+    values = []
+    for token, count in counts.most_common(80):
+        if token in query_tokens or token in STOPWORDS or len(token) < 3:
+            continue
+        if count < 2 and not is_identifier_or_measurement(token):
+            continue
+        values.append(token)
+        if len(values) >= limit:
+            break
+    return values
+
+
+def exact_recall_terms(question_text: str, *, query_parts: dict[str, list[str]]) -> list[str]:
+    values = []
+    for item in [question_text, *(query_parts.get("entity_relation") or [])]:
+        for token in tokens(item):
+            if is_identifier_or_measurement(token) or token not in STOPWORDS and len(token) >= 5:
+                values.append(token)
+    return dedupe(values)[:48]
+
+
+def exact_overlap_score(text: str, exact_terms: list[str]) -> float:
+    if not exact_terms:
+        return 0.0
+    text_tokens = set(tokens(text))
+    score = 0.0
+    for term in exact_terms:
+        if term in text_tokens:
+            score += 0.045 if is_identifier_or_measurement(term) else 0.018
+    return min(score, 0.45)
+
+
+def is_identifier_or_measurement(token: str) -> bool:
+    return any(char.isdigit() for char in token) or "_" in token or "-" in token or "/" in token or "." in token
+
+
+def classify_source_hints(question_text: str) -> set[str]:
+    lowered = question_text.lower()
+    hints = set()
+    for source_type, terms in SOURCE_HINTS.items():
+        if any(term in lowered for term in terms):
+            hints.add(source_type)
+    return hints
+
+
+def normalized_scores(scores: dict[str, float]) -> dict[str, float]:
+    max_score = max(scores.values(), default=1.0) or 1.0
+    return {doc_id: score / max_score for doc_id, score in scores.items()}
 
 
 def build_doc_texts(docs: list[Document], mode: str) -> dict[str, str]:
@@ -490,6 +807,11 @@ def build_inverted_index(texts: dict[str, str]) -> dict[str, Any]:
 
 
 def score_query(index: dict[str, Any], query_texts: list[str], *, limit: int) -> list[tuple[str, float]]:
+    scores = score_query_scores(index, query_texts)
+    return sorted(scores.items(), key=lambda item: (-item[1], item[0]))[:limit]
+
+
+def score_query_scores(index: dict[str, Any], query_texts: list[str]) -> dict[str, float]:
     query_counts = collections.Counter()
     for text in query_texts:
         query_counts.update(tokens(text))
@@ -509,7 +831,7 @@ def score_query(index: dict[str, Any], query_texts: list[str], *, limit: int) ->
             length = doc_lengths[doc_id]
             denom = tf + k1 * (1.0 - b + b * length / avg_len)
             scores[doc_id] += token_idf * (tf * (k1 + 1.0)) / denom
-    return sorted(scores.items(), key=lambda item: (-item[1], item[0]))[:limit]
+    return dict(scores)
 
 
 def strategy_result(expected_doc_ids: list[str], ranked_ids: list[str]) -> dict[str, Any]:
@@ -616,6 +938,18 @@ def extract_relations(text: str, *, entities: list[str], constraints: list[str],
 
 def normalize_phrase(value: str) -> str:
     return re.sub(r"\s+", " ", value.strip(" \t\r\n,.;:()[]{}\"'")).strip()
+
+
+def dedupe(values: Iterable[str]) -> list[str]:
+    seen = set()
+    output = []
+    for value in values:
+        key = value.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        output.append(value)
+    return output
 
 
 def compact(text: str, limit: int) -> str:

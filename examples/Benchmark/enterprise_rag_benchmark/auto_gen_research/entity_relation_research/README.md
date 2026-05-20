@@ -46,6 +46,7 @@ Latest result:
 Canonical result directory:
 
 - `results/projection-field-ablation-20260520-100docs/`
+- `results/projection-method-ablation-20260520-100docs/`
 
 Interpretation:
 
@@ -57,6 +58,15 @@ Interpretation:
   this 100-doc universe.
 - This result is not full-corpus proof because the document universe is the
   selected 100-doc benchmark profile set, not a large decoy-heavy workspace.
+
+Method ablation update:
+
+- `rrf_summary_metadata_relation` has the best MRR among tested local methods:
+  `0.9768`.
+- `hybrid_rrf_exact_source` is the only tested local method with hit@10 `1.00`.
+- Pseudo relevance feedback hurts MRR in this dataset and should not be
+  promoted.
+- Entity/constraint-only remains rejected.
 
 ## Boundary
 
