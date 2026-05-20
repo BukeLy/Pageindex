@@ -1,0 +1,243 @@
+{
+  "workspace": "/Users/chengjie/.codex/worktrees/6d00/PageIndex/examples/Benchmark/enterprise_rag_benchmark/auto_gen_research/v2/workspaces/20260517-100docs-semantic-v2-gpt54mini/semantic-metadata-folders-v2",
+  "field_modes": [
+    "summary",
+    "metadata",
+    "fulltext"
+  ],
+  "embedding_provider": "openai",
+  "embedding_model": "text-embedding-3-small",
+  "embedding_dimensions": 256,
+  "max_docs": 100,
+  "candidate_limit": 50,
+  "seconds": 10.121,
+  "ranking": [
+    {
+      "field_mode": "fulltext",
+      "hit_at_1": 0.9,
+      "hit_at_5": 1.0,
+      "hit_at_10": 1.0,
+      "hit_at_50": 1.0,
+      "hit_at_limit": 1.0,
+      "mean_best_rank": 1.1,
+      "indexed_rows": 100
+    },
+    {
+      "field_mode": "metadata",
+      "hit_at_1": 0.8666666666666667,
+      "hit_at_5": 1.0,
+      "hit_at_10": 1.0,
+      "hit_at_50": 1.0,
+      "hit_at_limit": 1.0,
+      "mean_best_rank": 1.1666666666666667,
+      "indexed_rows": 100
+    },
+    {
+      "field_mode": "summary",
+      "hit_at_1": 0.8666666666666667,
+      "hit_at_5": 0.9666666666666667,
+      "hit_at_10": 1.0,
+      "hit_at_50": 1.0,
+      "hit_at_limit": 1.0,
+      "mean_best_rank": 1.3666666666666667,
+      "indexed_rows": 100
+    }
+  ],
+  "summaries": {
+    "summary": {
+      "build": {
+        "workspace": "/Users/chengjie/.codex/worktrees/6d00/PageIndex/examples/Benchmark/enterprise_rag_benchmark/auto_gen_research/v2/workspaces/20260517-100docs-semantic-v2-gpt54mini/semantic-metadata-folders-v2",
+        "index_path": "/Users/chengjie/.codex/worktrees/6d00/PageIndex/examples/Benchmark/enterprise_rag_benchmark/auto_gen_research/v2/workspaces/20260517-100docs-semantic-v2-gpt54mini/semantic-metadata-folders-v2/semantic_vector_indexes/summary.sqlite",
+        "field_mode": "summary",
+        "embedding_provider": "openai",
+        "embedding_model": "text-embedding-3-small",
+        "embedding_dimensions": 256,
+        "source_rows": 100,
+        "indexed_rows": 100,
+        "skipped_empty": 0,
+        "seconds": 0.807,
+        "index_info": {
+          "db_path": "/Users/chengjie/.codex/worktrees/6d00/PageIndex/examples/Benchmark/enterprise_rag_benchmark/auto_gen_research/v2/workspaces/20260517-100docs-semantic-v2-gpt54mini/semantic-metadata-folders-v2/semantic_vector_indexes/summary.sqlite",
+          "adapter": "sqlite-vec",
+          "adapter_version": "0.1.9",
+          "dimension": 256,
+          "document_count": 100,
+          "metadata": {
+            "embedding_dimensions": 256,
+            "embedding_model": "text-embedding-3-small",
+            "embedding_provider": "openai",
+            "field_mode": "summary",
+            "max_fulltext_chars": 8000,
+            "workspace": "/Users/chengjie/.codex/worktrees/6d00/PageIndex/examples/Benchmark/enterprise_rag_benchmark/auto_gen_research/v2/workspaces/20260517-100docs-semantic-v2-gpt54mini/semantic-metadata-folders-v2"
+          }
+        }
+      },
+      "probe": {
+        "output": "/Users/chengjie/.codex/worktrees/6d00/PageIndex/examples/Benchmark/enterprise_rag_benchmark/auto_gen_research/full_workspace_layer/results/vector-field-ablation-20260520-012613/summary.probe.json",
+        "question_count": 30,
+        "hit_at_1": 0.8666666666666667,
+        "hit_at_5": 0.9666666666666667,
+        "hit_at_10": 1.0,
+        "hit_at_50": 1.0,
+        "hit_at_limit": 1.0,
+        "candidate_limit_observed": 16,
+        "mean_best_rank": 1.3666666666666667,
+        "misses": [],
+        "workspace": "/Users/chengjie/.codex/worktrees/6d00/PageIndex/examples/Benchmark/enterprise_rag_benchmark/auto_gen_research/v2/workspaces/20260517-100docs-semantic-v2-gpt54mini/semantic-metadata-folders-v2",
+        "index_path": "/Users/chengjie/.codex/worktrees/6d00/PageIndex/examples/Benchmark/enterprise_rag_benchmark/auto_gen_research/v2/workspaces/20260517-100docs-semantic-v2-gpt54mini/semantic-metadata-folders-v2/semantic_vector_indexes/summary.sqlite",
+        "index_info": {
+          "db_path": "/Users/chengjie/.codex/worktrees/6d00/PageIndex/examples/Benchmark/enterprise_rag_benchmark/auto_gen_research/v2/workspaces/20260517-100docs-semantic-v2-gpt54mini/semantic-metadata-folders-v2/semantic_vector_indexes/summary.sqlite",
+          "adapter": "sqlite-vec",
+          "adapter_version": "0.1.9",
+          "dimension": 256,
+          "document_count": 100,
+          "metadata": {
+            "embedding_dimensions": 256,
+            "embedding_model": "text-embedding-3-small",
+            "embedding_provider": "openai",
+            "field_mode": "summary",
+            "max_fulltext_chars": 8000,
+            "workspace": "/Users/chengjie/.codex/worktrees/6d00/PageIndex/examples/Benchmark/enterprise_rag_benchmark/auto_gen_research/v2/workspaces/20260517-100docs-semantic-v2-gpt54mini/semantic-metadata-folders-v2"
+          }
+        },
+        "field_mode": "summary",
+        "embedding_provider": "openai",
+        "embedding_model": "text-embedding-3-small",
+        "embedding_dimensions": 256,
+        "candidate_limit": 50,
+        "fetch_multiplier": 100,
+        "seconds": 6.433
+      }
+    },
+    "metadata": {
+      "build": {
+        "workspace": "/Users/chengjie/.codex/worktrees/6d00/PageIndex/examples/Benchmark/enterprise_rag_benchmark/auto_gen_research/v2/workspaces/20260517-100docs-semantic-v2-gpt54mini/semantic-metadata-folders-v2",
+        "index_path": "/Users/chengjie/.codex/worktrees/6d00/PageIndex/examples/Benchmark/enterprise_rag_benchmark/auto_gen_research/v2/workspaces/20260517-100docs-semantic-v2-gpt54mini/semantic-metadata-folders-v2/semantic_vector_indexes/metadata.sqlite",
+        "field_mode": "metadata",
+        "embedding_provider": "openai",
+        "embedding_model": "text-embedding-3-small",
+        "embedding_dimensions": 256,
+        "source_rows": 100,
+        "indexed_rows": 100,
+        "skipped_empty": 0,
+        "seconds": 1.267,
+        "index_info": {
+          "db_path": "/Users/chengjie/.codex/worktrees/6d00/PageIndex/examples/Benchmark/enterprise_rag_benchmark/auto_gen_research/v2/workspaces/20260517-100docs-semantic-v2-gpt54mini/semantic-metadata-folders-v2/semantic_vector_indexes/metadata.sqlite",
+          "adapter": "sqlite-vec",
+          "adapter_version": "0.1.9",
+          "dimension": 256,
+          "document_count": 100,
+          "metadata": {
+            "embedding_dimensions": 256,
+            "embedding_model": "text-embedding-3-small",
+            "embedding_provider": "openai",
+            "field_mode": "metadata",
+            "max_fulltext_chars": 8000,
+            "workspace": "/Users/chengjie/.codex/worktrees/6d00/PageIndex/examples/Benchmark/enterprise_rag_benchmark/auto_gen_research/v2/workspaces/20260517-100docs-semantic-v2-gpt54mini/semantic-metadata-folders-v2"
+          }
+        }
+      },
+      "probe": {
+        "output": "/Users/chengjie/.codex/worktrees/6d00/PageIndex/examples/Benchmark/enterprise_rag_benchmark/auto_gen_research/full_workspace_layer/results/vector-field-ablation-20260520-012613/metadata.probe.json",
+        "question_count": 30,
+        "hit_at_1": 0.8666666666666667,
+        "hit_at_5": 1.0,
+        "hit_at_10": 1.0,
+        "hit_at_50": 1.0,
+        "hit_at_limit": 1.0,
+        "candidate_limit_observed": 16,
+        "mean_best_rank": 1.1666666666666667,
+        "misses": [],
+        "workspace": "/Users/chengjie/.codex/worktrees/6d00/PageIndex/examples/Benchmark/enterprise_rag_benchmark/auto_gen_research/v2/workspaces/20260517-100docs-semantic-v2-gpt54mini/semantic-metadata-folders-v2",
+        "index_path": "/Users/chengjie/.codex/worktrees/6d00/PageIndex/examples/Benchmark/enterprise_rag_benchmark/auto_gen_research/v2/workspaces/20260517-100docs-semantic-v2-gpt54mini/semantic-metadata-folders-v2/semantic_vector_indexes/metadata.sqlite",
+        "index_info": {
+          "db_path": "/Users/chengjie/.codex/worktrees/6d00/PageIndex/examples/Benchmark/enterprise_rag_benchmark/auto_gen_research/v2/workspaces/20260517-100docs-semantic-v2-gpt54mini/semantic-metadata-folders-v2/semantic_vector_indexes/metadata.sqlite",
+          "adapter": "sqlite-vec",
+          "adapter_version": "0.1.9",
+          "dimension": 256,
+          "document_count": 100,
+          "metadata": {
+            "embedding_dimensions": 256,
+            "embedding_model": "text-embedding-3-small",
+            "embedding_provider": "openai",
+            "field_mode": "metadata",
+            "max_fulltext_chars": 8000,
+            "workspace": "/Users/chengjie/.codex/worktrees/6d00/PageIndex/examples/Benchmark/enterprise_rag_benchmark/auto_gen_research/v2/workspaces/20260517-100docs-semantic-v2-gpt54mini/semantic-metadata-folders-v2"
+          }
+        },
+        "field_mode": "metadata",
+        "embedding_provider": "openai",
+        "embedding_model": "text-embedding-3-small",
+        "embedding_dimensions": 256,
+        "candidate_limit": 50,
+        "fetch_multiplier": 100,
+        "seconds": 0.05
+      }
+    },
+    "fulltext": {
+      "build": {
+        "workspace": "/Users/chengjie/.codex/worktrees/6d00/PageIndex/examples/Benchmark/enterprise_rag_benchmark/auto_gen_research/v2/workspaces/20260517-100docs-semantic-v2-gpt54mini/semantic-metadata-folders-v2",
+        "index_path": "/Users/chengjie/.codex/worktrees/6d00/PageIndex/examples/Benchmark/enterprise_rag_benchmark/auto_gen_research/v2/workspaces/20260517-100docs-semantic-v2-gpt54mini/semantic-metadata-folders-v2/semantic_vector_indexes/fulltext.sqlite",
+        "field_mode": "fulltext",
+        "embedding_provider": "openai",
+        "embedding_model": "text-embedding-3-small",
+        "embedding_dimensions": 256,
+        "source_rows": 100,
+        "indexed_rows": 100,
+        "skipped_empty": 0,
+        "seconds": 1.517,
+        "index_info": {
+          "db_path": "/Users/chengjie/.codex/worktrees/6d00/PageIndex/examples/Benchmark/enterprise_rag_benchmark/auto_gen_research/v2/workspaces/20260517-100docs-semantic-v2-gpt54mini/semantic-metadata-folders-v2/semantic_vector_indexes/fulltext.sqlite",
+          "adapter": "sqlite-vec",
+          "adapter_version": "0.1.9",
+          "dimension": 256,
+          "document_count": 100,
+          "metadata": {
+            "embedding_dimensions": 256,
+            "embedding_model": "text-embedding-3-small",
+            "embedding_provider": "openai",
+            "field_mode": "fulltext",
+            "max_fulltext_chars": 8000,
+            "workspace": "/Users/chengjie/.codex/worktrees/6d00/PageIndex/examples/Benchmark/enterprise_rag_benchmark/auto_gen_research/v2/workspaces/20260517-100docs-semantic-v2-gpt54mini/semantic-metadata-folders-v2"
+          }
+        }
+      },
+      "probe": {
+        "output": "/Users/chengjie/.codex/worktrees/6d00/PageIndex/examples/Benchmark/enterprise_rag_benchmark/auto_gen_research/full_workspace_layer/results/vector-field-ablation-20260520-012613/fulltext.probe.json",
+        "question_count": 30,
+        "hit_at_1": 0.9,
+        "hit_at_5": 1.0,
+        "hit_at_10": 1.0,
+        "hit_at_50": 1.0,
+        "hit_at_limit": 1.0,
+        "candidate_limit_observed": 16,
+        "mean_best_rank": 1.1,
+        "misses": [],
+        "workspace": "/Users/chengjie/.codex/worktrees/6d00/PageIndex/examples/Benchmark/enterprise_rag_benchmark/auto_gen_research/v2/workspaces/20260517-100docs-semantic-v2-gpt54mini/semantic-metadata-folders-v2",
+        "index_path": "/Users/chengjie/.codex/worktrees/6d00/PageIndex/examples/Benchmark/enterprise_rag_benchmark/auto_gen_research/v2/workspaces/20260517-100docs-semantic-v2-gpt54mini/semantic-metadata-folders-v2/semantic_vector_indexes/fulltext.sqlite",
+        "index_info": {
+          "db_path": "/Users/chengjie/.codex/worktrees/6d00/PageIndex/examples/Benchmark/enterprise_rag_benchmark/auto_gen_research/v2/workspaces/20260517-100docs-semantic-v2-gpt54mini/semantic-metadata-folders-v2/semantic_vector_indexes/fulltext.sqlite",
+          "adapter": "sqlite-vec",
+          "adapter_version": "0.1.9",
+          "dimension": 256,
+          "document_count": 100,
+          "metadata": {
+            "embedding_dimensions": 256,
+            "embedding_model": "text-embedding-3-small",
+            "embedding_provider": "openai",
+            "field_mode": "fulltext",
+            "max_fulltext_chars": 8000,
+            "workspace": "/Users/chengjie/.codex/worktrees/6d00/PageIndex/examples/Benchmark/enterprise_rag_benchmark/auto_gen_research/v2/workspaces/20260517-100docs-semantic-v2-gpt54mini/semantic-metadata-folders-v2"
+          }
+        },
+        "field_mode": "fulltext",
+        "embedding_provider": "openai",
+        "embedding_model": "text-embedding-3-small",
+        "embedding_dimensions": 256,
+        "candidate_limit": 50,
+        "fetch_multiplier": 100,
+        "seconds": 0.032
+      }
+    }
+  }
+}

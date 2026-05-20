@@ -1,0 +1,3877 @@
+{
+  "question_count": 30,
+  "hit_at_1": 0.9,
+  "hit_at_5": 1.0,
+  "hit_at_10": 1.0,
+  "hit_at_50": 1.0,
+  "hit_at_limit": 1.0,
+  "candidate_limit_observed": 16,
+  "mean_best_rank": 1.1333333333333333,
+  "misses": [],
+  "workspace": "/Users/chengjie/.codex/worktrees/6d00/PageIndex/examples/Benchmark/enterprise_rag_benchmark/auto_gen_research/v2/workspaces/20260517-100docs-semantic-v2-gpt54mini/semantic-metadata-folders-v2",
+  "index_path": "/Users/chengjie/.codex/worktrees/6d00/PageIndex/examples/Benchmark/enterprise_rag_benchmark/auto_gen_research/v2/workspaces/20260517-100docs-semantic-v2-gpt54mini/semantic-metadata-folders-v2/semantic_vector_indexes/metadata.sqlite",
+  "index_info": {
+    "db_path": "/Users/chengjie/.codex/worktrees/6d00/PageIndex/examples/Benchmark/enterprise_rag_benchmark/auto_gen_research/v2/workspaces/20260517-100docs-semantic-v2-gpt54mini/semantic-metadata-folders-v2/semantic_vector_indexes/metadata.sqlite",
+    "adapter": "sqlite-vec",
+    "adapter_version": "0.1.9",
+    "dimension": 1536,
+    "document_count": 100,
+    "metadata": {
+      "embedding_dimensions": 256,
+      "embedding_model": "text-embedding-3-small",
+      "embedding_provider": "openai",
+      "field_mode": "metadata",
+      "max_fulltext_chars": 8000,
+      "workspace": "/Users/chengjie/.codex/worktrees/6d00/PageIndex/examples/Benchmark/enterprise_rag_benchmark/auto_gen_research/v2/workspaces/20260517-100docs-semantic-v2-gpt54mini/semantic-metadata-folders-v2"
+    }
+  },
+  "field_mode": "metadata",
+  "embedding_provider": "openai",
+  "embedding_model": "text-embedding-3-small",
+  "embedding_dimensions": 256,
+  "candidate_limit": 50,
+  "fetch_multiplier": 100,
+  "seconds": 0.054,
+  "questions": [
+    {
+      "question_id": "qst_0001",
+      "source_types": [
+        "github"
+      ],
+      "expected_doc_ids": [
+        "dsid_ae068ee4aa9640159427cd941bef0238"
+      ],
+      "hit_any": true,
+      "best_rank": 1,
+      "top_document_ids": [
+        "dsid_ae068ee4aa9640159427cd941bef0238",
+        "dsid_6c58ddb8ecf543d89fca8352351dea29",
+        "dsid_8779ac72d6504759b701178632772f6c",
+        "dsid_1c53affffb4f477ca476bec3138b60eb",
+        "dsid_9550250a59e74f1bbd5612480b2e7100",
+        "dsid_c7860fdbc17a48b0b6c5f9a0c5e3d054",
+        "dsid_caf02469a41c46cf8387713b83c628f3",
+        "dsid_49215834c17d4f0c98d4ad11f62f0c9a",
+        "dsid_c1a6a71323c04c1ba5445aadea340362",
+        "dsid_426ca69578a84dd4af512e5a2782086e",
+        "dsid_88b39d13bd584ef8b1422d76994808c7"
+      ],
+      "top_hits": [
+        {
+          "rank": 1,
+          "document_id": "dsid_ae068ee4aa9640159427cd941bef0238",
+          "distance": 0.9232726693153381,
+          "file_ref": "file_90f09b89336b14e9",
+          "source_type": "github",
+          "source_path": "github/pr-18421-multipart-file-validation-limits.json",
+          "title": "add multipart/form-data handling, strict content-type validation, and payload limit enforcement for API tool/file inputs"
+        },
+        {
+          "rank": 2,
+          "document_id": "dsid_6c58ddb8ecf543d89fca8352351dea29",
+          "distance": 1.1413602828979492,
+          "file_ref": "file_2550c66a4f1fd8a9",
+          "source_type": "github",
+          "source_path": "github/pr-24930-openai-resp-v3-seed-metadata-reassembly-compat.json",
+          "title": "openai-compat: responses-v3 deterministic-seed routing + metadata passthrough and streaming reassembly"
+        },
+        {
+          "rank": 3,
+          "document_id": "dsid_8779ac72d6504759b701178632772f6c",
+          "distance": 1.1457180976867676,
+          "file_ref": "file_4a0be907d79078bd",
+          "source_type": "github",
+          "source_path": "github/pr-199842-openai-v1-chat-compat-response-sculpting-stop-coalesce.json",
+          "title": "v1 OpenAI chat: response sculpting, stop coalescing, and streaming logprob envelope"
+        },
+        {
+          "rank": 4,
+          "document_id": "dsid_1c53affffb4f477ca476bec3138b60eb",
+          "distance": 1.1796565055847168,
+          "file_ref": "file_6ab9bc67c9b3fd2e",
+          "source_type": "github",
+          "source_path": "github/pr-96123-chat-v1-param-normalizer-role-alias-stop-dedupe-stream-backpressure.json",
+          "title": "chat v1: parameter normalizer, role aliasing, stop dedupe and streaming backpressure improvements for /v1/chat.completions parity"
+        },
+        {
+          "rank": 5,
+          "document_id": "dsid_9550250a59e74f1bbd5612480b2e7100",
+          "distance": 1.206896185874939,
+          "file_ref": "file_2686f50c82216c0e",
+          "source_type": "github",
+          "source_path": "github/pr-129874-timebox-abort-idempotency-resume-openai-compat.json",
+          "title": "introduce-server-timebox-and-idempotent-cancel-fallbacks-for-streaming-compat"
+        },
+        {
+          "rank": 6,
+          "document_id": "dsid_c7860fdbc17a48b0b6c5f9a0c5e3d054",
+          "distance": 1.2095911502838135,
+          "file_ref": "file_cf132b670b005a98",
+          "source_type": "github",
+          "source_path": "github/pr-176421-coalescing-invoker-grace-period-and-structured-output.json",
+          "title": "Coalescing Invoker: grace-period batching, deterministic injection, and structured-output streaming compatibility"
+        },
+        {
+          "rank": 7,
+          "document_id": "dsid_caf02469a41c46cf8387713b83c628f3",
+          "distance": 1.2590677738189697,
+          "file_ref": "file_654d54e5bdbda267",
+          "source_type": "github",
+          "source_path": "github/pr-23145-adaptive-scratch-and-deferred-ckpt-scheduler.json",
+          "title": "adaptive-scratch-capacity-and-deferred-ckpt-scheduler-for-gpu-workspace-reduction"
+        },
+        {
+          "rank": 8,
+          "document_id": "dsid_49215834c17d4f0c98d4ad11f62f0c9a",
+          "distance": 1.2689381837844849,
+          "file_ref": "file_cbf36418bcbfd87c",
+          "source_type": "github",
+          "source_path": "github/pr-75983-deferred-aggregation-telemetry-lattice-and-path-sampling.json",
+          "title": "deferred-aggregation-telemetry-lattice-and-path-sampling"
+        },
+        {
+          "rank": 9,
+          "document_id": "dsid_c1a6a71323c04c1ba5445aadea340362",
+          "distance": 1.2754491567611694,
+          "file_ref": "file_6fca9ec81c8141a3",
+          "source_type": "github",
+          "source_path": "github/pr-867001-introduce-token-stage-cohorting-and-route-matrix-alerting.json",
+          "title": "introduce-token-stage-cohorting-and-route-matrix-alerting"
+        },
+        {
+          "rank": 10,
+          "document_id": "dsid_426ca69578a84dd4af512e5a2782086e",
+          "distance": 1.2789932489395142,
+          "file_ref": "file_51ca88792f201643",
+          "source_type": "github",
+          "source_path": "github/pr-20311-safelock-fastpath-precision-toggle-kv-eviction.json",
+          "title": "Introduce \"safelock\" fast-path gating + precision toggle and KV-eviction safety for runtime"
+        },
+        {
+          "rank": 11,
+          "document_id": "dsid_88b39d13bd584ef8b1422d76994808c7",
+          "distance": 1.2791987657546997,
+          "file_ref": "file_99ffce24460e52d6",
+          "source_type": "github",
+          "source_path": "github/pr-95312-unify-handshake-consumer-ux-and-retry-bump.json",
+          "title": "Cross-SDK: unify streaming handshake, consumer ergonomics, and auth/retry semantics (Python/TS/Go)"
+        }
+      ]
+    },
+    {
+      "question_id": "qst_0002",
+      "source_types": [
+        "github"
+      ],
+      "expected_doc_ids": [
+        "dsid_9550250a59e74f1bbd5612480b2e7100"
+      ],
+      "hit_any": true,
+      "best_rank": 1,
+      "top_document_ids": [
+        "dsid_9550250a59e74f1bbd5612480b2e7100",
+        "dsid_6c58ddb8ecf543d89fca8352351dea29",
+        "dsid_88b39d13bd584ef8b1422d76994808c7",
+        "dsid_49215834c17d4f0c98d4ad11f62f0c9a",
+        "dsid_8779ac72d6504759b701178632772f6c",
+        "dsid_c7860fdbc17a48b0b6c5f9a0c5e3d054",
+        "dsid_1c53affffb4f477ca476bec3138b60eb",
+        "dsid_426ca69578a84dd4af512e5a2782086e",
+        "dsid_ae068ee4aa9640159427cd941bef0238",
+        "dsid_c1a6a71323c04c1ba5445aadea340362",
+        "dsid_caf02469a41c46cf8387713b83c628f3"
+      ],
+      "top_hits": [
+        {
+          "rank": 1,
+          "document_id": "dsid_9550250a59e74f1bbd5612480b2e7100",
+          "distance": 1.0099682807922363,
+          "file_ref": "file_2686f50c82216c0e",
+          "source_type": "github",
+          "source_path": "github/pr-129874-timebox-abort-idempotency-resume-openai-compat.json",
+          "title": "introduce-server-timebox-and-idempotent-cancel-fallbacks-for-streaming-compat"
+        },
+        {
+          "rank": 2,
+          "document_id": "dsid_6c58ddb8ecf543d89fca8352351dea29",
+          "distance": 1.1332529783248901,
+          "file_ref": "file_2550c66a4f1fd8a9",
+          "source_type": "github",
+          "source_path": "github/pr-24930-openai-resp-v3-seed-metadata-reassembly-compat.json",
+          "title": "openai-compat: responses-v3 deterministic-seed routing + metadata passthrough and streaming reassembly"
+        },
+        {
+          "rank": 3,
+          "document_id": "dsid_88b39d13bd584ef8b1422d76994808c7",
+          "distance": 1.1347390413284302,
+          "file_ref": "file_99ffce24460e52d6",
+          "source_type": "github",
+          "source_path": "github/pr-95312-unify-handshake-consumer-ux-and-retry-bump.json",
+          "title": "Cross-SDK: unify streaming handshake, consumer ergonomics, and auth/retry semantics (Python/TS/Go)"
+        },
+        {
+          "rank": 4,
+          "document_id": "dsid_49215834c17d4f0c98d4ad11f62f0c9a",
+          "distance": 1.138409972190857,
+          "file_ref": "file_cbf36418bcbfd87c",
+          "source_type": "github",
+          "source_path": "github/pr-75983-deferred-aggregation-telemetry-lattice-and-path-sampling.json",
+          "title": "deferred-aggregation-telemetry-lattice-and-path-sampling"
+        },
+        {
+          "rank": 5,
+          "document_id": "dsid_8779ac72d6504759b701178632772f6c",
+          "distance": 1.141982078552246,
+          "file_ref": "file_4a0be907d79078bd",
+          "source_type": "github",
+          "source_path": "github/pr-199842-openai-v1-chat-compat-response-sculpting-stop-coalesce.json",
+          "title": "v1 OpenAI chat: response sculpting, stop coalescing, and streaming logprob envelope"
+        },
+        {
+          "rank": 6,
+          "document_id": "dsid_c7860fdbc17a48b0b6c5f9a0c5e3d054",
+          "distance": 1.1495708227157593,
+          "file_ref": "file_cf132b670b005a98",
+          "source_type": "github",
+          "source_path": "github/pr-176421-coalescing-invoker-grace-period-and-structured-output.json",
+          "title": "Coalescing Invoker: grace-period batching, deterministic injection, and structured-output streaming compatibility"
+        },
+        {
+          "rank": 7,
+          "document_id": "dsid_1c53affffb4f477ca476bec3138b60eb",
+          "distance": 1.15033757686615,
+          "file_ref": "file_6ab9bc67c9b3fd2e",
+          "source_type": "github",
+          "source_path": "github/pr-96123-chat-v1-param-normalizer-role-alias-stop-dedupe-stream-backpressure.json",
+          "title": "chat v1: parameter normalizer, role aliasing, stop dedupe and streaming backpressure improvements for /v1/chat.completions parity"
+        },
+        {
+          "rank": 8,
+          "document_id": "dsid_426ca69578a84dd4af512e5a2782086e",
+          "distance": 1.1693577766418457,
+          "file_ref": "file_51ca88792f201643",
+          "source_type": "github",
+          "source_path": "github/pr-20311-safelock-fastpath-precision-toggle-kv-eviction.json",
+          "title": "Introduce \"safelock\" fast-path gating + precision toggle and KV-eviction safety for runtime"
+        },
+        {
+          "rank": 9,
+          "document_id": "dsid_ae068ee4aa9640159427cd941bef0238",
+          "distance": 1.1741724014282227,
+          "file_ref": "file_90f09b89336b14e9",
+          "source_type": "github",
+          "source_path": "github/pr-18421-multipart-file-validation-limits.json",
+          "title": "add multipart/form-data handling, strict content-type validation, and payload limit enforcement for API tool/file inputs"
+        },
+        {
+          "rank": 10,
+          "document_id": "dsid_c1a6a71323c04c1ba5445aadea340362",
+          "distance": 1.1821305751800537,
+          "file_ref": "file_6fca9ec81c8141a3",
+          "source_type": "github",
+          "source_path": "github/pr-867001-introduce-token-stage-cohorting-and-route-matrix-alerting.json",
+          "title": "introduce-token-stage-cohorting-and-route-matrix-alerting"
+        },
+        {
+          "rank": 11,
+          "document_id": "dsid_caf02469a41c46cf8387713b83c628f3",
+          "distance": 1.1952170133590698,
+          "file_ref": "file_654d54e5bdbda267",
+          "source_type": "github",
+          "source_path": "github/pr-23145-adaptive-scratch-and-deferred-ckpt-scheduler.json",
+          "title": "adaptive-scratch-capacity-and-deferred-ckpt-scheduler-for-gpu-workspace-reduction"
+        }
+      ]
+    },
+    {
+      "question_id": "qst_0003",
+      "source_types": [
+        "linear"
+      ],
+      "expected_doc_ids": [
+        "dsid_3fd6af404fae48e6b8ea5a57875ef78f"
+      ],
+      "hit_any": true,
+      "best_rank": 1,
+      "top_document_ids": [
+        "dsid_3fd6af404fae48e6b8ea5a57875ef78f",
+        "dsid_14a447cb5b1140709c7cb3cc9a88c430",
+        "dsid_1867cdf06a00437194b3250c75321a92",
+        "dsid_8381e16639f148c7863aa3d393cb64da",
+        "dsid_2e5aaaa6db404ec19cb15a6f92be66a3",
+        "dsid_f3c46e1166f34b9c92a83034450fe021",
+        "dsid_7a094ff98c3b4c96a77f3949aedeb749",
+        "dsid_7a7c04eebb914edab49f734c8e814beb",
+        "dsid_1a40ab782f8b4d80929a9668462912e2",
+        "dsid_54525a33e2d44d4a9b665feaf8fab624",
+        "dsid_39e191ec758c41a8adecd223951b8b93",
+        "dsid_5fbf425415da4b7487f0ebbf289a39d6",
+        "dsid_f94b93a4bc7948ddab45c371187dc6c6",
+        "dsid_1f81f208f51a4aacaca226109bbedc72",
+        "dsid_d921e1d4282b45a7b4990e2366bedc05",
+        "dsid_8412db85d95a45f7bbfb14dacedb4d8b"
+      ],
+      "top_hits": [
+        {
+          "rank": 1,
+          "document_id": "dsid_3fd6af404fae48e6b8ea5a57875ef78f",
+          "distance": 0.8402987122535706,
+          "file_ref": "file_65bc1687e9c9baee",
+          "source_type": "linear",
+          "source_path": "linear/design/DES-72681-develop-interactive-tone-derivatives-and-kappa-elevation-scale-for-data-grids.json",
+          "title": "Develop interactive tone derivatives and Kappa elevation scale for data grids"
+        },
+        {
+          "rank": 2,
+          "document_id": "dsid_14a447cb5b1140709c7cb3cc9a88c430",
+          "distance": 0.960198700428009,
+          "file_ref": "file_4d4b58f1457afc10",
+          "source_type": "linear",
+          "source_path": "linear/design/DES-100777-adaptive-sparkline-density-and-compression-mode-prototype.json",
+          "title": "Adaptive sparkline density and column compression mode (prototype)"
+        },
+        {
+          "rank": 3,
+          "document_id": "dsid_1867cdf06a00437194b3250c75321a92",
+          "distance": 1.011367917060852,
+          "file_ref": "file_59964fe919e8c1b1",
+          "source_type": "linear",
+          "source_path": "linear/design/DES-91235-compact-workspace-chips-micro-rail-prototype.json",
+          "title": "Compact workspace chips + contextual micro-rail: progressive IA and routing prototype for Console"
+        },
+        {
+          "rank": 4,
+          "document_id": "dsid_8381e16639f148c7863aa3d393cb64da",
+          "distance": 1.0656949281692505,
+          "file_ref": "file_499b17aa8f26e77f",
+          "source_type": "linear",
+          "source_path": "linear/design/DES-66120-migrate-interaction-tokens-and-fix-hover-glow.json",
+          "title": "Migrate interaction tokens to theme variable layer and resolve hover glow regression"
+        },
+        {
+          "rank": 5,
+          "document_id": "dsid_2e5aaaa6db404ec19cb15a6f92be66a3",
+          "distance": 1.070747971534729,
+          "file_ref": "file_c590d84a3b233dff",
+          "source_type": "linear",
+          "source_path": "linear/design/DES-12901-consistent-spinner-overlay-and-label-behavior.json",
+          "title": "Consistent spinner overlay and label behavior for button loading/disabled states"
+        },
+        {
+          "rank": 6,
+          "document_id": "dsid_f3c46e1166f34b9c92a83034450fe021",
+          "distance": 1.0833288431167603,
+          "file_ref": "file_f0cc1bd274a70e8c",
+          "source_type": "linear",
+          "source_path": "linear/design/DES-832341-private-console-network-path-storyboard-rehearsal.json",
+          "title": "Private Console: Network Path Storyboard & Upgrade Rehearsal (prototype)"
+        },
+        {
+          "rank": 7,
+          "document_id": "dsid_7a094ff98c3b4c96a77f3949aedeb749",
+          "distance": 1.0842347145080566,
+          "file_ref": "file_178563f27622458b",
+          "source_type": "linear",
+          "source_path": "linear/product-management/PM-91829-intake-lens-minimum-implementation-slate.json",
+          "title": "Intake Lens + Minimum Implementation Slate for High-touch Enterprise Requests"
+        },
+        {
+          "rank": 8,
+          "document_id": "dsid_7a7c04eebb914edab49f734c8e814beb",
+          "distance": 1.1232140064239502,
+          "file_ref": "file_dd0750f6a9e362f6",
+          "source_type": "linear",
+          "source_path": "linear/business-ops/ENG-99456-tenant-credit-allocator-and-variant-shadowing-hosted-backfill.json",
+          "title": "Tenant credit-based region routing with variant shadowing and graceful hosted backfill"
+        },
+        {
+          "rank": 9,
+          "document_id": "dsid_1a40ab782f8b4d80929a9668462912e2",
+          "distance": 1.1251871585845947,
+          "file_ref": "file_825bd7381190f2eb",
+          "source_type": "linear",
+          "source_path": "linear/business-ops/DES-420888-span-beacon-correl-lens.json",
+          "title": "Span Beacon — Anchored Thread Navigator & Correlation Lens"
+        },
+        {
+          "rank": 10,
+          "document_id": "dsid_54525a33e2d44d4a9b665feaf8fab624",
+          "distance": 1.1306127309799194,
+          "file_ref": "file_d6e5fbed6a5d0ce7",
+          "source_type": "linear",
+          "source_path": "linear/product-management/PM-24680-cohort-comparator-and-trace-linker-for-deployment-health.json",
+          "title": "Cohort Comparator & Trace Linker for Deployment Health"
+        },
+        {
+          "rank": 11,
+          "document_id": "dsid_39e191ec758c41a8adecd223951b8b93",
+          "distance": 1.1340361833572388,
+          "file_ref": "file_4e55f640aacd65ce",
+          "source_type": "linear",
+          "source_path": "linear/engineering/ENG-48961-bounded-window-kv-adaptive-backpressure-and-graceful-oom-fallback.json",
+          "title": "Bounded-window KV cache with adaptive backpressure and graceful GPU-OOM fallback"
+        },
+        {
+          "rank": 12,
+          "document_id": "dsid_5fbf425415da4b7487f0ebbf289a39d6",
+          "distance": 1.1491202116012573,
+          "file_ref": "file_6af456d88c1c2093",
+          "source_type": "linear",
+          "source_path": "linear/product-management/PM-765981-api-behavioral-probe-matrix-and-prospectivity-playbook.json",
+          "title": "API Behavioral Probe Matrix and Prospectivity Playbook"
+        },
+        {
+          "rank": 13,
+          "document_id": "dsid_f94b93a4bc7948ddab45c371187dc6c6",
+          "distance": 1.165000081062317,
+          "file_ref": "file_97fffb38171704e1",
+          "source_type": "linear",
+          "source_path": "linear/business-ops/PM-862431-emission-stability-tool-orchestration-soft-fail-acceptance.json",
+          "title": "Emission Stability and Tool-Orchestration: Soft-Fail & Streaming Acceptance"
+        },
+        {
+          "rank": 14,
+          "document_id": "dsid_1f81f208f51a4aacaca226109bbedc72",
+          "distance": 1.1653475761413574,
+          "file_ref": "file_585c5a6d1828aa7e",
+          "source_type": "linear",
+          "source_path": "linear/business-ops/ENG-776543-kvcache-ghost-refcount-decay-rolling-heal-playbook.json",
+          "title": "KV cache ghost refcount decay detection, snapshot sanitization, and rolling-heal playbook"
+        },
+        {
+          "rank": 15,
+          "document_id": "dsid_d921e1d4282b45a7b4990e2366bedc05",
+          "distance": 1.1687906980514526,
+          "file_ref": "file_06b8e28754ed3702",
+          "source_type": "linear",
+          "source_path": "linear/business-ops/ENG-62670-workload-forecast-headroom-controller.json",
+          "title": "Workload-forecast-based headroom controller for Dedicated capacity"
+        },
+        {
+          "rank": 16,
+          "document_id": "dsid_8412db85d95a45f7bbfb14dacedb4d8b",
+          "distance": 1.1756876707077026,
+          "file_ref": "file_b7422f5421c3908c",
+          "source_type": "linear",
+          "source_path": "linear/product-management/PM-921999-model-resilience-propensity-index-and-field-probe-playbook.json",
+          "title": "Model Resilience Propensity Index & Field Probe Playbook"
+        }
+      ]
+    },
+    {
+      "question_id": "qst_0004",
+      "source_types": [
+        "fireflies"
+      ],
+      "expected_doc_ids": [
+        "dsid_6c4c1c875e704f09b4d791d64d7bc7e5"
+      ],
+      "hit_any": true,
+      "best_rank": 2,
+      "top_document_ids": [
+        "dsid_7d9551aa21124d70b0e247c390d88622",
+        "dsid_6c4c1c875e704f09b4d791d64d7bc7e5",
+        "dsid_862bb899faac43feab4f92a12d320e7c",
+        "dsid_f4e0ec9fc27c4e52a55b34af90fcd1b0",
+        "dsid_045c297ec2ef495abd66cb1f09921fc4",
+        "dsid_05faa1ab6427403888a06d7083c7f0a9",
+        "dsid_9ed01291d81947f49500df5fb28ab724"
+      ],
+      "top_hits": [
+        {
+          "rank": 1,
+          "document_id": "dsid_7d9551aa21124d70b0e247c390d88622",
+          "distance": 0.9160878658294678,
+          "file_ref": "file_98db4cd98f796b1f",
+          "source_type": "fireflies",
+          "source_path": "fireflies/2026-02-07-marketplace-onboarding-walkthrough-internal-dry-run.json",
+          "title": "Marketplace onboarding walkthrough (internal dry run) — subscription → org provisioning → first key"
+        },
+        {
+          "rank": 2,
+          "document_id": "dsid_6c4c1c875e704f09b4d791d64d7bc7e5",
+          "distance": 0.9670635461807251,
+          "file_ref": "file_977186226c96a2ff",
+          "source_type": "fireflies",
+          "source_path": "fireflies/2026-01-16-gcp-marketplace-onboarding-and-billing-review.json",
+          "title": "GCP Marketplace onboarding + billing review (Redwood Inference)"
+        },
+        {
+          "rank": 3,
+          "document_id": "dsid_862bb899faac43feab4f92a12d320e7c",
+          "distance": 1.086004376411438,
+          "file_ref": "file_f030db759ac86e34",
+          "source_type": "fireflies",
+          "source_path": "fireflies/2026-02-03-marketplace-security-review-with-prospect.json",
+          "title": "Marketplace security review - Redwood Inference x Helio Finance"
+        },
+        {
+          "rank": 4,
+          "document_id": "dsid_f4e0ec9fc27c4e52a55b34af90fcd1b0",
+          "distance": 1.1124893426895142,
+          "file_ref": "file_dc28ec7277aa515d",
+          "source_type": "fireflies",
+          "source_path": "fireflies/misc/2026-09-03-chatplay-onboarding-sandbox-demo-streaming-retries.json",
+          "title": "ChatPlay onboarding sandbox demo — streaming, params, retries"
+        },
+        {
+          "rank": 5,
+          "document_id": "dsid_045c297ec2ef495abd66cb1f09921fc4",
+          "distance": 1.1318069696426392,
+          "file_ref": "file_7969330e6f1b1fcc",
+          "source_type": "fireflies",
+          "source_path": "fireflies/all-hands/2026-12-22-crew-handover-and-momentum-check.json",
+          "title": "End-of-year crew handover + momentum check"
+        },
+        {
+          "rank": 6,
+          "document_id": "dsid_05faa1ab6427403888a06d7083c7f0a9",
+          "distance": 1.1646209955215454,
+          "file_ref": "file_e26a486603ed503d",
+          "source_type": "fireflies",
+          "source_path": "fireflies/2025-06-12-security-review-private-upgrade-auditability.json",
+          "title": "Security review - Private upgrades: audit logs, backup encryption, rollback evidence (Cascade)"
+        },
+        {
+          "rank": 7,
+          "document_id": "dsid_9ed01291d81947f49500df5fb28ab724",
+          "distance": 1.1804726123809814,
+          "file_ref": "file_123fd5a36968046f",
+          "source_type": "fireflies",
+          "source_path": "fireflies/2025-05-28-private-upgrades-technical-deep-dive.json",
+          "title": "Private upgrades technical deep dive (design partner) - upgrade plan, backups, rollback"
+        }
+      ]
+    },
+    {
+      "question_id": "qst_0005",
+      "source_types": [
+        "gmail"
+      ],
+      "expected_doc_ids": [
+        "dsid_8e838ab6a98f4cbcb672d41f210ff89c"
+      ],
+      "hit_any": true,
+      "best_rank": 1,
+      "top_document_ids": [
+        "dsid_8e838ab6a98f4cbcb672d41f210ff89c",
+        "dsid_c23a3d9d049d4fe79acf83653b564e0b",
+        "dsid_3be2b45196414cad9b187551da3ed448",
+        "dsid_c6a6396159964deeb021d646eaaf2b0c",
+        "dsid_27da22aa63b3446387fffc29b45a0883",
+        "dsid_85deb10a652742baaf28af6149600001",
+        "dsid_94f011e1d2d04c89a4edc1d68ed9d855",
+        "dsid_a8f0c8524573431c9b789291d63b716a",
+        "dsid_e04776cee2964731b96192cae88e9e6b",
+        "dsid_214ba4ea822e4d328287194a5e27e632",
+        "dsid_a1e0ff30870f40d7b692aa27bbedc194"
+      ],
+      "top_hits": [
+        {
+          "rank": 1,
+          "document_id": "dsid_8e838ab6a98f4cbcb672d41f210ff89c",
+          "distance": 0.9218086004257202,
+          "file_ref": "file_f4e750618ee48513",
+          "source_type": "gmail",
+          "source_path": "gmail/rafael_mendes/20280503-region-fallback-priority-ops-inventory.json",
+          "title": "Regional fallback priorities & logs — post-call inventory"
+        },
+        {
+          "rank": 2,
+          "document_id": "dsid_c23a3d9d049d4fe79acf83653b564e0b",
+          "distance": 1.0660868883132935,
+          "file_ref": "file_0a39b74730e7812f",
+          "source_type": "gmail",
+          "source_path": "gmail/dylan_brooks/20270609-medsecure-logs-redaction-workplan.json",
+          "title": "MedSecure — follow-up: log controls, PII redaction, residency"
+        },
+        {
+          "rank": 3,
+          "document_id": "dsid_3be2b45196414cad9b187551da3ed448",
+          "distance": 1.083200454711914,
+          "file_ref": "file_710bdf9db6813549",
+          "source_type": "gmail",
+          "source_path": "gmail/vivek_kulkarni/20261116-telemetry-optout-prompt-ownership-kms-routing.json",
+          "title": "Telemetry opt-out, prompt/response ownership and telemetry routing (Medicore)"
+        },
+        {
+          "rank": 4,
+          "document_id": "dsid_c6a6396159964deeb021d646eaaf2b0c",
+          "distance": 1.1013295650482178,
+          "file_ref": "file_4cc6979d07a3872b",
+          "source_type": "gmail",
+          "source_path": "gmail/20250603-customer-escalation-private-upgrade-rollback-request.json",
+          "title": "Escalation: Rollback guarantees + upgrade support coverage for Redwood Private (Cascade Financial Group)"
+        },
+        {
+          "rank": 5,
+          "document_id": "dsid_27da22aa63b3446387fffc29b45a0883",
+          "distance": 1.1252292394638062,
+          "file_ref": "file_eb0fdfdf32e98756",
+          "source_type": "gmail",
+          "source_path": "gmail/lauren_bishop/20270603-migration-staffing-and-customer-comms-playbook.json",
+          "title": "Migration staffing & comms playbook — API model evolution"
+        },
+        {
+          "rank": 6,
+          "document_id": "dsid_85deb10a652742baaf28af6149600001",
+          "distance": 1.141647458076477,
+          "file_ref": "file_b277735b50990fa0",
+          "source_type": "gmail",
+          "source_path": "gmail/avery_johnson/20250803-license-offsets-and-migration-incentive.json",
+          "title": "Licensing offsets & packaging for potential migration"
+        },
+        {
+          "rank": 7,
+          "document_id": "dsid_94f011e1d2d04c89a4edc1d68ed9d855",
+          "distance": 1.1546785831451416,
+          "file_ref": "file_4b65794e1410f517",
+          "source_type": "gmail",
+          "source_path": "gmail/connor_obrien/20270504-marketplace-technical-evidence-support-rto-query.json",
+          "title": "Marketplace technical evidence & support RTO for AWS/Azure/GCP listing"
+        },
+        {
+          "rank": 8,
+          "document_id": "dsid_a8f0c8524573431c9b789291d63b716a",
+          "distance": 1.1620893478393555,
+          "file_ref": "file_c3a044013943af72",
+          "source_type": "gmail",
+          "source_path": "gmail/neha_kapoor/20260414-featureflag-licensing-review-stakeholder-sync.json",
+          "title": "Feature flag licensing review & stakeholder sync — LaunchDarkly renewal"
+        },
+        {
+          "rank": 9,
+          "document_id": "dsid_e04776cee2964731b96192cae88e9e6b",
+          "distance": 1.1627992391586304,
+          "file_ref": "file_934bbcdcf836326c",
+          "source_type": "gmail",
+          "source_path": "gmail/priya_natarajan/20270502-stakeholder-sync-procurement-route-decision.json",
+          "title": "Stakeholder sync: procurement route decision and SOC 2 gating"
+        },
+        {
+          "rank": 10,
+          "document_id": "dsid_214ba4ea822e4d328287194a5e27e632",
+          "distance": 1.1866389513015747,
+          "file_ref": "file_21916c9e8bd67e70",
+          "source_type": "gmail",
+          "source_path": "gmail/jordan_blake/20270719-service-assurance-annualization-escalation-matrix.json",
+          "title": "Service assurance annualization, escalation matrix & pricing clarification"
+        },
+        {
+          "rank": 11,
+          "document_id": "dsid_a1e0ff30870f40d7b692aa27bbedc194",
+          "distance": 1.2023591995239258,
+          "file_ref": "file_8d97f1956d947ddf",
+          "source_type": "gmail",
+          "source_path": "gmail/marissa_cole/20260503-marketplace-payout-vat-dispute.json",
+          "title": "Disputed AWS Marketplace Payouts & VAT on INV-2026-03-1152"
+        }
+      ]
+    },
+    {
+      "question_id": "qst_0006",
+      "source_types": [
+        "google_drive"
+      ],
+      "expected_doc_ids": [
+        "dsid_184be937d34a412ab5e61366d54d8ed6"
+      ],
+      "hit_any": true,
+      "best_rank": 1,
+      "top_document_ids": [
+        "dsid_184be937d34a412ab5e61366d54d8ed6",
+        "dsid_bec90d2205534ca9a016f244e13884e5",
+        "dsid_2271ae6c393d409093b11b5a6d5b96ed",
+        "dsid_6d38a7bff5c84270adff95742a3eebce",
+        "dsid_5fc2dba9f6ac4af2b49b4f546a4298d0",
+        "dsid_72ec4a9962ba43e88acd61abbba1052d",
+        "dsid_cfc80f61d84848c58d961b49d1b3a774",
+        "dsid_9eda2ec9cbda4188936246d888df1d0b",
+        "dsid_9776bd75ffbb4ca7b10669be1512daa3",
+        "dsid_4e89403dcf74496c8a8516bfd64e351f",
+        "dsid_702bc520c52040428799fed41c63c8ca",
+        "dsid_7a2cfe4b7e574e6995f33e64bbdbf426",
+        "dsid_089917448e654911bd186650ed12feb9",
+        "dsid_f0567bbb5dbd4a52aef951e11ec13f2b"
+      ],
+      "top_hits": [
+        {
+          "rank": 1,
+          "document_id": "dsid_184be937d34a412ab5e61366d54d8ed6",
+          "distance": 0.8298000693321228,
+          "file_ref": "file_25ebacd20eb09ca7",
+          "source_type": "google_drive",
+          "source_path": "google_drive/shared_drives/policy-engine-failover-extensions-draft.json",
+          "title": "Draft Spec: Policy Engine Extensions for Regional Failover Automation"
+        },
+        {
+          "rank": 2,
+          "document_id": "dsid_bec90d2205534ca9a016f244e13884e5",
+          "distance": 0.9652493596076965,
+          "file_ref": "file_7ecf33bfce0ae327",
+          "source_type": "google_drive",
+          "source_path": "google_drive/shared_drives/routing-and-controlplane-runbook-architecture-notes.json",
+          "title": "routing-and-controlplane-runbook-architecture-notes"
+        },
+        {
+          "rank": 3,
+          "document_id": "dsid_2271ae6c393d409093b11b5a6d5b96ed",
+          "distance": 1.0376735925674438,
+          "file_ref": "file_5331426aa3999aef",
+          "source_type": "google_drive",
+          "source_path": "google_drive/users/niko-rogers-interaction-tiering-idea-scrapbook.json",
+          "title": "Interaction tiering: personal idea scrapbook"
+        },
+        {
+          "rank": 4,
+          "document_id": "dsid_6d38a7bff5c84270adff95742a3eebce",
+          "distance": 1.0957506895065308,
+          "file_ref": "file_136bdf369e9a9668",
+          "source_type": "google_drive",
+          "source_path": "google_drive/users/ops-daybook-gpu-rebalance-todo.json",
+          "title": "Ops daybook: GPU rebalance + network flaps"
+        },
+        {
+          "rank": 5,
+          "document_id": "dsid_5fc2dba9f6ac4af2b49b4f546a4298d0",
+          "distance": 1.133635401725769,
+          "file_ref": "file_f54a0350712b2d14",
+          "source_type": "google_drive",
+          "source_path": "google_drive/users/shiproom-runner-personal-prep-log.json",
+          "title": "Shiproom runner: personal prep log and sticky notes"
+        },
+        {
+          "rank": 6,
+          "document_id": "dsid_72ec4a9962ba43e88acd61abbba1052d",
+          "distance": 1.1585685014724731,
+          "file_ref": "file_392c82ed4bd5d699",
+          "source_type": "google_drive",
+          "source_path": "google_drive/users/rolling-bias-bisection-log-jared.json",
+          "title": "rolling-bias-bisection-log-jared"
+        },
+        {
+          "rank": 7,
+          "document_id": "dsid_cfc80f61d84848c58d961b49d1b3a774",
+          "distance": 1.1742085218429565,
+          "file_ref": "file_4ba8b1122ea48024",
+          "source_type": "google_drive",
+          "source_path": "google_drive/shared_drives/kernel-lattice-weekly-capture.json",
+          "title": "Kernel lattice weekly capture"
+        },
+        {
+          "rank": 8,
+          "document_id": "dsid_9eda2ec9cbda4188936246d888df1d0b",
+          "distance": 1.1817845106124878,
+          "file_ref": "file_12cc3a4c8bab8ebb",
+          "source_type": "google_drive",
+          "source_path": "google_drive/shared_drives/crypto-hierarchy-rotation-siem-runbook.json",
+          "title": "Crypto hierarchy, rotation, and SIEM export — runbook"
+        },
+        {
+          "rank": 9,
+          "document_id": "dsid_9776bd75ffbb4ca7b10669be1512daa3",
+          "distance": 1.1823935508728027,
+          "file_ref": "file_5eb66a1d7c1bef4d",
+          "source_type": "google_drive",
+          "source_path": "google_drive/shared_drives/samir-rahman-account-blitz-log-2026-05-10.json",
+          "title": "Account Blitz Log — AM rounds"
+        },
+        {
+          "rank": 10,
+          "document_id": "dsid_4e89403dcf74496c8a8516bfd64e351f",
+          "distance": 1.1863608360290527,
+          "file_ref": "file_81d0c6cc398e3049",
+          "source_type": "google_drive",
+          "source_path": "google_drive/users/lucas-resume-download-hang-notes.json",
+          "title": "resume-download-hang-notes"
+        },
+        {
+          "rank": 11,
+          "document_id": "dsid_702bc520c52040428799fed41c63c8ca",
+          "distance": 1.1890166997909546,
+          "file_ref": "file_76d705034f91a94d",
+          "source_type": "google_drive",
+          "source_path": "google_drive/shared_drives/span-timeline-playbook-grooming-notes.json",
+          "title": "span-timeline-playbook-grooming-notes"
+        },
+        {
+          "rank": 12,
+          "document_id": "dsid_7a2cfe4b7e574e6995f33e64bbdbf426",
+          "distance": 1.190110445022583,
+          "file_ref": "file_5fe6a9a3c3bd9721",
+          "source_type": "google_drive",
+          "source_path": "google_drive/users/fewshot-attenuation-heuristics-lab.json",
+          "title": "Fewshot attenuation heuristics — lab notes"
+        },
+        {
+          "rank": 13,
+          "document_id": "dsid_089917448e654911bd186650ed12feb9",
+          "distance": 1.2046078443527222,
+          "file_ref": "file_87f9dd710169cc71",
+          "source_type": "google_drive",
+          "source_path": "google_drive/shared_drives/quickstarts-adoption-kpis.json",
+          "title": "Quickstarts Adoption KPIs (Hosted API) — draft sheet"
+        },
+        {
+          "rank": 14,
+          "document_id": "dsid_f0567bbb5dbd4a52aef951e11ec13f2b",
+          "distance": 1.2250316143035889,
+          "file_ref": "file_b3b4b601d2bd5138",
+          "source_type": "google_drive",
+          "source_path": "google_drive/shared_drives/zero-to-poc-canvas-and-30-60-90-facilitation-notes.json",
+          "title": "Zero-to-POC Canvas + 30/60/90 Facilitation Notes"
+        }
+      ]
+    },
+    {
+      "question_id": "qst_0007",
+      "source_types": [
+        "google_drive"
+      ],
+      "expected_doc_ids": [
+        "dsid_72ec4a9962ba43e88acd61abbba1052d"
+      ],
+      "hit_any": true,
+      "best_rank": 1,
+      "top_document_ids": [
+        "dsid_72ec4a9962ba43e88acd61abbba1052d",
+        "dsid_bec90d2205534ca9a016f244e13884e5",
+        "dsid_5fc2dba9f6ac4af2b49b4f546a4298d0",
+        "dsid_9776bd75ffbb4ca7b10669be1512daa3",
+        "dsid_7a2cfe4b7e574e6995f33e64bbdbf426",
+        "dsid_2271ae6c393d409093b11b5a6d5b96ed",
+        "dsid_184be937d34a412ab5e61366d54d8ed6",
+        "dsid_6d38a7bff5c84270adff95742a3eebce",
+        "dsid_cfc80f61d84848c58d961b49d1b3a774",
+        "dsid_702bc520c52040428799fed41c63c8ca",
+        "dsid_089917448e654911bd186650ed12feb9",
+        "dsid_4e89403dcf74496c8a8516bfd64e351f",
+        "dsid_f0567bbb5dbd4a52aef951e11ec13f2b",
+        "dsid_9eda2ec9cbda4188936246d888df1d0b"
+      ],
+      "top_hits": [
+        {
+          "rank": 1,
+          "document_id": "dsid_72ec4a9962ba43e88acd61abbba1052d",
+          "distance": 0.8649109601974487,
+          "file_ref": "file_392c82ed4bd5d699",
+          "source_type": "google_drive",
+          "source_path": "google_drive/users/rolling-bias-bisection-log-jared.json",
+          "title": "rolling-bias-bisection-log-jared"
+        },
+        {
+          "rank": 2,
+          "document_id": "dsid_bec90d2205534ca9a016f244e13884e5",
+          "distance": 1.0329594612121582,
+          "file_ref": "file_7ecf33bfce0ae327",
+          "source_type": "google_drive",
+          "source_path": "google_drive/shared_drives/routing-and-controlplane-runbook-architecture-notes.json",
+          "title": "routing-and-controlplane-runbook-architecture-notes"
+        },
+        {
+          "rank": 3,
+          "document_id": "dsid_5fc2dba9f6ac4af2b49b4f546a4298d0",
+          "distance": 1.0415141582489014,
+          "file_ref": "file_f54a0350712b2d14",
+          "source_type": "google_drive",
+          "source_path": "google_drive/users/shiproom-runner-personal-prep-log.json",
+          "title": "Shiproom runner: personal prep log and sticky notes"
+        },
+        {
+          "rank": 4,
+          "document_id": "dsid_9776bd75ffbb4ca7b10669be1512daa3",
+          "distance": 1.070439100265503,
+          "file_ref": "file_5eb66a1d7c1bef4d",
+          "source_type": "google_drive",
+          "source_path": "google_drive/shared_drives/samir-rahman-account-blitz-log-2026-05-10.json",
+          "title": "Account Blitz Log — AM rounds"
+        },
+        {
+          "rank": 5,
+          "document_id": "dsid_7a2cfe4b7e574e6995f33e64bbdbf426",
+          "distance": 1.0729165077209473,
+          "file_ref": "file_5fe6a9a3c3bd9721",
+          "source_type": "google_drive",
+          "source_path": "google_drive/users/fewshot-attenuation-heuristics-lab.json",
+          "title": "Fewshot attenuation heuristics — lab notes"
+        },
+        {
+          "rank": 6,
+          "document_id": "dsid_2271ae6c393d409093b11b5a6d5b96ed",
+          "distance": 1.0832350254058838,
+          "file_ref": "file_5331426aa3999aef",
+          "source_type": "google_drive",
+          "source_path": "google_drive/users/niko-rogers-interaction-tiering-idea-scrapbook.json",
+          "title": "Interaction tiering: personal idea scrapbook"
+        },
+        {
+          "rank": 7,
+          "document_id": "dsid_184be937d34a412ab5e61366d54d8ed6",
+          "distance": 1.0863444805145264,
+          "file_ref": "file_25ebacd20eb09ca7",
+          "source_type": "google_drive",
+          "source_path": "google_drive/shared_drives/policy-engine-failover-extensions-draft.json",
+          "title": "Draft Spec: Policy Engine Extensions for Regional Failover Automation"
+        },
+        {
+          "rank": 8,
+          "document_id": "dsid_6d38a7bff5c84270adff95742a3eebce",
+          "distance": 1.098961353302002,
+          "file_ref": "file_136bdf369e9a9668",
+          "source_type": "google_drive",
+          "source_path": "google_drive/users/ops-daybook-gpu-rebalance-todo.json",
+          "title": "Ops daybook: GPU rebalance + network flaps"
+        },
+        {
+          "rank": 9,
+          "document_id": "dsid_cfc80f61d84848c58d961b49d1b3a774",
+          "distance": 1.10344660282135,
+          "file_ref": "file_4ba8b1122ea48024",
+          "source_type": "google_drive",
+          "source_path": "google_drive/shared_drives/kernel-lattice-weekly-capture.json",
+          "title": "Kernel lattice weekly capture"
+        },
+        {
+          "rank": 10,
+          "document_id": "dsid_702bc520c52040428799fed41c63c8ca",
+          "distance": 1.1049004793167114,
+          "file_ref": "file_76d705034f91a94d",
+          "source_type": "google_drive",
+          "source_path": "google_drive/shared_drives/span-timeline-playbook-grooming-notes.json",
+          "title": "span-timeline-playbook-grooming-notes"
+        },
+        {
+          "rank": 11,
+          "document_id": "dsid_089917448e654911bd186650ed12feb9",
+          "distance": 1.1168667078018188,
+          "file_ref": "file_87f9dd710169cc71",
+          "source_type": "google_drive",
+          "source_path": "google_drive/shared_drives/quickstarts-adoption-kpis.json",
+          "title": "Quickstarts Adoption KPIs (Hosted API) — draft sheet"
+        },
+        {
+          "rank": 12,
+          "document_id": "dsid_4e89403dcf74496c8a8516bfd64e351f",
+          "distance": 1.1228463649749756,
+          "file_ref": "file_81d0c6cc398e3049",
+          "source_type": "google_drive",
+          "source_path": "google_drive/users/lucas-resume-download-hang-notes.json",
+          "title": "resume-download-hang-notes"
+        },
+        {
+          "rank": 13,
+          "document_id": "dsid_f0567bbb5dbd4a52aef951e11ec13f2b",
+          "distance": 1.1236847639083862,
+          "file_ref": "file_b3b4b601d2bd5138",
+          "source_type": "google_drive",
+          "source_path": "google_drive/shared_drives/zero-to-poc-canvas-and-30-60-90-facilitation-notes.json",
+          "title": "Zero-to-POC Canvas + 30/60/90 Facilitation Notes"
+        },
+        {
+          "rank": 14,
+          "document_id": "dsid_9eda2ec9cbda4188936246d888df1d0b",
+          "distance": 1.1657216548919678,
+          "file_ref": "file_12cc3a4c8bab8ebb",
+          "source_type": "google_drive",
+          "source_path": "google_drive/shared_drives/crypto-hierarchy-rotation-siem-runbook.json",
+          "title": "Crypto hierarchy, rotation, and SIEM export — runbook"
+        }
+      ]
+    },
+    {
+      "question_id": "qst_0008",
+      "source_types": [
+        "google_drive"
+      ],
+      "expected_doc_ids": [
+        "dsid_5fc2dba9f6ac4af2b49b4f546a4298d0"
+      ],
+      "hit_any": true,
+      "best_rank": 1,
+      "top_document_ids": [
+        "dsid_5fc2dba9f6ac4af2b49b4f546a4298d0",
+        "dsid_4e89403dcf74496c8a8516bfd64e351f",
+        "dsid_6d38a7bff5c84270adff95742a3eebce",
+        "dsid_184be937d34a412ab5e61366d54d8ed6",
+        "dsid_bec90d2205534ca9a016f244e13884e5",
+        "dsid_cfc80f61d84848c58d961b49d1b3a774",
+        "dsid_72ec4a9962ba43e88acd61abbba1052d",
+        "dsid_702bc520c52040428799fed41c63c8ca",
+        "dsid_9776bd75ffbb4ca7b10669be1512daa3",
+        "dsid_9eda2ec9cbda4188936246d888df1d0b",
+        "dsid_f0567bbb5dbd4a52aef951e11ec13f2b",
+        "dsid_2271ae6c393d409093b11b5a6d5b96ed",
+        "dsid_7a2cfe4b7e574e6995f33e64bbdbf426",
+        "dsid_089917448e654911bd186650ed12feb9"
+      ],
+      "top_hits": [
+        {
+          "rank": 1,
+          "document_id": "dsid_5fc2dba9f6ac4af2b49b4f546a4298d0",
+          "distance": 1.024255394935608,
+          "file_ref": "file_f54a0350712b2d14",
+          "source_type": "google_drive",
+          "source_path": "google_drive/users/shiproom-runner-personal-prep-log.json",
+          "title": "Shiproom runner: personal prep log and sticky notes"
+        },
+        {
+          "rank": 2,
+          "document_id": "dsid_4e89403dcf74496c8a8516bfd64e351f",
+          "distance": 1.0871126651763916,
+          "file_ref": "file_81d0c6cc398e3049",
+          "source_type": "google_drive",
+          "source_path": "google_drive/users/lucas-resume-download-hang-notes.json",
+          "title": "resume-download-hang-notes"
+        },
+        {
+          "rank": 3,
+          "document_id": "dsid_6d38a7bff5c84270adff95742a3eebce",
+          "distance": 1.087789535522461,
+          "file_ref": "file_136bdf369e9a9668",
+          "source_type": "google_drive",
+          "source_path": "google_drive/users/ops-daybook-gpu-rebalance-todo.json",
+          "title": "Ops daybook: GPU rebalance + network flaps"
+        },
+        {
+          "rank": 4,
+          "document_id": "dsid_184be937d34a412ab5e61366d54d8ed6",
+          "distance": 1.1091660261154175,
+          "file_ref": "file_25ebacd20eb09ca7",
+          "source_type": "google_drive",
+          "source_path": "google_drive/shared_drives/policy-engine-failover-extensions-draft.json",
+          "title": "Draft Spec: Policy Engine Extensions for Regional Failover Automation"
+        },
+        {
+          "rank": 5,
+          "document_id": "dsid_bec90d2205534ca9a016f244e13884e5",
+          "distance": 1.1214704513549805,
+          "file_ref": "file_7ecf33bfce0ae327",
+          "source_type": "google_drive",
+          "source_path": "google_drive/shared_drives/routing-and-controlplane-runbook-architecture-notes.json",
+          "title": "routing-and-controlplane-runbook-architecture-notes"
+        },
+        {
+          "rank": 6,
+          "document_id": "dsid_cfc80f61d84848c58d961b49d1b3a774",
+          "distance": 1.1243581771850586,
+          "file_ref": "file_4ba8b1122ea48024",
+          "source_type": "google_drive",
+          "source_path": "google_drive/shared_drives/kernel-lattice-weekly-capture.json",
+          "title": "Kernel lattice weekly capture"
+        },
+        {
+          "rank": 7,
+          "document_id": "dsid_72ec4a9962ba43e88acd61abbba1052d",
+          "distance": 1.1340123414993286,
+          "file_ref": "file_392c82ed4bd5d699",
+          "source_type": "google_drive",
+          "source_path": "google_drive/users/rolling-bias-bisection-log-jared.json",
+          "title": "rolling-bias-bisection-log-jared"
+        },
+        {
+          "rank": 8,
+          "document_id": "dsid_702bc520c52040428799fed41c63c8ca",
+          "distance": 1.155953049659729,
+          "file_ref": "file_76d705034f91a94d",
+          "source_type": "google_drive",
+          "source_path": "google_drive/shared_drives/span-timeline-playbook-grooming-notes.json",
+          "title": "span-timeline-playbook-grooming-notes"
+        },
+        {
+          "rank": 9,
+          "document_id": "dsid_9776bd75ffbb4ca7b10669be1512daa3",
+          "distance": 1.1577223539352417,
+          "file_ref": "file_5eb66a1d7c1bef4d",
+          "source_type": "google_drive",
+          "source_path": "google_drive/shared_drives/samir-rahman-account-blitz-log-2026-05-10.json",
+          "title": "Account Blitz Log — AM rounds"
+        },
+        {
+          "rank": 10,
+          "document_id": "dsid_9eda2ec9cbda4188936246d888df1d0b",
+          "distance": 1.165748119354248,
+          "file_ref": "file_12cc3a4c8bab8ebb",
+          "source_type": "google_drive",
+          "source_path": "google_drive/shared_drives/crypto-hierarchy-rotation-siem-runbook.json",
+          "title": "Crypto hierarchy, rotation, and SIEM export — runbook"
+        },
+        {
+          "rank": 11,
+          "document_id": "dsid_f0567bbb5dbd4a52aef951e11ec13f2b",
+          "distance": 1.1719626188278198,
+          "file_ref": "file_b3b4b601d2bd5138",
+          "source_type": "google_drive",
+          "source_path": "google_drive/shared_drives/zero-to-poc-canvas-and-30-60-90-facilitation-notes.json",
+          "title": "Zero-to-POC Canvas + 30/60/90 Facilitation Notes"
+        },
+        {
+          "rank": 12,
+          "document_id": "dsid_2271ae6c393d409093b11b5a6d5b96ed",
+          "distance": 1.1945154666900635,
+          "file_ref": "file_5331426aa3999aef",
+          "source_type": "google_drive",
+          "source_path": "google_drive/users/niko-rogers-interaction-tiering-idea-scrapbook.json",
+          "title": "Interaction tiering: personal idea scrapbook"
+        },
+        {
+          "rank": 13,
+          "document_id": "dsid_7a2cfe4b7e574e6995f33e64bbdbf426",
+          "distance": 1.2077049016952515,
+          "file_ref": "file_5fe6a9a3c3bd9721",
+          "source_type": "google_drive",
+          "source_path": "google_drive/users/fewshot-attenuation-heuristics-lab.json",
+          "title": "Fewshot attenuation heuristics — lab notes"
+        },
+        {
+          "rank": 14,
+          "document_id": "dsid_089917448e654911bd186650ed12feb9",
+          "distance": 1.2177739143371582,
+          "file_ref": "file_87f9dd710169cc71",
+          "source_type": "google_drive",
+          "source_path": "google_drive/shared_drives/quickstarts-adoption-kpis.json",
+          "title": "Quickstarts Adoption KPIs (Hosted API) — draft sheet"
+        }
+      ]
+    },
+    {
+      "question_id": "qst_0009",
+      "source_types": [
+        "gmail"
+      ],
+      "expected_doc_ids": [
+        "dsid_85deb10a652742baaf28af6149600001"
+      ],
+      "hit_any": true,
+      "best_rank": 1,
+      "top_document_ids": [
+        "dsid_85deb10a652742baaf28af6149600001",
+        "dsid_214ba4ea822e4d328287194a5e27e632",
+        "dsid_a8f0c8524573431c9b789291d63b716a",
+        "dsid_c6a6396159964deeb021d646eaaf2b0c",
+        "dsid_3be2b45196414cad9b187551da3ed448",
+        "dsid_e04776cee2964731b96192cae88e9e6b",
+        "dsid_8e838ab6a98f4cbcb672d41f210ff89c",
+        "dsid_c23a3d9d049d4fe79acf83653b564e0b",
+        "dsid_a1e0ff30870f40d7b692aa27bbedc194",
+        "dsid_27da22aa63b3446387fffc29b45a0883",
+        "dsid_94f011e1d2d04c89a4edc1d68ed9d855"
+      ],
+      "top_hits": [
+        {
+          "rank": 1,
+          "document_id": "dsid_85deb10a652742baaf28af6149600001",
+          "distance": 0.8038364052772522,
+          "file_ref": "file_b277735b50990fa0",
+          "source_type": "gmail",
+          "source_path": "gmail/avery_johnson/20250803-license-offsets-and-migration-incentive.json",
+          "title": "Licensing offsets & packaging for potential migration"
+        },
+        {
+          "rank": 2,
+          "document_id": "dsid_214ba4ea822e4d328287194a5e27e632",
+          "distance": 1.0247057676315308,
+          "file_ref": "file_21916c9e8bd67e70",
+          "source_type": "gmail",
+          "source_path": "gmail/jordan_blake/20270719-service-assurance-annualization-escalation-matrix.json",
+          "title": "Service assurance annualization, escalation matrix & pricing clarification"
+        },
+        {
+          "rank": 3,
+          "document_id": "dsid_a8f0c8524573431c9b789291d63b716a",
+          "distance": 1.0255552530288696,
+          "file_ref": "file_c3a044013943af72",
+          "source_type": "gmail",
+          "source_path": "gmail/neha_kapoor/20260414-featureflag-licensing-review-stakeholder-sync.json",
+          "title": "Feature flag licensing review & stakeholder sync — LaunchDarkly renewal"
+        },
+        {
+          "rank": 4,
+          "document_id": "dsid_c6a6396159964deeb021d646eaaf2b0c",
+          "distance": 1.0540927648544312,
+          "file_ref": "file_4cc6979d07a3872b",
+          "source_type": "gmail",
+          "source_path": "gmail/20250603-customer-escalation-private-upgrade-rollback-request.json",
+          "title": "Escalation: Rollback guarantees + upgrade support coverage for Redwood Private (Cascade Financial Group)"
+        },
+        {
+          "rank": 5,
+          "document_id": "dsid_3be2b45196414cad9b187551da3ed448",
+          "distance": 1.0826712846755981,
+          "file_ref": "file_710bdf9db6813549",
+          "source_type": "gmail",
+          "source_path": "gmail/vivek_kulkarni/20261116-telemetry-optout-prompt-ownership-kms-routing.json",
+          "title": "Telemetry opt-out, prompt/response ownership and telemetry routing (Medicore)"
+        },
+        {
+          "rank": 6,
+          "document_id": "dsid_e04776cee2964731b96192cae88e9e6b",
+          "distance": 1.0891315937042236,
+          "file_ref": "file_934bbcdcf836326c",
+          "source_type": "gmail",
+          "source_path": "gmail/priya_natarajan/20270502-stakeholder-sync-procurement-route-decision.json",
+          "title": "Stakeholder sync: procurement route decision and SOC 2 gating"
+        },
+        {
+          "rank": 7,
+          "document_id": "dsid_8e838ab6a98f4cbcb672d41f210ff89c",
+          "distance": 1.1442950963974,
+          "file_ref": "file_f4e750618ee48513",
+          "source_type": "gmail",
+          "source_path": "gmail/rafael_mendes/20280503-region-fallback-priority-ops-inventory.json",
+          "title": "Regional fallback priorities & logs — post-call inventory"
+        },
+        {
+          "rank": 8,
+          "document_id": "dsid_c23a3d9d049d4fe79acf83653b564e0b",
+          "distance": 1.1504998207092285,
+          "file_ref": "file_0a39b74730e7812f",
+          "source_type": "gmail",
+          "source_path": "gmail/dylan_brooks/20270609-medsecure-logs-redaction-workplan.json",
+          "title": "MedSecure — follow-up: log controls, PII redaction, residency"
+        },
+        {
+          "rank": 9,
+          "document_id": "dsid_a1e0ff30870f40d7b692aa27bbedc194",
+          "distance": 1.1639827489852905,
+          "file_ref": "file_8d97f1956d947ddf",
+          "source_type": "gmail",
+          "source_path": "gmail/marissa_cole/20260503-marketplace-payout-vat-dispute.json",
+          "title": "Disputed AWS Marketplace Payouts & VAT on INV-2026-03-1152"
+        },
+        {
+          "rank": 10,
+          "document_id": "dsid_27da22aa63b3446387fffc29b45a0883",
+          "distance": 1.189164400100708,
+          "file_ref": "file_eb0fdfdf32e98756",
+          "source_type": "gmail",
+          "source_path": "gmail/lauren_bishop/20270603-migration-staffing-and-customer-comms-playbook.json",
+          "title": "Migration staffing & comms playbook — API model evolution"
+        },
+        {
+          "rank": 11,
+          "document_id": "dsid_94f011e1d2d04c89a4edc1d68ed9d855",
+          "distance": 1.200764536857605,
+          "file_ref": "file_4b65794e1410f517",
+          "source_type": "gmail",
+          "source_path": "gmail/connor_obrien/20270504-marketplace-technical-evidence-support-rto-query.json",
+          "title": "Marketplace technical evidence & support RTO for AWS/Azure/GCP listing"
+        }
+      ]
+    },
+    {
+      "question_id": "qst_0010",
+      "source_types": [
+        "github"
+      ],
+      "expected_doc_ids": [
+        "dsid_c1a6a71323c04c1ba5445aadea340362"
+      ],
+      "hit_any": true,
+      "best_rank": 1,
+      "top_document_ids": [
+        "dsid_c1a6a71323c04c1ba5445aadea340362",
+        "dsid_49215834c17d4f0c98d4ad11f62f0c9a",
+        "dsid_8779ac72d6504759b701178632772f6c",
+        "dsid_426ca69578a84dd4af512e5a2782086e",
+        "dsid_c7860fdbc17a48b0b6c5f9a0c5e3d054",
+        "dsid_1c53affffb4f477ca476bec3138b60eb",
+        "dsid_6c58ddb8ecf543d89fca8352351dea29",
+        "dsid_caf02469a41c46cf8387713b83c628f3",
+        "dsid_ae068ee4aa9640159427cd941bef0238",
+        "dsid_9550250a59e74f1bbd5612480b2e7100",
+        "dsid_88b39d13bd584ef8b1422d76994808c7"
+      ],
+      "top_hits": [
+        {
+          "rank": 1,
+          "document_id": "dsid_c1a6a71323c04c1ba5445aadea340362",
+          "distance": 0.8924205899238586,
+          "file_ref": "file_6fca9ec81c8141a3",
+          "source_type": "github",
+          "source_path": "github/pr-867001-introduce-token-stage-cohorting-and-route-matrix-alerting.json",
+          "title": "introduce-token-stage-cohorting-and-route-matrix-alerting"
+        },
+        {
+          "rank": 2,
+          "document_id": "dsid_49215834c17d4f0c98d4ad11f62f0c9a",
+          "distance": 1.0854204893112183,
+          "file_ref": "file_cbf36418bcbfd87c",
+          "source_type": "github",
+          "source_path": "github/pr-75983-deferred-aggregation-telemetry-lattice-and-path-sampling.json",
+          "title": "deferred-aggregation-telemetry-lattice-and-path-sampling"
+        },
+        {
+          "rank": 3,
+          "document_id": "dsid_8779ac72d6504759b701178632772f6c",
+          "distance": 1.1278038024902344,
+          "file_ref": "file_4a0be907d79078bd",
+          "source_type": "github",
+          "source_path": "github/pr-199842-openai-v1-chat-compat-response-sculpting-stop-coalesce.json",
+          "title": "v1 OpenAI chat: response sculpting, stop coalescing, and streaming logprob envelope"
+        },
+        {
+          "rank": 4,
+          "document_id": "dsid_426ca69578a84dd4af512e5a2782086e",
+          "distance": 1.161260962486267,
+          "file_ref": "file_51ca88792f201643",
+          "source_type": "github",
+          "source_path": "github/pr-20311-safelock-fastpath-precision-toggle-kv-eviction.json",
+          "title": "Introduce \"safelock\" fast-path gating + precision toggle and KV-eviction safety for runtime"
+        },
+        {
+          "rank": 5,
+          "document_id": "dsid_c7860fdbc17a48b0b6c5f9a0c5e3d054",
+          "distance": 1.1743454933166504,
+          "file_ref": "file_cf132b670b005a98",
+          "source_type": "github",
+          "source_path": "github/pr-176421-coalescing-invoker-grace-period-and-structured-output.json",
+          "title": "Coalescing Invoker: grace-period batching, deterministic injection, and structured-output streaming compatibility"
+        },
+        {
+          "rank": 6,
+          "document_id": "dsid_1c53affffb4f477ca476bec3138b60eb",
+          "distance": 1.1872822046279907,
+          "file_ref": "file_6ab9bc67c9b3fd2e",
+          "source_type": "github",
+          "source_path": "github/pr-96123-chat-v1-param-normalizer-role-alias-stop-dedupe-stream-backpressure.json",
+          "title": "chat v1: parameter normalizer, role aliasing, stop dedupe and streaming backpressure improvements for /v1/chat.completions parity"
+        },
+        {
+          "rank": 7,
+          "document_id": "dsid_6c58ddb8ecf543d89fca8352351dea29",
+          "distance": 1.1938904523849487,
+          "file_ref": "file_2550c66a4f1fd8a9",
+          "source_type": "github",
+          "source_path": "github/pr-24930-openai-resp-v3-seed-metadata-reassembly-compat.json",
+          "title": "openai-compat: responses-v3 deterministic-seed routing + metadata passthrough and streaming reassembly"
+        },
+        {
+          "rank": 8,
+          "document_id": "dsid_caf02469a41c46cf8387713b83c628f3",
+          "distance": 1.2134578227996826,
+          "file_ref": "file_654d54e5bdbda267",
+          "source_type": "github",
+          "source_path": "github/pr-23145-adaptive-scratch-and-deferred-ckpt-scheduler.json",
+          "title": "adaptive-scratch-capacity-and-deferred-ckpt-scheduler-for-gpu-workspace-reduction"
+        },
+        {
+          "rank": 9,
+          "document_id": "dsid_ae068ee4aa9640159427cd941bef0238",
+          "distance": 1.2593278884887695,
+          "file_ref": "file_90f09b89336b14e9",
+          "source_type": "github",
+          "source_path": "github/pr-18421-multipart-file-validation-limits.json",
+          "title": "add multipart/form-data handling, strict content-type validation, and payload limit enforcement for API tool/file inputs"
+        },
+        {
+          "rank": 10,
+          "document_id": "dsid_9550250a59e74f1bbd5612480b2e7100",
+          "distance": 1.2600548267364502,
+          "file_ref": "file_2686f50c82216c0e",
+          "source_type": "github",
+          "source_path": "github/pr-129874-timebox-abort-idempotency-resume-openai-compat.json",
+          "title": "introduce-server-timebox-and-idempotent-cancel-fallbacks-for-streaming-compat"
+        },
+        {
+          "rank": 11,
+          "document_id": "dsid_88b39d13bd584ef8b1422d76994808c7",
+          "distance": 1.2700499296188354,
+          "file_ref": "file_99ffce24460e52d6",
+          "source_type": "github",
+          "source_path": "github/pr-95312-unify-handshake-consumer-ux-and-retry-bump.json",
+          "title": "Cross-SDK: unify streaming handshake, consumer ergonomics, and auth/retry semantics (Python/TS/Go)"
+        }
+      ]
+    },
+    {
+      "question_id": "qst_0011",
+      "source_types": [
+        "confluence"
+      ],
+      "expected_doc_ids": [
+        "dsid_46a4cb87db414e769f2df86f01626948"
+      ],
+      "hit_any": true,
+      "best_rank": 1,
+      "top_document_ids": [
+        "dsid_46a4cb87db414e769f2df86f01626948",
+        "dsid_c198dbbcf28a4c73ad1d705809634176",
+        "dsid_7c73cb76b80a41edb4959db4b1e7308b",
+        "dsid_9c8cb10d65324c03a8ededbd98c1b058",
+        "dsid_ba7d1565b0694e359983bccaa4bf5977",
+        "dsid_d7f0edbaa28147da807b5b85ea495bd1",
+        "dsid_f1b208f3637e4987aeab371242a5bea5",
+        "dsid_a2983978ba0d4d70a795eb7e13de8670",
+        "dsid_43ecb807903f46848e8d099b6c8beb04",
+        "dsid_f2f019c122154edc8b21f56879661043"
+      ],
+      "top_hits": [
+        {
+          "rank": 1,
+          "document_id": "dsid_46a4cb87db414e769f2df86f01626948",
+          "distance": 0.9117107391357422,
+          "file_ref": "file_6f4c2ccbdc8b1e34",
+          "source_type": "confluence",
+          "source_path": "confluence/eng-platform/team-wiki/runbook-writing-and-telemetry-bootcamp-curriculum-2026.json",
+          "title": "Runbook Writing and Telemetry Bootcamp Curriculum — Operator Training"
+        },
+        {
+          "rank": 2,
+          "document_id": "dsid_c198dbbcf28a4c73ad1d705809634176",
+          "distance": 1.088403582572937,
+          "file_ref": "file_13b4b92426108f16",
+          "source_type": "confluence",
+          "source_path": "confluence/eng-private-deployments/customer-requirements-library/tenant-telemetry-consent-and-redaction-playbook-2026.json",
+          "title": "Tenant Telemetry Consent and Redaction Playbook for Private Deploys"
+        },
+        {
+          "rank": 3,
+          "document_id": "dsid_7c73cb76b80a41edb4959db4b1e7308b",
+          "distance": 1.1259713172912598,
+          "file_ref": "file_8303b292627b099c",
+          "source_type": "confluence",
+          "source_path": "confluence/eng-sre/tenant-observability-evidence-contract-for-regulated-vpc-deploys-2027.json",
+          "title": "Tenant Observability & Evidence Contract for Regulated VPC Deploys"
+        },
+        {
+          "rank": 4,
+          "document_id": "dsid_9c8cb10d65324c03a8ededbd98c1b058",
+          "distance": 1.154382586479187,
+          "file_ref": "file_e0d2d6eb66062b01",
+          "source_type": "confluence",
+          "source_path": "confluence/customer-success-and-support/support-process/go-live-protocols-cross-org-communications-escalation-2027.json",
+          "title": "Go-Live Protocols: Cross-Org Communications & Escalation"
+        },
+        {
+          "rank": 5,
+          "document_id": "dsid_ba7d1565b0694e359983bccaa4bf5977",
+          "distance": 1.1693072319030762,
+          "file_ref": "file_5635f33779e5487b",
+          "source_type": "confluence",
+          "source_path": "confluence/policies-and-process/entitlements-and-purchase-pathways-playbook-2030.json",
+          "title": "entitlements-and-purchase-pathways-playbook-2030"
+        },
+        {
+          "rank": 6,
+          "document_id": "dsid_d7f0edbaa28147da807b5b85ea495bd1",
+          "distance": 1.172677993774414,
+          "file_ref": "file_0de863824ff3353b",
+          "source_type": "confluence",
+          "source_path": "confluence/company-handbook/05_internal-tools/cross-role-tool-access-governance-and-self-service-handbook-2027.json",
+          "title": "Cross-role Tool Access Governance and Self-Service Handbook"
+        },
+        {
+          "rank": 7,
+          "document_id": "dsid_f1b208f3637e4987aeab371242a5bea5",
+          "distance": 1.1847772598266602,
+          "file_ref": "file_fb36e79c2ad26b59",
+          "source_type": "confluence",
+          "source_path": "confluence/eng-infra/ci-cd-and-build/gpu-ci-credential-rotation-and-image-promotion-safety.json",
+          "title": "GPU CI credential rotation and image promotion safety kit"
+        },
+        {
+          "rank": 8,
+          "document_id": "dsid_a2983978ba0d4d70a795eb7e13de8670",
+          "distance": 1.2215720415115356,
+          "file_ref": "file_3e7346baa678f331",
+          "source_type": "confluence",
+          "source_path": "confluence/eng-developer-experience/docs-site/quantization-profiles-customer-docs-plan.json",
+          "title": "Quantization Profiles (Public Docs) — Customer Documentation Plan"
+        },
+        {
+          "rank": 9,
+          "document_id": "dsid_43ecb807903f46848e8d099b6c8beb04",
+          "distance": 1.2221211194992065,
+          "file_ref": "file_ad17bf12caedf6b7",
+          "source_type": "confluence",
+          "source_path": "confluence/eng-infra/kernel-snapshot-observability-contract-2026.json",
+          "title": "Kernel Snapshot Observability Contract and Diagnostic Playbook"
+        },
+        {
+          "rank": 10,
+          "document_id": "dsid_f2f019c122154edc8b21f56879661043",
+          "distance": 1.2252577543258667,
+          "file_ref": "file_33eae4f2dabf2051",
+          "source_type": "confluence",
+          "source_path": "confluence/finance-and-legal/procurement/procurement-legal-risk-escalation-sop-2026.json",
+          "title": "Procurement: Legal Risk Triage & Escalation SOP"
+        }
+      ]
+    },
+    {
+      "question_id": "qst_0012",
+      "source_types": [
+        "jira"
+      ],
+      "expected_doc_ids": [
+        "dsid_59cb294da8964683bb165a3bb615df71"
+      ],
+      "hit_any": true,
+      "best_rank": 1,
+      "top_document_ids": [
+        "dsid_59cb294da8964683bb165a3bb615df71",
+        "dsid_e728a420a02a4ddcb125e6adb09d211e",
+        "dsid_3f4010bdd3c44b99bb1c1ad2326f5eda",
+        "dsid_18621ce91fd14b408a2be95336bb4ab0",
+        "dsid_1eba87b0b11b4f31a006f0cf164b8509",
+        "dsid_9a088141571b435f995568199ec4bcc9",
+        "dsid_b097ab5d9e4c41609f47432dfcb1508b",
+        "dsid_ad3961a5bbd846d09d101bfa951ab739",
+        "dsid_429267fe79c74918a26272f6c0e48f10",
+        "dsid_1d5a3cde61104276b218c05dc101a546",
+        "dsid_3b9483f629fd423d81ac49a7efff89c9",
+        "dsid_8138b96e181940418cc5067b2630064e",
+        "dsid_a673ed031ece43c5bc4a0d27a284c8dc"
+      ],
+      "top_hits": [
+        {
+          "rank": 1,
+          "document_id": "dsid_59cb294da8964683bb165a3bb615df71",
+          "distance": 0.7960891127586365,
+          "file_ref": "file_be5a9bd42cfa4ee9",
+          "source_type": "jira",
+          "source_path": "jira/ops-requests/INT-460811-edge-switch-arp-proxy-ip-duplication.json",
+          "title": "Edge switch ARP proxying leads to VPN client IP duplication and intermittent routing to wrong host"
+        },
+        {
+          "rank": 2,
+          "document_id": "dsid_e728a420a02a4ddcb125e6adb09d211e",
+          "distance": 0.9304682016372681,
+          "file_ref": "file_92d62223e3e52f5a",
+          "source_type": "jira",
+          "source_path": "jira/internal-support/INT-738205-wifi-bridge-nat-source-rewrite-breaks-vpn-policy.json",
+          "title": "Office edge bridge in NAT mode rewriting source IPs and causing VPN policy routing failures and SSO timeouts"
+        },
+        {
+          "rank": 3,
+          "document_id": "dsid_3f4010bdd3c44b99bb1c1ad2326f5eda",
+          "distance": 1.0945452451705933,
+          "file_ref": "file_6514af73d6f2a2eb",
+          "source_type": "jira",
+          "source_path": "jira/internal-support/INT-1000456-m1-macbook-dep-enroll-kext-conflict-blocking-profile-install.json",
+          "title": "M1 MacBook DEP re-enroll fails: third-party kext blocks MDM profile & cert install after depot repair"
+        },
+        {
+          "rank": 4,
+          "document_id": "dsid_18621ce91fd14b408a2be95336bb4ab0",
+          "distance": 1.1008120775222778,
+          "file_ref": "file_1a7b344bbe955870",
+          "source_type": "jira",
+          "source_path": "jira/ops-requests/SUP-700707-bursting-5xx-from-apigw-backpressure-and-runtime-thread-exhaustion.json",
+          "title": "Bursting 5xx errors caused by API gateway backpressure amplifying runtime thread exhaustion on dedicated pool"
+        },
+        {
+          "rank": 5,
+          "document_id": "dsid_1eba87b0b11b4f31a006f0cf164b8509",
+          "distance": 1.1074261665344238,
+          "file_ref": "file_36c4b94270bb4283",
+          "source_type": "jira",
+          "source_path": "jira/customer-support/SUP-28436-disputed-status-accuracy-during-us-east-degradation.json",
+          "title": "Customer disputes status page accuracy during us-east degradation (status showed Operational while streaming requests failed)"
+        },
+        {
+          "rank": 6,
+          "document_id": "dsid_9a088141571b435f995568199ec4bcc9",
+          "distance": 1.1411654949188232,
+          "file_ref": "file_6ff9af460329608a",
+          "source_type": "jira",
+          "source_path": "jira/ops-requests/INT-738210-runner-service-token-leak-detection-and-rotation-assist.json",
+          "title": "Runner service account token exfiltration alert: rotate tokens and validate CI access paths"
+        },
+        {
+          "rank": 7,
+          "document_id": "dsid_b097ab5d9e4c41609f47432dfcb1508b",
+          "distance": 1.1448605060577393,
+          "file_ref": "file_01e59d4e90004e59",
+          "source_type": "jira",
+          "source_path": "jira/internal-support/INT-772007-role-lookup-groupid-type-mismatch-modelobservability-access.json",
+          "title": "Role resolution fails after Okta group id type change; ModelObservability API returns 403 for newly provisioned users"
+        },
+        {
+          "rank": 8,
+          "document_id": "dsid_ad3961a5bbd846d09d101bfa951ab739",
+          "distance": 1.1710566282272339,
+          "file_ref": "file_e683b7f14171e8f6",
+          "source_type": "jira",
+          "source_path": "jira/customer-support/SUP-77321-temporary-pause-and-traffic-split-mitigation-for-aggressive-opt-profiles.json",
+          "title": "Validate and temporarily pause aggressive per-tenant batching/cache/quant profiles; provide traffic-split mitigation and safe restore"
+        },
+        {
+          "rank": 9,
+          "document_id": "dsid_429267fe79c74918a26272f6c0e48f10",
+          "distance": 1.1732101440429688,
+          "file_ref": "file_5b3080fe6c959bcc",
+          "source_type": "jira",
+          "source_path": "jira/internal-support/INT-999999-service-cron-sso-refresh-failure-blocks-nightly-model-evals.json",
+          "title": "Scheduled service account token refresh failing after Okta policy update — nightly model-evals jobs stopped"
+        },
+        {
+          "rank": 10,
+          "document_id": "dsid_1d5a3cde61104276b218c05dc101a546",
+          "distance": 1.1890594959259033,
+          "file_ref": "file_657d0798d09d8f77",
+          "source_type": "jira",
+          "source_path": "jira/ops-requests/INT-827501-dossierhq-ephemeral-collaborator-pool-scim-okta-billing-mapping.json",
+          "title": "DossierHQ: procure ephemeral collaborator pool (120 seats) + SCIM/SSO mapping and billing tags"
+        },
+        {
+          "rank": 11,
+          "document_id": "dsid_3b9483f629fd423d81ac49a7efff89c9",
+          "distance": 1.1995117664337158,
+          "file_ref": "file_984162fce468691b",
+          "source_type": "jira",
+          "source_path": "jira/internal-support/SUP-208471-harmonized-rate-plan-credit-alloc-reconciliation-discrepancy.json",
+          "title": "Org-level promo credit reallocated across subaccounts after hybrid (dedicated+hosted) reconciliation"
+        },
+        {
+          "rank": 12,
+          "document_id": "dsid_8138b96e181940418cc5067b2630064e",
+          "distance": 1.224090576171875,
+          "file_ref": "file_6bec8c981209f234",
+          "source_type": "jira",
+          "source_path": "jira/internal-support/INT-821407-provisional-license-reclaim-and-grace-window-policy-clarify.json",
+          "title": "Clarify provisional license reclaim window and equipment-return grace period for immediate offboarding"
+        },
+        {
+          "rank": 13,
+          "document_id": "dsid_a673ed031ece43c5bc4a0d27a284c8dc",
+          "distance": 1.2280851602554321,
+          "file_ref": "file_7c6c5bd3f30ebeec",
+          "source_type": "jira",
+          "source_path": "jira/ops-requests/SUP-99340-structured-audit-delivery-and-PII-redaction-evidence-request.json",
+          "title": "Structured audit export, PII redaction evidence, and intake for privacy-scan SIEM ingest"
+        }
+      ]
+    },
+    {
+      "question_id": "qst_0013",
+      "source_types": [
+        "confluence"
+      ],
+      "expected_doc_ids": [
+        "dsid_f1b208f3637e4987aeab371242a5bea5"
+      ],
+      "hit_any": true,
+      "best_rank": 1,
+      "top_document_ids": [
+        "dsid_f1b208f3637e4987aeab371242a5bea5",
+        "dsid_9c8cb10d65324c03a8ededbd98c1b058",
+        "dsid_c198dbbcf28a4c73ad1d705809634176",
+        "dsid_43ecb807903f46848e8d099b6c8beb04",
+        "dsid_d7f0edbaa28147da807b5b85ea495bd1",
+        "dsid_7c73cb76b80a41edb4959db4b1e7308b",
+        "dsid_a2983978ba0d4d70a795eb7e13de8670",
+        "dsid_f2f019c122154edc8b21f56879661043",
+        "dsid_46a4cb87db414e769f2df86f01626948",
+        "dsid_ba7d1565b0694e359983bccaa4bf5977"
+      ],
+      "top_hits": [
+        {
+          "rank": 1,
+          "document_id": "dsid_f1b208f3637e4987aeab371242a5bea5",
+          "distance": 0.8777197003364563,
+          "file_ref": "file_fb36e79c2ad26b59",
+          "source_type": "confluence",
+          "source_path": "confluence/eng-infra/ci-cd-and-build/gpu-ci-credential-rotation-and-image-promotion-safety.json",
+          "title": "GPU CI credential rotation and image promotion safety kit"
+        },
+        {
+          "rank": 2,
+          "document_id": "dsid_9c8cb10d65324c03a8ededbd98c1b058",
+          "distance": 1.097379207611084,
+          "file_ref": "file_e0d2d6eb66062b01",
+          "source_type": "confluence",
+          "source_path": "confluence/customer-success-and-support/support-process/go-live-protocols-cross-org-communications-escalation-2027.json",
+          "title": "Go-Live Protocols: Cross-Org Communications & Escalation"
+        },
+        {
+          "rank": 3,
+          "document_id": "dsid_c198dbbcf28a4c73ad1d705809634176",
+          "distance": 1.129987120628357,
+          "file_ref": "file_13b4b92426108f16",
+          "source_type": "confluence",
+          "source_path": "confluence/eng-private-deployments/customer-requirements-library/tenant-telemetry-consent-and-redaction-playbook-2026.json",
+          "title": "Tenant Telemetry Consent and Redaction Playbook for Private Deploys"
+        },
+        {
+          "rank": 4,
+          "document_id": "dsid_43ecb807903f46848e8d099b6c8beb04",
+          "distance": 1.1512529850006104,
+          "file_ref": "file_ad17bf12caedf6b7",
+          "source_type": "confluence",
+          "source_path": "confluence/eng-infra/kernel-snapshot-observability-contract-2026.json",
+          "title": "Kernel Snapshot Observability Contract and Diagnostic Playbook"
+        },
+        {
+          "rank": 5,
+          "document_id": "dsid_d7f0edbaa28147da807b5b85ea495bd1",
+          "distance": 1.1524826288223267,
+          "file_ref": "file_0de863824ff3353b",
+          "source_type": "confluence",
+          "source_path": "confluence/company-handbook/05_internal-tools/cross-role-tool-access-governance-and-self-service-handbook-2027.json",
+          "title": "Cross-role Tool Access Governance and Self-Service Handbook"
+        },
+        {
+          "rank": 6,
+          "document_id": "dsid_7c73cb76b80a41edb4959db4b1e7308b",
+          "distance": 1.1557486057281494,
+          "file_ref": "file_8303b292627b099c",
+          "source_type": "confluence",
+          "source_path": "confluence/eng-sre/tenant-observability-evidence-contract-for-regulated-vpc-deploys-2027.json",
+          "title": "Tenant Observability & Evidence Contract for Regulated VPC Deploys"
+        },
+        {
+          "rank": 7,
+          "document_id": "dsid_a2983978ba0d4d70a795eb7e13de8670",
+          "distance": 1.1595816612243652,
+          "file_ref": "file_3e7346baa678f331",
+          "source_type": "confluence",
+          "source_path": "confluence/eng-developer-experience/docs-site/quantization-profiles-customer-docs-plan.json",
+          "title": "Quantization Profiles (Public Docs) — Customer Documentation Plan"
+        },
+        {
+          "rank": 8,
+          "document_id": "dsid_f2f019c122154edc8b21f56879661043",
+          "distance": 1.1640427112579346,
+          "file_ref": "file_33eae4f2dabf2051",
+          "source_type": "confluence",
+          "source_path": "confluence/finance-and-legal/procurement/procurement-legal-risk-escalation-sop-2026.json",
+          "title": "Procurement: Legal Risk Triage & Escalation SOP"
+        },
+        {
+          "rank": 9,
+          "document_id": "dsid_46a4cb87db414e769f2df86f01626948",
+          "distance": 1.1841789484024048,
+          "file_ref": "file_6f4c2ccbdc8b1e34",
+          "source_type": "confluence",
+          "source_path": "confluence/eng-platform/team-wiki/runbook-writing-and-telemetry-bootcamp-curriculum-2026.json",
+          "title": "Runbook Writing and Telemetry Bootcamp Curriculum — Operator Training"
+        },
+        {
+          "rank": 10,
+          "document_id": "dsid_ba7d1565b0694e359983bccaa4bf5977",
+          "distance": 1.197345495223999,
+          "file_ref": "file_5635f33779e5487b",
+          "source_type": "confluence",
+          "source_path": "confluence/policies-and-process/entitlements-and-purchase-pathways-playbook-2030.json",
+          "title": "entitlements-and-purchase-pathways-playbook-2030"
+        }
+      ]
+    },
+    {
+      "question_id": "qst_0014",
+      "source_types": [
+        "fireflies"
+      ],
+      "expected_doc_ids": [
+        "dsid_9ed01291d81947f49500df5fb28ab724"
+      ],
+      "hit_any": true,
+      "best_rank": 2,
+      "top_document_ids": [
+        "dsid_05faa1ab6427403888a06d7083c7f0a9",
+        "dsid_9ed01291d81947f49500df5fb28ab724",
+        "dsid_045c297ec2ef495abd66cb1f09921fc4",
+        "dsid_6c4c1c875e704f09b4d791d64d7bc7e5",
+        "dsid_7d9551aa21124d70b0e247c390d88622",
+        "dsid_f4e0ec9fc27c4e52a55b34af90fcd1b0",
+        "dsid_862bb899faac43feab4f92a12d320e7c"
+      ],
+      "top_hits": [
+        {
+          "rank": 1,
+          "document_id": "dsid_05faa1ab6427403888a06d7083c7f0a9",
+          "distance": 0.8722723722457886,
+          "file_ref": "file_e26a486603ed503d",
+          "source_type": "fireflies",
+          "source_path": "fireflies/2025-06-12-security-review-private-upgrade-auditability.json",
+          "title": "Security review - Private upgrades: audit logs, backup encryption, rollback evidence (Cascade)"
+        },
+        {
+          "rank": 2,
+          "document_id": "dsid_9ed01291d81947f49500df5fb28ab724",
+          "distance": 0.8825539350509644,
+          "file_ref": "file_123fd5a36968046f",
+          "source_type": "fireflies",
+          "source_path": "fireflies/2025-05-28-private-upgrades-technical-deep-dive.json",
+          "title": "Private upgrades technical deep dive (design partner) - upgrade plan, backups, rollback"
+        },
+        {
+          "rank": 3,
+          "document_id": "dsid_045c297ec2ef495abd66cb1f09921fc4",
+          "distance": 1.1201213598251343,
+          "file_ref": "file_7969330e6f1b1fcc",
+          "source_type": "fireflies",
+          "source_path": "fireflies/all-hands/2026-12-22-crew-handover-and-momentum-check.json",
+          "title": "End-of-year crew handover + momentum check"
+        },
+        {
+          "rank": 4,
+          "document_id": "dsid_6c4c1c875e704f09b4d791d64d7bc7e5",
+          "distance": 1.170676350593567,
+          "file_ref": "file_977186226c96a2ff",
+          "source_type": "fireflies",
+          "source_path": "fireflies/2026-01-16-gcp-marketplace-onboarding-and-billing-review.json",
+          "title": "GCP Marketplace onboarding + billing review (Redwood Inference)"
+        },
+        {
+          "rank": 5,
+          "document_id": "dsid_7d9551aa21124d70b0e247c390d88622",
+          "distance": 1.1773815155029297,
+          "file_ref": "file_98db4cd98f796b1f",
+          "source_type": "fireflies",
+          "source_path": "fireflies/2026-02-07-marketplace-onboarding-walkthrough-internal-dry-run.json",
+          "title": "Marketplace onboarding walkthrough (internal dry run) — subscription → org provisioning → first key"
+        },
+        {
+          "rank": 6,
+          "document_id": "dsid_f4e0ec9fc27c4e52a55b34af90fcd1b0",
+          "distance": 1.1836340427398682,
+          "file_ref": "file_dc28ec7277aa515d",
+          "source_type": "fireflies",
+          "source_path": "fireflies/misc/2026-09-03-chatplay-onboarding-sandbox-demo-streaming-retries.json",
+          "title": "ChatPlay onboarding sandbox demo — streaming, params, retries"
+        },
+        {
+          "rank": 7,
+          "document_id": "dsid_862bb899faac43feab4f92a12d320e7c",
+          "distance": 1.2010951042175293,
+          "file_ref": "file_f030db759ac86e34",
+          "source_type": "fireflies",
+          "source_path": "fireflies/2026-02-03-marketplace-security-review-with-prospect.json",
+          "title": "Marketplace security review - Redwood Inference x Helio Finance"
+        }
+      ]
+    },
+    {
+      "question_id": "qst_0015",
+      "source_types": [
+        "hubspot"
+      ],
+      "expected_doc_ids": [
+        "dsid_e75bbf328fe349d2bb39e29b1ed7c9d5"
+      ],
+      "hit_any": true,
+      "best_rank": 1,
+      "top_document_ids": [
+        "dsid_e75bbf328fe349d2bb39e29b1ed7c9d5",
+        "dsid_4b0f5e573e5e4ce8bbbcf370c3ea7eaa",
+        "dsid_03af1e44970d4d6db6e85bc2c5fce8de",
+        "dsid_4331f37f2b8d4e2cb0f5c5719a033e2f",
+        "dsid_3bc3170ead63470eaef9a53ca835cec0",
+        "dsid_eea41d353de049aa89be98b6f9cf5de1",
+        "dsid_8f5b801cebc34eb4b233bd0ef7c1b546"
+      ],
+      "top_hits": [
+        {
+          "rank": 1,
+          "document_id": "dsid_e75bbf328fe349d2bb39e29b1ed7c9d5",
+          "distance": 0.9769042730331421,
+          "file_ref": "file_516a5bfe901ceb33",
+          "source_type": "hubspot",
+          "source_path": "hubspot/company-satellite-grove-assist.json",
+          "title": "Satellite Grove"
+        },
+        {
+          "rank": 2,
+          "document_id": "dsid_4b0f5e573e5e4ce8bbbcf370c3ea7eaa",
+          "distance": 1.0500630140304565,
+          "file_ref": "file_4165c56155811b78",
+          "source_type": "hubspot",
+          "source_path": "hubspot/company-northpoint-signalworks.json",
+          "title": "NorthPoint Signalworks"
+        },
+        {
+          "rank": 3,
+          "document_id": "dsid_03af1e44970d4d6db6e85bc2c5fce8de",
+          "distance": 1.1167680025100708,
+          "file_ref": "file_27aa08eee47ae948",
+          "source_type": "hubspot",
+          "source_path": "hubspot/company-horizon-quay-ai-infrastructure.json",
+          "title": "Horizon Quay AI Infrastructure"
+        },
+        {
+          "rank": 4,
+          "document_id": "dsid_4331f37f2b8d4e2cb0f5c5719a033e2f",
+          "distance": 1.124813437461853,
+          "file_ref": "file_f4630cff7c0e5073",
+          "source_type": "hubspot",
+          "source_path": "hubspot/company-revvy-insights.json",
+          "title": "Revvy Insights"
+        },
+        {
+          "rank": 5,
+          "document_id": "dsid_3bc3170ead63470eaef9a53ca835cec0",
+          "distance": 1.1505435705184937,
+          "file_ref": "file_d893fc0fc9284bef",
+          "source_type": "hubspot",
+          "source_path": "hubspot/company-trialbridge-legal-smb.json",
+          "title": "Trialbridge Legal Solutions"
+        },
+        {
+          "rank": 6,
+          "document_id": "dsid_eea41d353de049aa89be98b6f9cf5de1",
+          "distance": 1.1562713384628296,
+          "file_ref": "file_9d08b8aba0529fe6",
+          "source_type": "hubspot",
+          "source_path": "hubspot/company-silverkite-launchpad.json",
+          "title": "SilverKite Launchpad"
+        },
+        {
+          "rank": 7,
+          "document_id": "dsid_8f5b801cebc34eb4b233bd0ef7c1b546",
+          "distance": 1.1592607498168945,
+          "file_ref": "file_5cc843080f03528f",
+          "source_type": "hubspot",
+          "source_path": "hubspot/company-sidecar-streetwear-studio.json",
+          "title": "Sidecar Streetwear Studio"
+        }
+      ]
+    },
+    {
+      "question_id": "qst_0016",
+      "source_types": [
+        "confluence"
+      ],
+      "expected_doc_ids": [
+        "dsid_ba7d1565b0694e359983bccaa4bf5977"
+      ],
+      "hit_any": true,
+      "best_rank": 1,
+      "top_document_ids": [
+        "dsid_ba7d1565b0694e359983bccaa4bf5977",
+        "dsid_d7f0edbaa28147da807b5b85ea495bd1",
+        "dsid_c198dbbcf28a4c73ad1d705809634176",
+        "dsid_7c73cb76b80a41edb4959db4b1e7308b",
+        "dsid_f2f019c122154edc8b21f56879661043",
+        "dsid_f1b208f3637e4987aeab371242a5bea5",
+        "dsid_9c8cb10d65324c03a8ededbd98c1b058",
+        "dsid_46a4cb87db414e769f2df86f01626948",
+        "dsid_a2983978ba0d4d70a795eb7e13de8670",
+        "dsid_43ecb807903f46848e8d099b6c8beb04"
+      ],
+      "top_hits": [
+        {
+          "rank": 1,
+          "document_id": "dsid_ba7d1565b0694e359983bccaa4bf5977",
+          "distance": 0.9262949824333191,
+          "file_ref": "file_5635f33779e5487b",
+          "source_type": "confluence",
+          "source_path": "confluence/policies-and-process/entitlements-and-purchase-pathways-playbook-2030.json",
+          "title": "entitlements-and-purchase-pathways-playbook-2030"
+        },
+        {
+          "rank": 2,
+          "document_id": "dsid_d7f0edbaa28147da807b5b85ea495bd1",
+          "distance": 0.9734382629394531,
+          "file_ref": "file_0de863824ff3353b",
+          "source_type": "confluence",
+          "source_path": "confluence/company-handbook/05_internal-tools/cross-role-tool-access-governance-and-self-service-handbook-2027.json",
+          "title": "Cross-role Tool Access Governance and Self-Service Handbook"
+        },
+        {
+          "rank": 3,
+          "document_id": "dsid_c198dbbcf28a4c73ad1d705809634176",
+          "distance": 1.0846518278121948,
+          "file_ref": "file_13b4b92426108f16",
+          "source_type": "confluence",
+          "source_path": "confluence/eng-private-deployments/customer-requirements-library/tenant-telemetry-consent-and-redaction-playbook-2026.json",
+          "title": "Tenant Telemetry Consent and Redaction Playbook for Private Deploys"
+        },
+        {
+          "rank": 4,
+          "document_id": "dsid_7c73cb76b80a41edb4959db4b1e7308b",
+          "distance": 1.1039608716964722,
+          "file_ref": "file_8303b292627b099c",
+          "source_type": "confluence",
+          "source_path": "confluence/eng-sre/tenant-observability-evidence-contract-for-regulated-vpc-deploys-2027.json",
+          "title": "Tenant Observability & Evidence Contract for Regulated VPC Deploys"
+        },
+        {
+          "rank": 5,
+          "document_id": "dsid_f2f019c122154edc8b21f56879661043",
+          "distance": 1.1101958751678467,
+          "file_ref": "file_33eae4f2dabf2051",
+          "source_type": "confluence",
+          "source_path": "confluence/finance-and-legal/procurement/procurement-legal-risk-escalation-sop-2026.json",
+          "title": "Procurement: Legal Risk Triage & Escalation SOP"
+        },
+        {
+          "rank": 6,
+          "document_id": "dsid_f1b208f3637e4987aeab371242a5bea5",
+          "distance": 1.1287271976470947,
+          "file_ref": "file_fb36e79c2ad26b59",
+          "source_type": "confluence",
+          "source_path": "confluence/eng-infra/ci-cd-and-build/gpu-ci-credential-rotation-and-image-promotion-safety.json",
+          "title": "GPU CI credential rotation and image promotion safety kit"
+        },
+        {
+          "rank": 7,
+          "document_id": "dsid_9c8cb10d65324c03a8ededbd98c1b058",
+          "distance": 1.1401664018630981,
+          "file_ref": "file_e0d2d6eb66062b01",
+          "source_type": "confluence",
+          "source_path": "confluence/customer-success-and-support/support-process/go-live-protocols-cross-org-communications-escalation-2027.json",
+          "title": "Go-Live Protocols: Cross-Org Communications & Escalation"
+        },
+        {
+          "rank": 8,
+          "document_id": "dsid_46a4cb87db414e769f2df86f01626948",
+          "distance": 1.166793942451477,
+          "file_ref": "file_6f4c2ccbdc8b1e34",
+          "source_type": "confluence",
+          "source_path": "confluence/eng-platform/team-wiki/runbook-writing-and-telemetry-bootcamp-curriculum-2026.json",
+          "title": "Runbook Writing and Telemetry Bootcamp Curriculum — Operator Training"
+        },
+        {
+          "rank": 9,
+          "document_id": "dsid_a2983978ba0d4d70a795eb7e13de8670",
+          "distance": 1.1873769760131836,
+          "file_ref": "file_3e7346baa678f331",
+          "source_type": "confluence",
+          "source_path": "confluence/eng-developer-experience/docs-site/quantization-profiles-customer-docs-plan.json",
+          "title": "Quantization Profiles (Public Docs) — Customer Documentation Plan"
+        },
+        {
+          "rank": 10,
+          "document_id": "dsid_43ecb807903f46848e8d099b6c8beb04",
+          "distance": 1.189324140548706,
+          "file_ref": "file_ad17bf12caedf6b7",
+          "source_type": "confluence",
+          "source_path": "confluence/eng-infra/kernel-snapshot-observability-contract-2026.json",
+          "title": "Kernel Snapshot Observability Contract and Diagnostic Playbook"
+        }
+      ]
+    },
+    {
+      "question_id": "qst_0017",
+      "source_types": [
+        "hubspot"
+      ],
+      "expected_doc_ids": [
+        "dsid_03af1e44970d4d6db6e85bc2c5fce8de"
+      ],
+      "hit_any": true,
+      "best_rank": 1,
+      "top_document_ids": [
+        "dsid_03af1e44970d4d6db6e85bc2c5fce8de",
+        "dsid_4b0f5e573e5e4ce8bbbcf370c3ea7eaa",
+        "dsid_e75bbf328fe349d2bb39e29b1ed7c9d5",
+        "dsid_4331f37f2b8d4e2cb0f5c5719a033e2f",
+        "dsid_8f5b801cebc34eb4b233bd0ef7c1b546",
+        "dsid_3bc3170ead63470eaef9a53ca835cec0",
+        "dsid_eea41d353de049aa89be98b6f9cf5de1"
+      ],
+      "top_hits": [
+        {
+          "rank": 1,
+          "document_id": "dsid_03af1e44970d4d6db6e85bc2c5fce8de",
+          "distance": 0.9469229578971863,
+          "file_ref": "file_27aa08eee47ae948",
+          "source_type": "hubspot",
+          "source_path": "hubspot/company-horizon-quay-ai-infrastructure.json",
+          "title": "Horizon Quay AI Infrastructure"
+        },
+        {
+          "rank": 2,
+          "document_id": "dsid_4b0f5e573e5e4ce8bbbcf370c3ea7eaa",
+          "distance": 1.1052979230880737,
+          "file_ref": "file_4165c56155811b78",
+          "source_type": "hubspot",
+          "source_path": "hubspot/company-northpoint-signalworks.json",
+          "title": "NorthPoint Signalworks"
+        },
+        {
+          "rank": 3,
+          "document_id": "dsid_e75bbf328fe349d2bb39e29b1ed7c9d5",
+          "distance": 1.113271951675415,
+          "file_ref": "file_516a5bfe901ceb33",
+          "source_type": "hubspot",
+          "source_path": "hubspot/company-satellite-grove-assist.json",
+          "title": "Satellite Grove"
+        },
+        {
+          "rank": 4,
+          "document_id": "dsid_4331f37f2b8d4e2cb0f5c5719a033e2f",
+          "distance": 1.1330844163894653,
+          "file_ref": "file_f4630cff7c0e5073",
+          "source_type": "hubspot",
+          "source_path": "hubspot/company-revvy-insights.json",
+          "title": "Revvy Insights"
+        },
+        {
+          "rank": 5,
+          "document_id": "dsid_8f5b801cebc34eb4b233bd0ef7c1b546",
+          "distance": 1.1444764137268066,
+          "file_ref": "file_5cc843080f03528f",
+          "source_type": "hubspot",
+          "source_path": "hubspot/company-sidecar-streetwear-studio.json",
+          "title": "Sidecar Streetwear Studio"
+        },
+        {
+          "rank": 6,
+          "document_id": "dsid_3bc3170ead63470eaef9a53ca835cec0",
+          "distance": 1.152682900428772,
+          "file_ref": "file_d893fc0fc9284bef",
+          "source_type": "hubspot",
+          "source_path": "hubspot/company-trialbridge-legal-smb.json",
+          "title": "Trialbridge Legal Solutions"
+        },
+        {
+          "rank": 7,
+          "document_id": "dsid_eea41d353de049aa89be98b6f9cf5de1",
+          "distance": 1.1541682481765747,
+          "file_ref": "file_9d08b8aba0529fe6",
+          "source_type": "hubspot",
+          "source_path": "hubspot/company-silverkite-launchpad.json",
+          "title": "SilverKite Launchpad"
+        }
+      ]
+    },
+    {
+      "question_id": "qst_0018",
+      "source_types": [
+        "linear"
+      ],
+      "expected_doc_ids": [
+        "dsid_1f81f208f51a4aacaca226109bbedc72"
+      ],
+      "hit_any": true,
+      "best_rank": 1,
+      "top_document_ids": [
+        "dsid_1f81f208f51a4aacaca226109bbedc72",
+        "dsid_39e191ec758c41a8adecd223951b8b93",
+        "dsid_54525a33e2d44d4a9b665feaf8fab624",
+        "dsid_d921e1d4282b45a7b4990e2366bedc05",
+        "dsid_7a7c04eebb914edab49f734c8e814beb",
+        "dsid_f94b93a4bc7948ddab45c371187dc6c6",
+        "dsid_3fd6af404fae48e6b8ea5a57875ef78f",
+        "dsid_5fbf425415da4b7487f0ebbf289a39d6",
+        "dsid_1a40ab782f8b4d80929a9668462912e2",
+        "dsid_8412db85d95a45f7bbfb14dacedb4d8b",
+        "dsid_14a447cb5b1140709c7cb3cc9a88c430",
+        "dsid_1867cdf06a00437194b3250c75321a92",
+        "dsid_f3c46e1166f34b9c92a83034450fe021",
+        "dsid_8381e16639f148c7863aa3d393cb64da",
+        "dsid_2e5aaaa6db404ec19cb15a6f92be66a3",
+        "dsid_7a094ff98c3b4c96a77f3949aedeb749"
+      ],
+      "top_hits": [
+        {
+          "rank": 1,
+          "document_id": "dsid_1f81f208f51a4aacaca226109bbedc72",
+          "distance": 0.911249577999115,
+          "file_ref": "file_585c5a6d1828aa7e",
+          "source_type": "linear",
+          "source_path": "linear/business-ops/ENG-776543-kvcache-ghost-refcount-decay-rolling-heal-playbook.json",
+          "title": "KV cache ghost refcount decay detection, snapshot sanitization, and rolling-heal playbook"
+        },
+        {
+          "rank": 2,
+          "document_id": "dsid_39e191ec758c41a8adecd223951b8b93",
+          "distance": 1.0113420486450195,
+          "file_ref": "file_4e55f640aacd65ce",
+          "source_type": "linear",
+          "source_path": "linear/engineering/ENG-48961-bounded-window-kv-adaptive-backpressure-and-graceful-oom-fallback.json",
+          "title": "Bounded-window KV cache with adaptive backpressure and graceful GPU-OOM fallback"
+        },
+        {
+          "rank": 3,
+          "document_id": "dsid_54525a33e2d44d4a9b665feaf8fab624",
+          "distance": 1.1245568990707397,
+          "file_ref": "file_d6e5fbed6a5d0ce7",
+          "source_type": "linear",
+          "source_path": "linear/product-management/PM-24680-cohort-comparator-and-trace-linker-for-deployment-health.json",
+          "title": "Cohort Comparator & Trace Linker for Deployment Health"
+        },
+        {
+          "rank": 4,
+          "document_id": "dsid_d921e1d4282b45a7b4990e2366bedc05",
+          "distance": 1.1535682678222656,
+          "file_ref": "file_06b8e28754ed3702",
+          "source_type": "linear",
+          "source_path": "linear/business-ops/ENG-62670-workload-forecast-headroom-controller.json",
+          "title": "Workload-forecast-based headroom controller for Dedicated capacity"
+        },
+        {
+          "rank": 5,
+          "document_id": "dsid_7a7c04eebb914edab49f734c8e814beb",
+          "distance": 1.1583443880081177,
+          "file_ref": "file_dd0750f6a9e362f6",
+          "source_type": "linear",
+          "source_path": "linear/business-ops/ENG-99456-tenant-credit-allocator-and-variant-shadowing-hosted-backfill.json",
+          "title": "Tenant credit-based region routing with variant shadowing and graceful hosted backfill"
+        },
+        {
+          "rank": 6,
+          "document_id": "dsid_f94b93a4bc7948ddab45c371187dc6c6",
+          "distance": 1.1677846908569336,
+          "file_ref": "file_97fffb38171704e1",
+          "source_type": "linear",
+          "source_path": "linear/business-ops/PM-862431-emission-stability-tool-orchestration-soft-fail-acceptance.json",
+          "title": "Emission Stability and Tool-Orchestration: Soft-Fail & Streaming Acceptance"
+        },
+        {
+          "rank": 7,
+          "document_id": "dsid_3fd6af404fae48e6b8ea5a57875ef78f",
+          "distance": 1.1846085786819458,
+          "file_ref": "file_65bc1687e9c9baee",
+          "source_type": "linear",
+          "source_path": "linear/design/DES-72681-develop-interactive-tone-derivatives-and-kappa-elevation-scale-for-data-grids.json",
+          "title": "Develop interactive tone derivatives and Kappa elevation scale for data grids"
+        },
+        {
+          "rank": 8,
+          "document_id": "dsid_5fbf425415da4b7487f0ebbf289a39d6",
+          "distance": 1.1898895502090454,
+          "file_ref": "file_6af456d88c1c2093",
+          "source_type": "linear",
+          "source_path": "linear/product-management/PM-765981-api-behavioral-probe-matrix-and-prospectivity-playbook.json",
+          "title": "API Behavioral Probe Matrix and Prospectivity Playbook"
+        },
+        {
+          "rank": 9,
+          "document_id": "dsid_1a40ab782f8b4d80929a9668462912e2",
+          "distance": 1.1906434297561646,
+          "file_ref": "file_825bd7381190f2eb",
+          "source_type": "linear",
+          "source_path": "linear/business-ops/DES-420888-span-beacon-correl-lens.json",
+          "title": "Span Beacon — Anchored Thread Navigator & Correlation Lens"
+        },
+        {
+          "rank": 10,
+          "document_id": "dsid_8412db85d95a45f7bbfb14dacedb4d8b",
+          "distance": 1.193018913269043,
+          "file_ref": "file_b7422f5421c3908c",
+          "source_type": "linear",
+          "source_path": "linear/product-management/PM-921999-model-resilience-propensity-index-and-field-probe-playbook.json",
+          "title": "Model Resilience Propensity Index & Field Probe Playbook"
+        },
+        {
+          "rank": 11,
+          "document_id": "dsid_14a447cb5b1140709c7cb3cc9a88c430",
+          "distance": 1.20893132686615,
+          "file_ref": "file_4d4b58f1457afc10",
+          "source_type": "linear",
+          "source_path": "linear/design/DES-100777-adaptive-sparkline-density-and-compression-mode-prototype.json",
+          "title": "Adaptive sparkline density and column compression mode (prototype)"
+        },
+        {
+          "rank": 12,
+          "document_id": "dsid_1867cdf06a00437194b3250c75321a92",
+          "distance": 1.2155088186264038,
+          "file_ref": "file_59964fe919e8c1b1",
+          "source_type": "linear",
+          "source_path": "linear/design/DES-91235-compact-workspace-chips-micro-rail-prototype.json",
+          "title": "Compact workspace chips + contextual micro-rail: progressive IA and routing prototype for Console"
+        },
+        {
+          "rank": 13,
+          "document_id": "dsid_f3c46e1166f34b9c92a83034450fe021",
+          "distance": 1.2156801223754883,
+          "file_ref": "file_f0cc1bd274a70e8c",
+          "source_type": "linear",
+          "source_path": "linear/design/DES-832341-private-console-network-path-storyboard-rehearsal.json",
+          "title": "Private Console: Network Path Storyboard & Upgrade Rehearsal (prototype)"
+        },
+        {
+          "rank": 14,
+          "document_id": "dsid_8381e16639f148c7863aa3d393cb64da",
+          "distance": 1.2311768531799316,
+          "file_ref": "file_499b17aa8f26e77f",
+          "source_type": "linear",
+          "source_path": "linear/design/DES-66120-migrate-interaction-tokens-and-fix-hover-glow.json",
+          "title": "Migrate interaction tokens to theme variable layer and resolve hover glow regression"
+        },
+        {
+          "rank": 15,
+          "document_id": "dsid_2e5aaaa6db404ec19cb15a6f92be66a3",
+          "distance": 1.253151297569275,
+          "file_ref": "file_c590d84a3b233dff",
+          "source_type": "linear",
+          "source_path": "linear/design/DES-12901-consistent-spinner-overlay-and-label-behavior.json",
+          "title": "Consistent spinner overlay and label behavior for button loading/disabled states"
+        },
+        {
+          "rank": 16,
+          "document_id": "dsid_7a094ff98c3b4c96a77f3949aedeb749",
+          "distance": 1.2572920322418213,
+          "file_ref": "file_178563f27622458b",
+          "source_type": "linear",
+          "source_path": "linear/product-management/PM-91829-intake-lens-minimum-implementation-slate.json",
+          "title": "Intake Lens + Minimum Implementation Slate for High-touch Enterprise Requests"
+        }
+      ]
+    },
+    {
+      "question_id": "qst_0019",
+      "source_types": [
+        "jira"
+      ],
+      "expected_doc_ids": [
+        "dsid_e728a420a02a4ddcb125e6adb09d211e"
+      ],
+      "hit_any": true,
+      "best_rank": 1,
+      "top_document_ids": [
+        "dsid_e728a420a02a4ddcb125e6adb09d211e",
+        "dsid_59cb294da8964683bb165a3bb615df71",
+        "dsid_3f4010bdd3c44b99bb1c1ad2326f5eda",
+        "dsid_b097ab5d9e4c41609f47432dfcb1508b",
+        "dsid_1eba87b0b11b4f31a006f0cf164b8509",
+        "dsid_18621ce91fd14b408a2be95336bb4ab0",
+        "dsid_429267fe79c74918a26272f6c0e48f10",
+        "dsid_9a088141571b435f995568199ec4bcc9",
+        "dsid_ad3961a5bbd846d09d101bfa951ab739",
+        "dsid_1d5a3cde61104276b218c05dc101a546",
+        "dsid_3b9483f629fd423d81ac49a7efff89c9",
+        "dsid_8138b96e181940418cc5067b2630064e",
+        "dsid_a673ed031ece43c5bc4a0d27a284c8dc"
+      ],
+      "top_hits": [
+        {
+          "rank": 1,
+          "document_id": "dsid_e728a420a02a4ddcb125e6adb09d211e",
+          "distance": 0.7676668167114258,
+          "file_ref": "file_92d62223e3e52f5a",
+          "source_type": "jira",
+          "source_path": "jira/internal-support/INT-738205-wifi-bridge-nat-source-rewrite-breaks-vpn-policy.json",
+          "title": "Office edge bridge in NAT mode rewriting source IPs and causing VPN policy routing failures and SSO timeouts"
+        },
+        {
+          "rank": 2,
+          "document_id": "dsid_59cb294da8964683bb165a3bb615df71",
+          "distance": 0.9012107253074646,
+          "file_ref": "file_be5a9bd42cfa4ee9",
+          "source_type": "jira",
+          "source_path": "jira/ops-requests/INT-460811-edge-switch-arp-proxy-ip-duplication.json",
+          "title": "Edge switch ARP proxying leads to VPN client IP duplication and intermittent routing to wrong host"
+        },
+        {
+          "rank": 3,
+          "document_id": "dsid_3f4010bdd3c44b99bb1c1ad2326f5eda",
+          "distance": 1.0819329023361206,
+          "file_ref": "file_6514af73d6f2a2eb",
+          "source_type": "jira",
+          "source_path": "jira/internal-support/INT-1000456-m1-macbook-dep-enroll-kext-conflict-blocking-profile-install.json",
+          "title": "M1 MacBook DEP re-enroll fails: third-party kext blocks MDM profile & cert install after depot repair"
+        },
+        {
+          "rank": 4,
+          "document_id": "dsid_b097ab5d9e4c41609f47432dfcb1508b",
+          "distance": 1.115133285522461,
+          "file_ref": "file_01e59d4e90004e59",
+          "source_type": "jira",
+          "source_path": "jira/internal-support/INT-772007-role-lookup-groupid-type-mismatch-modelobservability-access.json",
+          "title": "Role resolution fails after Okta group id type change; ModelObservability API returns 403 for newly provisioned users"
+        },
+        {
+          "rank": 5,
+          "document_id": "dsid_1eba87b0b11b4f31a006f0cf164b8509",
+          "distance": 1.132637619972229,
+          "file_ref": "file_36c4b94270bb4283",
+          "source_type": "jira",
+          "source_path": "jira/customer-support/SUP-28436-disputed-status-accuracy-during-us-east-degradation.json",
+          "title": "Customer disputes status page accuracy during us-east degradation (status showed Operational while streaming requests failed)"
+        },
+        {
+          "rank": 6,
+          "document_id": "dsid_18621ce91fd14b408a2be95336bb4ab0",
+          "distance": 1.1410962343215942,
+          "file_ref": "file_1a7b344bbe955870",
+          "source_type": "jira",
+          "source_path": "jira/ops-requests/SUP-700707-bursting-5xx-from-apigw-backpressure-and-runtime-thread-exhaustion.json",
+          "title": "Bursting 5xx errors caused by API gateway backpressure amplifying runtime thread exhaustion on dedicated pool"
+        },
+        {
+          "rank": 7,
+          "document_id": "dsid_429267fe79c74918a26272f6c0e48f10",
+          "distance": 1.1489295959472656,
+          "file_ref": "file_5b3080fe6c959bcc",
+          "source_type": "jira",
+          "source_path": "jira/internal-support/INT-999999-service-cron-sso-refresh-failure-blocks-nightly-model-evals.json",
+          "title": "Scheduled service account token refresh failing after Okta policy update — nightly model-evals jobs stopped"
+        },
+        {
+          "rank": 8,
+          "document_id": "dsid_9a088141571b435f995568199ec4bcc9",
+          "distance": 1.1816643476486206,
+          "file_ref": "file_6ff9af460329608a",
+          "source_type": "jira",
+          "source_path": "jira/ops-requests/INT-738210-runner-service-token-leak-detection-and-rotation-assist.json",
+          "title": "Runner service account token exfiltration alert: rotate tokens and validate CI access paths"
+        },
+        {
+          "rank": 9,
+          "document_id": "dsid_ad3961a5bbd846d09d101bfa951ab739",
+          "distance": 1.1883108615875244,
+          "file_ref": "file_e683b7f14171e8f6",
+          "source_type": "jira",
+          "source_path": "jira/customer-support/SUP-77321-temporary-pause-and-traffic-split-mitigation-for-aggressive-opt-profiles.json",
+          "title": "Validate and temporarily pause aggressive per-tenant batching/cache/quant profiles; provide traffic-split mitigation and safe restore"
+        },
+        {
+          "rank": 10,
+          "document_id": "dsid_1d5a3cde61104276b218c05dc101a546",
+          "distance": 1.1900639533996582,
+          "file_ref": "file_657d0798d09d8f77",
+          "source_type": "jira",
+          "source_path": "jira/ops-requests/INT-827501-dossierhq-ephemeral-collaborator-pool-scim-okta-billing-mapping.json",
+          "title": "DossierHQ: procure ephemeral collaborator pool (120 seats) + SCIM/SSO mapping and billing tags"
+        },
+        {
+          "rank": 11,
+          "document_id": "dsid_3b9483f629fd423d81ac49a7efff89c9",
+          "distance": 1.1949254274368286,
+          "file_ref": "file_984162fce468691b",
+          "source_type": "jira",
+          "source_path": "jira/internal-support/SUP-208471-harmonized-rate-plan-credit-alloc-reconciliation-discrepancy.json",
+          "title": "Org-level promo credit reallocated across subaccounts after hybrid (dedicated+hosted) reconciliation"
+        },
+        {
+          "rank": 12,
+          "document_id": "dsid_8138b96e181940418cc5067b2630064e",
+          "distance": 1.2081668376922607,
+          "file_ref": "file_6bec8c981209f234",
+          "source_type": "jira",
+          "source_path": "jira/internal-support/INT-821407-provisional-license-reclaim-and-grace-window-policy-clarify.json",
+          "title": "Clarify provisional license reclaim window and equipment-return grace period for immediate offboarding"
+        },
+        {
+          "rank": 13,
+          "document_id": "dsid_a673ed031ece43c5bc4a0d27a284c8dc",
+          "distance": 1.2643239498138428,
+          "file_ref": "file_7c6c5bd3f30ebeec",
+          "source_type": "jira",
+          "source_path": "jira/ops-requests/SUP-99340-structured-audit-delivery-and-PII-redaction-evidence-request.json",
+          "title": "Structured audit export, PII redaction evidence, and intake for privacy-scan SIEM ingest"
+        }
+      ]
+    },
+    {
+      "question_id": "qst_0020",
+      "source_types": [
+        "github"
+      ],
+      "expected_doc_ids": [
+        "dsid_1c53affffb4f477ca476bec3138b60eb"
+      ],
+      "hit_any": true,
+      "best_rank": 1,
+      "top_document_ids": [
+        "dsid_1c53affffb4f477ca476bec3138b60eb",
+        "dsid_8779ac72d6504759b701178632772f6c",
+        "dsid_ae068ee4aa9640159427cd941bef0238",
+        "dsid_6c58ddb8ecf543d89fca8352351dea29",
+        "dsid_88b39d13bd584ef8b1422d76994808c7",
+        "dsid_9550250a59e74f1bbd5612480b2e7100",
+        "dsid_426ca69578a84dd4af512e5a2782086e",
+        "dsid_c7860fdbc17a48b0b6c5f9a0c5e3d054",
+        "dsid_49215834c17d4f0c98d4ad11f62f0c9a",
+        "dsid_c1a6a71323c04c1ba5445aadea340362",
+        "dsid_caf02469a41c46cf8387713b83c628f3"
+      ],
+      "top_hits": [
+        {
+          "rank": 1,
+          "document_id": "dsid_1c53affffb4f477ca476bec3138b60eb",
+          "distance": 0.9782574772834778,
+          "file_ref": "file_6ab9bc67c9b3fd2e",
+          "source_type": "github",
+          "source_path": "github/pr-96123-chat-v1-param-normalizer-role-alias-stop-dedupe-stream-backpressure.json",
+          "title": "chat v1: parameter normalizer, role aliasing, stop dedupe and streaming backpressure improvements for /v1/chat.completions parity"
+        },
+        {
+          "rank": 2,
+          "document_id": "dsid_8779ac72d6504759b701178632772f6c",
+          "distance": 1.0490713119506836,
+          "file_ref": "file_4a0be907d79078bd",
+          "source_type": "github",
+          "source_path": "github/pr-199842-openai-v1-chat-compat-response-sculpting-stop-coalesce.json",
+          "title": "v1 OpenAI chat: response sculpting, stop coalescing, and streaming logprob envelope"
+        },
+        {
+          "rank": 3,
+          "document_id": "dsid_ae068ee4aa9640159427cd941bef0238",
+          "distance": 1.1847165822982788,
+          "file_ref": "file_90f09b89336b14e9",
+          "source_type": "github",
+          "source_path": "github/pr-18421-multipart-file-validation-limits.json",
+          "title": "add multipart/form-data handling, strict content-type validation, and payload limit enforcement for API tool/file inputs"
+        },
+        {
+          "rank": 4,
+          "document_id": "dsid_6c58ddb8ecf543d89fca8352351dea29",
+          "distance": 1.196752667427063,
+          "file_ref": "file_2550c66a4f1fd8a9",
+          "source_type": "github",
+          "source_path": "github/pr-24930-openai-resp-v3-seed-metadata-reassembly-compat.json",
+          "title": "openai-compat: responses-v3 deterministic-seed routing + metadata passthrough and streaming reassembly"
+        },
+        {
+          "rank": 5,
+          "document_id": "dsid_88b39d13bd584ef8b1422d76994808c7",
+          "distance": 1.2018702030181885,
+          "file_ref": "file_99ffce24460e52d6",
+          "source_type": "github",
+          "source_path": "github/pr-95312-unify-handshake-consumer-ux-and-retry-bump.json",
+          "title": "Cross-SDK: unify streaming handshake, consumer ergonomics, and auth/retry semantics (Python/TS/Go)"
+        },
+        {
+          "rank": 6,
+          "document_id": "dsid_9550250a59e74f1bbd5612480b2e7100",
+          "distance": 1.2103837728500366,
+          "file_ref": "file_2686f50c82216c0e",
+          "source_type": "github",
+          "source_path": "github/pr-129874-timebox-abort-idempotency-resume-openai-compat.json",
+          "title": "introduce-server-timebox-and-idempotent-cancel-fallbacks-for-streaming-compat"
+        },
+        {
+          "rank": 7,
+          "document_id": "dsid_426ca69578a84dd4af512e5a2782086e",
+          "distance": 1.2180609703063965,
+          "file_ref": "file_51ca88792f201643",
+          "source_type": "github",
+          "source_path": "github/pr-20311-safelock-fastpath-precision-toggle-kv-eviction.json",
+          "title": "Introduce \"safelock\" fast-path gating + precision toggle and KV-eviction safety for runtime"
+        },
+        {
+          "rank": 8,
+          "document_id": "dsid_c7860fdbc17a48b0b6c5f9a0c5e3d054",
+          "distance": 1.2201446294784546,
+          "file_ref": "file_cf132b670b005a98",
+          "source_type": "github",
+          "source_path": "github/pr-176421-coalescing-invoker-grace-period-and-structured-output.json",
+          "title": "Coalescing Invoker: grace-period batching, deterministic injection, and structured-output streaming compatibility"
+        },
+        {
+          "rank": 9,
+          "document_id": "dsid_49215834c17d4f0c98d4ad11f62f0c9a",
+          "distance": 1.2244569063186646,
+          "file_ref": "file_cbf36418bcbfd87c",
+          "source_type": "github",
+          "source_path": "github/pr-75983-deferred-aggregation-telemetry-lattice-and-path-sampling.json",
+          "title": "deferred-aggregation-telemetry-lattice-and-path-sampling"
+        },
+        {
+          "rank": 10,
+          "document_id": "dsid_c1a6a71323c04c1ba5445aadea340362",
+          "distance": 1.228197455406189,
+          "file_ref": "file_6fca9ec81c8141a3",
+          "source_type": "github",
+          "source_path": "github/pr-867001-introduce-token-stage-cohorting-and-route-matrix-alerting.json",
+          "title": "introduce-token-stage-cohorting-and-route-matrix-alerting"
+        },
+        {
+          "rank": 11,
+          "document_id": "dsid_caf02469a41c46cf8387713b83c628f3",
+          "distance": 1.2680647373199463,
+          "file_ref": "file_654d54e5bdbda267",
+          "source_type": "github",
+          "source_path": "github/pr-23145-adaptive-scratch-and-deferred-ckpt-scheduler.json",
+          "title": "adaptive-scratch-capacity-and-deferred-ckpt-scheduler-for-gpu-workspace-reduction"
+        }
+      ]
+    },
+    {
+      "question_id": "qst_0021",
+      "source_types": [
+        "confluence"
+      ],
+      "expected_doc_ids": [
+        "dsid_d7f0edbaa28147da807b5b85ea495bd1"
+      ],
+      "hit_any": true,
+      "best_rank": 1,
+      "top_document_ids": [
+        "dsid_d7f0edbaa28147da807b5b85ea495bd1",
+        "dsid_ba7d1565b0694e359983bccaa4bf5977",
+        "dsid_f2f019c122154edc8b21f56879661043",
+        "dsid_c198dbbcf28a4c73ad1d705809634176",
+        "dsid_9c8cb10d65324c03a8ededbd98c1b058",
+        "dsid_f1b208f3637e4987aeab371242a5bea5",
+        "dsid_7c73cb76b80a41edb4959db4b1e7308b",
+        "dsid_46a4cb87db414e769f2df86f01626948",
+        "dsid_a2983978ba0d4d70a795eb7e13de8670",
+        "dsid_43ecb807903f46848e8d099b6c8beb04"
+      ],
+      "top_hits": [
+        {
+          "rank": 1,
+          "document_id": "dsid_d7f0edbaa28147da807b5b85ea495bd1",
+          "distance": 0.8409187197685242,
+          "file_ref": "file_0de863824ff3353b",
+          "source_type": "confluence",
+          "source_path": "confluence/company-handbook/05_internal-tools/cross-role-tool-access-governance-and-self-service-handbook-2027.json",
+          "title": "Cross-role Tool Access Governance and Self-Service Handbook"
+        },
+        {
+          "rank": 2,
+          "document_id": "dsid_ba7d1565b0694e359983bccaa4bf5977",
+          "distance": 0.9004517793655396,
+          "file_ref": "file_5635f33779e5487b",
+          "source_type": "confluence",
+          "source_path": "confluence/policies-and-process/entitlements-and-purchase-pathways-playbook-2030.json",
+          "title": "entitlements-and-purchase-pathways-playbook-2030"
+        },
+        {
+          "rank": 3,
+          "document_id": "dsid_f2f019c122154edc8b21f56879661043",
+          "distance": 0.9905384182929993,
+          "file_ref": "file_33eae4f2dabf2051",
+          "source_type": "confluence",
+          "source_path": "confluence/finance-and-legal/procurement/procurement-legal-risk-escalation-sop-2026.json",
+          "title": "Procurement: Legal Risk Triage & Escalation SOP"
+        },
+        {
+          "rank": 4,
+          "document_id": "dsid_c198dbbcf28a4c73ad1d705809634176",
+          "distance": 1.0545268058776855,
+          "file_ref": "file_13b4b92426108f16",
+          "source_type": "confluence",
+          "source_path": "confluence/eng-private-deployments/customer-requirements-library/tenant-telemetry-consent-and-redaction-playbook-2026.json",
+          "title": "Tenant Telemetry Consent and Redaction Playbook for Private Deploys"
+        },
+        {
+          "rank": 5,
+          "document_id": "dsid_9c8cb10d65324c03a8ededbd98c1b058",
+          "distance": 1.058910608291626,
+          "file_ref": "file_e0d2d6eb66062b01",
+          "source_type": "confluence",
+          "source_path": "confluence/customer-success-and-support/support-process/go-live-protocols-cross-org-communications-escalation-2027.json",
+          "title": "Go-Live Protocols: Cross-Org Communications & Escalation"
+        },
+        {
+          "rank": 6,
+          "document_id": "dsid_f1b208f3637e4987aeab371242a5bea5",
+          "distance": 1.0874961614608765,
+          "file_ref": "file_fb36e79c2ad26b59",
+          "source_type": "confluence",
+          "source_path": "confluence/eng-infra/ci-cd-and-build/gpu-ci-credential-rotation-and-image-promotion-safety.json",
+          "title": "GPU CI credential rotation and image promotion safety kit"
+        },
+        {
+          "rank": 7,
+          "document_id": "dsid_7c73cb76b80a41edb4959db4b1e7308b",
+          "distance": 1.1035544872283936,
+          "file_ref": "file_8303b292627b099c",
+          "source_type": "confluence",
+          "source_path": "confluence/eng-sre/tenant-observability-evidence-contract-for-regulated-vpc-deploys-2027.json",
+          "title": "Tenant Observability & Evidence Contract for Regulated VPC Deploys"
+        },
+        {
+          "rank": 8,
+          "document_id": "dsid_46a4cb87db414e769f2df86f01626948",
+          "distance": 1.1726597547531128,
+          "file_ref": "file_6f4c2ccbdc8b1e34",
+          "source_type": "confluence",
+          "source_path": "confluence/eng-platform/team-wiki/runbook-writing-and-telemetry-bootcamp-curriculum-2026.json",
+          "title": "Runbook Writing and Telemetry Bootcamp Curriculum — Operator Training"
+        },
+        {
+          "rank": 9,
+          "document_id": "dsid_a2983978ba0d4d70a795eb7e13de8670",
+          "distance": 1.1782996654510498,
+          "file_ref": "file_3e7346baa678f331",
+          "source_type": "confluence",
+          "source_path": "confluence/eng-developer-experience/docs-site/quantization-profiles-customer-docs-plan.json",
+          "title": "Quantization Profiles (Public Docs) — Customer Documentation Plan"
+        },
+        {
+          "rank": 10,
+          "document_id": "dsid_43ecb807903f46848e8d099b6c8beb04",
+          "distance": 1.2160518169403076,
+          "file_ref": "file_ad17bf12caedf6b7",
+          "source_type": "confluence",
+          "source_path": "confluence/eng-infra/kernel-snapshot-observability-contract-2026.json",
+          "title": "Kernel Snapshot Observability Contract and Diagnostic Playbook"
+        }
+      ]
+    },
+    {
+      "question_id": "qst_0022",
+      "source_types": [
+        "confluence"
+      ],
+      "expected_doc_ids": [
+        "dsid_f2f019c122154edc8b21f56879661043"
+      ],
+      "hit_any": true,
+      "best_rank": 1,
+      "top_document_ids": [
+        "dsid_f2f019c122154edc8b21f56879661043",
+        "dsid_ba7d1565b0694e359983bccaa4bf5977",
+        "dsid_7c73cb76b80a41edb4959db4b1e7308b",
+        "dsid_d7f0edbaa28147da807b5b85ea495bd1",
+        "dsid_c198dbbcf28a4c73ad1d705809634176",
+        "dsid_9c8cb10d65324c03a8ededbd98c1b058",
+        "dsid_f1b208f3637e4987aeab371242a5bea5",
+        "dsid_43ecb807903f46848e8d099b6c8beb04",
+        "dsid_a2983978ba0d4d70a795eb7e13de8670",
+        "dsid_46a4cb87db414e769f2df86f01626948"
+      ],
+      "top_hits": [
+        {
+          "rank": 1,
+          "document_id": "dsid_f2f019c122154edc8b21f56879661043",
+          "distance": 0.9366409778594971,
+          "file_ref": "file_33eae4f2dabf2051",
+          "source_type": "confluence",
+          "source_path": "confluence/finance-and-legal/procurement/procurement-legal-risk-escalation-sop-2026.json",
+          "title": "Procurement: Legal Risk Triage & Escalation SOP"
+        },
+        {
+          "rank": 2,
+          "document_id": "dsid_ba7d1565b0694e359983bccaa4bf5977",
+          "distance": 1.1086164712905884,
+          "file_ref": "file_5635f33779e5487b",
+          "source_type": "confluence",
+          "source_path": "confluence/policies-and-process/entitlements-and-purchase-pathways-playbook-2030.json",
+          "title": "entitlements-and-purchase-pathways-playbook-2030"
+        },
+        {
+          "rank": 3,
+          "document_id": "dsid_7c73cb76b80a41edb4959db4b1e7308b",
+          "distance": 1.1258420944213867,
+          "file_ref": "file_8303b292627b099c",
+          "source_type": "confluence",
+          "source_path": "confluence/eng-sre/tenant-observability-evidence-contract-for-regulated-vpc-deploys-2027.json",
+          "title": "Tenant Observability & Evidence Contract for Regulated VPC Deploys"
+        },
+        {
+          "rank": 4,
+          "document_id": "dsid_d7f0edbaa28147da807b5b85ea495bd1",
+          "distance": 1.175950288772583,
+          "file_ref": "file_0de863824ff3353b",
+          "source_type": "confluence",
+          "source_path": "confluence/company-handbook/05_internal-tools/cross-role-tool-access-governance-and-self-service-handbook-2027.json",
+          "title": "Cross-role Tool Access Governance and Self-Service Handbook"
+        },
+        {
+          "rank": 5,
+          "document_id": "dsid_c198dbbcf28a4c73ad1d705809634176",
+          "distance": 1.183995246887207,
+          "file_ref": "file_13b4b92426108f16",
+          "source_type": "confluence",
+          "source_path": "confluence/eng-private-deployments/customer-requirements-library/tenant-telemetry-consent-and-redaction-playbook-2026.json",
+          "title": "Tenant Telemetry Consent and Redaction Playbook for Private Deploys"
+        },
+        {
+          "rank": 6,
+          "document_id": "dsid_9c8cb10d65324c03a8ededbd98c1b058",
+          "distance": 1.2160439491271973,
+          "file_ref": "file_e0d2d6eb66062b01",
+          "source_type": "confluence",
+          "source_path": "confluence/customer-success-and-support/support-process/go-live-protocols-cross-org-communications-escalation-2027.json",
+          "title": "Go-Live Protocols: Cross-Org Communications & Escalation"
+        },
+        {
+          "rank": 7,
+          "document_id": "dsid_f1b208f3637e4987aeab371242a5bea5",
+          "distance": 1.2359392642974854,
+          "file_ref": "file_fb36e79c2ad26b59",
+          "source_type": "confluence",
+          "source_path": "confluence/eng-infra/ci-cd-and-build/gpu-ci-credential-rotation-and-image-promotion-safety.json",
+          "title": "GPU CI credential rotation and image promotion safety kit"
+        },
+        {
+          "rank": 8,
+          "document_id": "dsid_43ecb807903f46848e8d099b6c8beb04",
+          "distance": 1.251637578010559,
+          "file_ref": "file_ad17bf12caedf6b7",
+          "source_type": "confluence",
+          "source_path": "confluence/eng-infra/kernel-snapshot-observability-contract-2026.json",
+          "title": "Kernel Snapshot Observability Contract and Diagnostic Playbook"
+        },
+        {
+          "rank": 9,
+          "document_id": "dsid_a2983978ba0d4d70a795eb7e13de8670",
+          "distance": 1.2525449991226196,
+          "file_ref": "file_3e7346baa678f331",
+          "source_type": "confluence",
+          "source_path": "confluence/eng-developer-experience/docs-site/quantization-profiles-customer-docs-plan.json",
+          "title": "Quantization Profiles (Public Docs) — Customer Documentation Plan"
+        },
+        {
+          "rank": 10,
+          "document_id": "dsid_46a4cb87db414e769f2df86f01626948",
+          "distance": 1.2562495470046997,
+          "file_ref": "file_6f4c2ccbdc8b1e34",
+          "source_type": "confluence",
+          "source_path": "confluence/eng-platform/team-wiki/runbook-writing-and-telemetry-bootcamp-curriculum-2026.json",
+          "title": "Runbook Writing and Telemetry Bootcamp Curriculum — Operator Training"
+        }
+      ]
+    },
+    {
+      "question_id": "qst_0023",
+      "source_types": [
+        "confluence"
+      ],
+      "expected_doc_ids": [
+        "dsid_a2983978ba0d4d70a795eb7e13de8670"
+      ],
+      "hit_any": true,
+      "best_rank": 1,
+      "top_document_ids": [
+        "dsid_a2983978ba0d4d70a795eb7e13de8670",
+        "dsid_c198dbbcf28a4c73ad1d705809634176",
+        "dsid_f2f019c122154edc8b21f56879661043",
+        "dsid_d7f0edbaa28147da807b5b85ea495bd1",
+        "dsid_ba7d1565b0694e359983bccaa4bf5977",
+        "dsid_f1b208f3637e4987aeab371242a5bea5",
+        "dsid_9c8cb10d65324c03a8ededbd98c1b058",
+        "dsid_7c73cb76b80a41edb4959db4b1e7308b",
+        "dsid_43ecb807903f46848e8d099b6c8beb04",
+        "dsid_46a4cb87db414e769f2df86f01626948"
+      ],
+      "top_hits": [
+        {
+          "rank": 1,
+          "document_id": "dsid_a2983978ba0d4d70a795eb7e13de8670",
+          "distance": 0.8773579597473145,
+          "file_ref": "file_3e7346baa678f331",
+          "source_type": "confluence",
+          "source_path": "confluence/eng-developer-experience/docs-site/quantization-profiles-customer-docs-plan.json",
+          "title": "Quantization Profiles (Public Docs) — Customer Documentation Plan"
+        },
+        {
+          "rank": 2,
+          "document_id": "dsid_c198dbbcf28a4c73ad1d705809634176",
+          "distance": 1.091692328453064,
+          "file_ref": "file_13b4b92426108f16",
+          "source_type": "confluence",
+          "source_path": "confluence/eng-private-deployments/customer-requirements-library/tenant-telemetry-consent-and-redaction-playbook-2026.json",
+          "title": "Tenant Telemetry Consent and Redaction Playbook for Private Deploys"
+        },
+        {
+          "rank": 3,
+          "document_id": "dsid_f2f019c122154edc8b21f56879661043",
+          "distance": 1.1114134788513184,
+          "file_ref": "file_33eae4f2dabf2051",
+          "source_type": "confluence",
+          "source_path": "confluence/finance-and-legal/procurement/procurement-legal-risk-escalation-sop-2026.json",
+          "title": "Procurement: Legal Risk Triage & Escalation SOP"
+        },
+        {
+          "rank": 4,
+          "document_id": "dsid_d7f0edbaa28147da807b5b85ea495bd1",
+          "distance": 1.1478796005249023,
+          "file_ref": "file_0de863824ff3353b",
+          "source_type": "confluence",
+          "source_path": "confluence/company-handbook/05_internal-tools/cross-role-tool-access-governance-and-self-service-handbook-2027.json",
+          "title": "Cross-role Tool Access Governance and Self-Service Handbook"
+        },
+        {
+          "rank": 5,
+          "document_id": "dsid_ba7d1565b0694e359983bccaa4bf5977",
+          "distance": 1.1554858684539795,
+          "file_ref": "file_5635f33779e5487b",
+          "source_type": "confluence",
+          "source_path": "confluence/policies-and-process/entitlements-and-purchase-pathways-playbook-2030.json",
+          "title": "entitlements-and-purchase-pathways-playbook-2030"
+        },
+        {
+          "rank": 6,
+          "document_id": "dsid_f1b208f3637e4987aeab371242a5bea5",
+          "distance": 1.1644474267959595,
+          "file_ref": "file_fb36e79c2ad26b59",
+          "source_type": "confluence",
+          "source_path": "confluence/eng-infra/ci-cd-and-build/gpu-ci-credential-rotation-and-image-promotion-safety.json",
+          "title": "GPU CI credential rotation and image promotion safety kit"
+        },
+        {
+          "rank": 7,
+          "document_id": "dsid_9c8cb10d65324c03a8ededbd98c1b058",
+          "distance": 1.1665914058685303,
+          "file_ref": "file_e0d2d6eb66062b01",
+          "source_type": "confluence",
+          "source_path": "confluence/customer-success-and-support/support-process/go-live-protocols-cross-org-communications-escalation-2027.json",
+          "title": "Go-Live Protocols: Cross-Org Communications & Escalation"
+        },
+        {
+          "rank": 8,
+          "document_id": "dsid_7c73cb76b80a41edb4959db4b1e7308b",
+          "distance": 1.166739583015442,
+          "file_ref": "file_8303b292627b099c",
+          "source_type": "confluence",
+          "source_path": "confluence/eng-sre/tenant-observability-evidence-contract-for-regulated-vpc-deploys-2027.json",
+          "title": "Tenant Observability & Evidence Contract for Regulated VPC Deploys"
+        },
+        {
+          "rank": 9,
+          "document_id": "dsid_43ecb807903f46848e8d099b6c8beb04",
+          "distance": 1.1861541271209717,
+          "file_ref": "file_ad17bf12caedf6b7",
+          "source_type": "confluence",
+          "source_path": "confluence/eng-infra/kernel-snapshot-observability-contract-2026.json",
+          "title": "Kernel Snapshot Observability Contract and Diagnostic Playbook"
+        },
+        {
+          "rank": 10,
+          "document_id": "dsid_46a4cb87db414e769f2df86f01626948",
+          "distance": 1.2111001014709473,
+          "file_ref": "file_6f4c2ccbdc8b1e34",
+          "source_type": "confluence",
+          "source_path": "confluence/eng-platform/team-wiki/runbook-writing-and-telemetry-bootcamp-curriculum-2026.json",
+          "title": "Runbook Writing and Telemetry Bootcamp Curriculum — Operator Training"
+        }
+      ]
+    },
+    {
+      "question_id": "qst_0024",
+      "source_types": [
+        "jira"
+      ],
+      "expected_doc_ids": [
+        "dsid_1d5a3cde61104276b218c05dc101a546"
+      ],
+      "hit_any": true,
+      "best_rank": 1,
+      "top_document_ids": [
+        "dsid_1d5a3cde61104276b218c05dc101a546",
+        "dsid_8138b96e181940418cc5067b2630064e",
+        "dsid_429267fe79c74918a26272f6c0e48f10",
+        "dsid_b097ab5d9e4c41609f47432dfcb1508b",
+        "dsid_9a088141571b435f995568199ec4bcc9",
+        "dsid_e728a420a02a4ddcb125e6adb09d211e",
+        "dsid_ad3961a5bbd846d09d101bfa951ab739",
+        "dsid_a673ed031ece43c5bc4a0d27a284c8dc",
+        "dsid_3f4010bdd3c44b99bb1c1ad2326f5eda",
+        "dsid_59cb294da8964683bb165a3bb615df71",
+        "dsid_18621ce91fd14b408a2be95336bb4ab0",
+        "dsid_3b9483f629fd423d81ac49a7efff89c9",
+        "dsid_1eba87b0b11b4f31a006f0cf164b8509"
+      ],
+      "top_hits": [
+        {
+          "rank": 1,
+          "document_id": "dsid_1d5a3cde61104276b218c05dc101a546",
+          "distance": 0.9376606345176697,
+          "file_ref": "file_657d0798d09d8f77",
+          "source_type": "jira",
+          "source_path": "jira/ops-requests/INT-827501-dossierhq-ephemeral-collaborator-pool-scim-okta-billing-mapping.json",
+          "title": "DossierHQ: procure ephemeral collaborator pool (120 seats) + SCIM/SSO mapping and billing tags"
+        },
+        {
+          "rank": 2,
+          "document_id": "dsid_8138b96e181940418cc5067b2630064e",
+          "distance": 1.0583181381225586,
+          "file_ref": "file_6bec8c981209f234",
+          "source_type": "jira",
+          "source_path": "jira/internal-support/INT-821407-provisional-license-reclaim-and-grace-window-policy-clarify.json",
+          "title": "Clarify provisional license reclaim window and equipment-return grace period for immediate offboarding"
+        },
+        {
+          "rank": 3,
+          "document_id": "dsid_429267fe79c74918a26272f6c0e48f10",
+          "distance": 1.12761652469635,
+          "file_ref": "file_5b3080fe6c959bcc",
+          "source_type": "jira",
+          "source_path": "jira/internal-support/INT-999999-service-cron-sso-refresh-failure-blocks-nightly-model-evals.json",
+          "title": "Scheduled service account token refresh failing after Okta policy update — nightly model-evals jobs stopped"
+        },
+        {
+          "rank": 4,
+          "document_id": "dsid_b097ab5d9e4c41609f47432dfcb1508b",
+          "distance": 1.1587281227111816,
+          "file_ref": "file_01e59d4e90004e59",
+          "source_type": "jira",
+          "source_path": "jira/internal-support/INT-772007-role-lookup-groupid-type-mismatch-modelobservability-access.json",
+          "title": "Role resolution fails after Okta group id type change; ModelObservability API returns 403 for newly provisioned users"
+        },
+        {
+          "rank": 5,
+          "document_id": "dsid_9a088141571b435f995568199ec4bcc9",
+          "distance": 1.1591774225234985,
+          "file_ref": "file_6ff9af460329608a",
+          "source_type": "jira",
+          "source_path": "jira/ops-requests/INT-738210-runner-service-token-leak-detection-and-rotation-assist.json",
+          "title": "Runner service account token exfiltration alert: rotate tokens and validate CI access paths"
+        },
+        {
+          "rank": 6,
+          "document_id": "dsid_e728a420a02a4ddcb125e6adb09d211e",
+          "distance": 1.1702531576156616,
+          "file_ref": "file_92d62223e3e52f5a",
+          "source_type": "jira",
+          "source_path": "jira/internal-support/INT-738205-wifi-bridge-nat-source-rewrite-breaks-vpn-policy.json",
+          "title": "Office edge bridge in NAT mode rewriting source IPs and causing VPN policy routing failures and SSO timeouts"
+        },
+        {
+          "rank": 7,
+          "document_id": "dsid_ad3961a5bbd846d09d101bfa951ab739",
+          "distance": 1.1746362447738647,
+          "file_ref": "file_e683b7f14171e8f6",
+          "source_type": "jira",
+          "source_path": "jira/customer-support/SUP-77321-temporary-pause-and-traffic-split-mitigation-for-aggressive-opt-profiles.json",
+          "title": "Validate and temporarily pause aggressive per-tenant batching/cache/quant profiles; provide traffic-split mitigation and safe restore"
+        },
+        {
+          "rank": 8,
+          "document_id": "dsid_a673ed031ece43c5bc4a0d27a284c8dc",
+          "distance": 1.1907440423965454,
+          "file_ref": "file_7c6c5bd3f30ebeec",
+          "source_type": "jira",
+          "source_path": "jira/ops-requests/SUP-99340-structured-audit-delivery-and-PII-redaction-evidence-request.json",
+          "title": "Structured audit export, PII redaction evidence, and intake for privacy-scan SIEM ingest"
+        },
+        {
+          "rank": 9,
+          "document_id": "dsid_3f4010bdd3c44b99bb1c1ad2326f5eda",
+          "distance": 1.216750979423523,
+          "file_ref": "file_6514af73d6f2a2eb",
+          "source_type": "jira",
+          "source_path": "jira/internal-support/INT-1000456-m1-macbook-dep-enroll-kext-conflict-blocking-profile-install.json",
+          "title": "M1 MacBook DEP re-enroll fails: third-party kext blocks MDM profile & cert install after depot repair"
+        },
+        {
+          "rank": 10,
+          "document_id": "dsid_59cb294da8964683bb165a3bb615df71",
+          "distance": 1.218137502670288,
+          "file_ref": "file_be5a9bd42cfa4ee9",
+          "source_type": "jira",
+          "source_path": "jira/ops-requests/INT-460811-edge-switch-arp-proxy-ip-duplication.json",
+          "title": "Edge switch ARP proxying leads to VPN client IP duplication and intermittent routing to wrong host"
+        },
+        {
+          "rank": 11,
+          "document_id": "dsid_18621ce91fd14b408a2be95336bb4ab0",
+          "distance": 1.2188198566436768,
+          "file_ref": "file_1a7b344bbe955870",
+          "source_type": "jira",
+          "source_path": "jira/ops-requests/SUP-700707-bursting-5xx-from-apigw-backpressure-and-runtime-thread-exhaustion.json",
+          "title": "Bursting 5xx errors caused by API gateway backpressure amplifying runtime thread exhaustion on dedicated pool"
+        },
+        {
+          "rank": 12,
+          "document_id": "dsid_3b9483f629fd423d81ac49a7efff89c9",
+          "distance": 1.2301522493362427,
+          "file_ref": "file_984162fce468691b",
+          "source_type": "jira",
+          "source_path": "jira/internal-support/SUP-208471-harmonized-rate-plan-credit-alloc-reconciliation-discrepancy.json",
+          "title": "Org-level promo credit reallocated across subaccounts after hybrid (dedicated+hosted) reconciliation"
+        },
+        {
+          "rank": 13,
+          "document_id": "dsid_1eba87b0b11b4f31a006f0cf164b8509",
+          "distance": 1.259896159172058,
+          "file_ref": "file_36c4b94270bb4283",
+          "source_type": "jira",
+          "source_path": "jira/customer-support/SUP-28436-disputed-status-accuracy-during-us-east-degradation.json",
+          "title": "Customer disputes status page accuracy during us-east degradation (status showed Operational while streaming requests failed)"
+        }
+      ]
+    },
+    {
+      "question_id": "qst_0025",
+      "source_types": [
+        "confluence"
+      ],
+      "expected_doc_ids": [
+        "dsid_9c8cb10d65324c03a8ededbd98c1b058"
+      ],
+      "hit_any": true,
+      "best_rank": 1,
+      "top_document_ids": [
+        "dsid_9c8cb10d65324c03a8ededbd98c1b058",
+        "dsid_7c73cb76b80a41edb4959db4b1e7308b",
+        "dsid_46a4cb87db414e769f2df86f01626948",
+        "dsid_ba7d1565b0694e359983bccaa4bf5977",
+        "dsid_f1b208f3637e4987aeab371242a5bea5",
+        "dsid_f2f019c122154edc8b21f56879661043",
+        "dsid_c198dbbcf28a4c73ad1d705809634176",
+        "dsid_d7f0edbaa28147da807b5b85ea495bd1",
+        "dsid_43ecb807903f46848e8d099b6c8beb04",
+        "dsid_a2983978ba0d4d70a795eb7e13de8670"
+      ],
+      "top_hits": [
+        {
+          "rank": 1,
+          "document_id": "dsid_9c8cb10d65324c03a8ededbd98c1b058",
+          "distance": 0.9243246912956238,
+          "file_ref": "file_e0d2d6eb66062b01",
+          "source_type": "confluence",
+          "source_path": "confluence/customer-success-and-support/support-process/go-live-protocols-cross-org-communications-escalation-2027.json",
+          "title": "Go-Live Protocols: Cross-Org Communications & Escalation"
+        },
+        {
+          "rank": 2,
+          "document_id": "dsid_7c73cb76b80a41edb4959db4b1e7308b",
+          "distance": 1.065632700920105,
+          "file_ref": "file_8303b292627b099c",
+          "source_type": "confluence",
+          "source_path": "confluence/eng-sre/tenant-observability-evidence-contract-for-regulated-vpc-deploys-2027.json",
+          "title": "Tenant Observability & Evidence Contract for Regulated VPC Deploys"
+        },
+        {
+          "rank": 3,
+          "document_id": "dsid_46a4cb87db414e769f2df86f01626948",
+          "distance": 1.0740207433700562,
+          "file_ref": "file_6f4c2ccbdc8b1e34",
+          "source_type": "confluence",
+          "source_path": "confluence/eng-platform/team-wiki/runbook-writing-and-telemetry-bootcamp-curriculum-2026.json",
+          "title": "Runbook Writing and Telemetry Bootcamp Curriculum — Operator Training"
+        },
+        {
+          "rank": 4,
+          "document_id": "dsid_ba7d1565b0694e359983bccaa4bf5977",
+          "distance": 1.0990123748779297,
+          "file_ref": "file_5635f33779e5487b",
+          "source_type": "confluence",
+          "source_path": "confluence/policies-and-process/entitlements-and-purchase-pathways-playbook-2030.json",
+          "title": "entitlements-and-purchase-pathways-playbook-2030"
+        },
+        {
+          "rank": 5,
+          "document_id": "dsid_f1b208f3637e4987aeab371242a5bea5",
+          "distance": 1.1083709001541138,
+          "file_ref": "file_fb36e79c2ad26b59",
+          "source_type": "confluence",
+          "source_path": "confluence/eng-infra/ci-cd-and-build/gpu-ci-credential-rotation-and-image-promotion-safety.json",
+          "title": "GPU CI credential rotation and image promotion safety kit"
+        },
+        {
+          "rank": 6,
+          "document_id": "dsid_f2f019c122154edc8b21f56879661043",
+          "distance": 1.110632061958313,
+          "file_ref": "file_33eae4f2dabf2051",
+          "source_type": "confluence",
+          "source_path": "confluence/finance-and-legal/procurement/procurement-legal-risk-escalation-sop-2026.json",
+          "title": "Procurement: Legal Risk Triage & Escalation SOP"
+        },
+        {
+          "rank": 7,
+          "document_id": "dsid_c198dbbcf28a4c73ad1d705809634176",
+          "distance": 1.1146557331085205,
+          "file_ref": "file_13b4b92426108f16",
+          "source_type": "confluence",
+          "source_path": "confluence/eng-private-deployments/customer-requirements-library/tenant-telemetry-consent-and-redaction-playbook-2026.json",
+          "title": "Tenant Telemetry Consent and Redaction Playbook for Private Deploys"
+        },
+        {
+          "rank": 8,
+          "document_id": "dsid_d7f0edbaa28147da807b5b85ea495bd1",
+          "distance": 1.144012212753296,
+          "file_ref": "file_0de863824ff3353b",
+          "source_type": "confluence",
+          "source_path": "confluence/company-handbook/05_internal-tools/cross-role-tool-access-governance-and-self-service-handbook-2027.json",
+          "title": "Cross-role Tool Access Governance and Self-Service Handbook"
+        },
+        {
+          "rank": 9,
+          "document_id": "dsid_43ecb807903f46848e8d099b6c8beb04",
+          "distance": 1.1565511226654053,
+          "file_ref": "file_ad17bf12caedf6b7",
+          "source_type": "confluence",
+          "source_path": "confluence/eng-infra/kernel-snapshot-observability-contract-2026.json",
+          "title": "Kernel Snapshot Observability Contract and Diagnostic Playbook"
+        },
+        {
+          "rank": 10,
+          "document_id": "dsid_a2983978ba0d4d70a795eb7e13de8670",
+          "distance": 1.1725960969924927,
+          "file_ref": "file_3e7346baa678f331",
+          "source_type": "confluence",
+          "source_path": "confluence/eng-developer-experience/docs-site/quantization-profiles-customer-docs-plan.json",
+          "title": "Quantization Profiles (Public Docs) — Customer Documentation Plan"
+        }
+      ]
+    },
+    {
+      "question_id": "qst_0026",
+      "source_types": [
+        "gmail"
+      ],
+      "expected_doc_ids": [
+        "dsid_c6a6396159964deeb021d646eaaf2b0c"
+      ],
+      "hit_any": true,
+      "best_rank": 1,
+      "top_document_ids": [
+        "dsid_c6a6396159964deeb021d646eaaf2b0c",
+        "dsid_8e838ab6a98f4cbcb672d41f210ff89c",
+        "dsid_27da22aa63b3446387fffc29b45a0883",
+        "dsid_a8f0c8524573431c9b789291d63b716a",
+        "dsid_3be2b45196414cad9b187551da3ed448",
+        "dsid_85deb10a652742baaf28af6149600001",
+        "dsid_e04776cee2964731b96192cae88e9e6b",
+        "dsid_94f011e1d2d04c89a4edc1d68ed9d855",
+        "dsid_c23a3d9d049d4fe79acf83653b564e0b",
+        "dsid_214ba4ea822e4d328287194a5e27e632",
+        "dsid_a1e0ff30870f40d7b692aa27bbedc194"
+      ],
+      "top_hits": [
+        {
+          "rank": 1,
+          "document_id": "dsid_c6a6396159964deeb021d646eaaf2b0c",
+          "distance": 0.9608994722366333,
+          "file_ref": "file_4cc6979d07a3872b",
+          "source_type": "gmail",
+          "source_path": "gmail/20250603-customer-escalation-private-upgrade-rollback-request.json",
+          "title": "Escalation: Rollback guarantees + upgrade support coverage for Redwood Private (Cascade Financial Group)"
+        },
+        {
+          "rank": 2,
+          "document_id": "dsid_8e838ab6a98f4cbcb672d41f210ff89c",
+          "distance": 1.1280124187469482,
+          "file_ref": "file_f4e750618ee48513",
+          "source_type": "gmail",
+          "source_path": "gmail/rafael_mendes/20280503-region-fallback-priority-ops-inventory.json",
+          "title": "Regional fallback priorities & logs — post-call inventory"
+        },
+        {
+          "rank": 3,
+          "document_id": "dsid_27da22aa63b3446387fffc29b45a0883",
+          "distance": 1.1342631578445435,
+          "file_ref": "file_eb0fdfdf32e98756",
+          "source_type": "gmail",
+          "source_path": "gmail/lauren_bishop/20270603-migration-staffing-and-customer-comms-playbook.json",
+          "title": "Migration staffing & comms playbook — API model evolution"
+        },
+        {
+          "rank": 4,
+          "document_id": "dsid_a8f0c8524573431c9b789291d63b716a",
+          "distance": 1.149365782737732,
+          "file_ref": "file_c3a044013943af72",
+          "source_type": "gmail",
+          "source_path": "gmail/neha_kapoor/20260414-featureflag-licensing-review-stakeholder-sync.json",
+          "title": "Feature flag licensing review & stakeholder sync — LaunchDarkly renewal"
+        },
+        {
+          "rank": 5,
+          "document_id": "dsid_3be2b45196414cad9b187551da3ed448",
+          "distance": 1.1541064977645874,
+          "file_ref": "file_710bdf9db6813549",
+          "source_type": "gmail",
+          "source_path": "gmail/vivek_kulkarni/20261116-telemetry-optout-prompt-ownership-kms-routing.json",
+          "title": "Telemetry opt-out, prompt/response ownership and telemetry routing (Medicore)"
+        },
+        {
+          "rank": 6,
+          "document_id": "dsid_85deb10a652742baaf28af6149600001",
+          "distance": 1.157784104347229,
+          "file_ref": "file_b277735b50990fa0",
+          "source_type": "gmail",
+          "source_path": "gmail/avery_johnson/20250803-license-offsets-and-migration-incentive.json",
+          "title": "Licensing offsets & packaging for potential migration"
+        },
+        {
+          "rank": 7,
+          "document_id": "dsid_e04776cee2964731b96192cae88e9e6b",
+          "distance": 1.1593996286392212,
+          "file_ref": "file_934bbcdcf836326c",
+          "source_type": "gmail",
+          "source_path": "gmail/priya_natarajan/20270502-stakeholder-sync-procurement-route-decision.json",
+          "title": "Stakeholder sync: procurement route decision and SOC 2 gating"
+        },
+        {
+          "rank": 8,
+          "document_id": "dsid_94f011e1d2d04c89a4edc1d68ed9d855",
+          "distance": 1.165381908416748,
+          "file_ref": "file_4b65794e1410f517",
+          "source_type": "gmail",
+          "source_path": "gmail/connor_obrien/20270504-marketplace-technical-evidence-support-rto-query.json",
+          "title": "Marketplace technical evidence & support RTO for AWS/Azure/GCP listing"
+        },
+        {
+          "rank": 9,
+          "document_id": "dsid_c23a3d9d049d4fe79acf83653b564e0b",
+          "distance": 1.184200406074524,
+          "file_ref": "file_0a39b74730e7812f",
+          "source_type": "gmail",
+          "source_path": "gmail/dylan_brooks/20270609-medsecure-logs-redaction-workplan.json",
+          "title": "MedSecure — follow-up: log controls, PII redaction, residency"
+        },
+        {
+          "rank": 10,
+          "document_id": "dsid_214ba4ea822e4d328287194a5e27e632",
+          "distance": 1.1991328001022339,
+          "file_ref": "file_21916c9e8bd67e70",
+          "source_type": "gmail",
+          "source_path": "gmail/jordan_blake/20270719-service-assurance-annualization-escalation-matrix.json",
+          "title": "Service assurance annualization, escalation matrix & pricing clarification"
+        },
+        {
+          "rank": 11,
+          "document_id": "dsid_a1e0ff30870f40d7b692aa27bbedc194",
+          "distance": 1.229931116104126,
+          "file_ref": "file_8d97f1956d947ddf",
+          "source_type": "gmail",
+          "source_path": "gmail/marissa_cole/20260503-marketplace-payout-vat-dispute.json",
+          "title": "Disputed AWS Marketplace Payouts & VAT on INV-2026-03-1152"
+        }
+      ]
+    },
+    {
+      "question_id": "qst_0027",
+      "source_types": [
+        "gmail"
+      ],
+      "expected_doc_ids": [
+        "dsid_214ba4ea822e4d328287194a5e27e632"
+      ],
+      "hit_any": true,
+      "best_rank": 3,
+      "top_document_ids": [
+        "dsid_c6a6396159964deeb021d646eaaf2b0c",
+        "dsid_3be2b45196414cad9b187551da3ed448",
+        "dsid_214ba4ea822e4d328287194a5e27e632",
+        "dsid_8e838ab6a98f4cbcb672d41f210ff89c",
+        "dsid_e04776cee2964731b96192cae88e9e6b",
+        "dsid_c23a3d9d049d4fe79acf83653b564e0b",
+        "dsid_85deb10a652742baaf28af6149600001",
+        "dsid_a8f0c8524573431c9b789291d63b716a",
+        "dsid_94f011e1d2d04c89a4edc1d68ed9d855",
+        "dsid_27da22aa63b3446387fffc29b45a0883",
+        "dsid_a1e0ff30870f40d7b692aa27bbedc194"
+      ],
+      "top_hits": [
+        {
+          "rank": 1,
+          "document_id": "dsid_c6a6396159964deeb021d646eaaf2b0c",
+          "distance": 1.0121971368789673,
+          "file_ref": "file_4cc6979d07a3872b",
+          "source_type": "gmail",
+          "source_path": "gmail/20250603-customer-escalation-private-upgrade-rollback-request.json",
+          "title": "Escalation: Rollback guarantees + upgrade support coverage for Redwood Private (Cascade Financial Group)"
+        },
+        {
+          "rank": 2,
+          "document_id": "dsid_3be2b45196414cad9b187551da3ed448",
+          "distance": 1.0273668766021729,
+          "file_ref": "file_710bdf9db6813549",
+          "source_type": "gmail",
+          "source_path": "gmail/vivek_kulkarni/20261116-telemetry-optout-prompt-ownership-kms-routing.json",
+          "title": "Telemetry opt-out, prompt/response ownership and telemetry routing (Medicore)"
+        },
+        {
+          "rank": 3,
+          "document_id": "dsid_214ba4ea822e4d328287194a5e27e632",
+          "distance": 1.0282819271087646,
+          "file_ref": "file_21916c9e8bd67e70",
+          "source_type": "gmail",
+          "source_path": "gmail/jordan_blake/20270719-service-assurance-annualization-escalation-matrix.json",
+          "title": "Service assurance annualization, escalation matrix & pricing clarification"
+        },
+        {
+          "rank": 4,
+          "document_id": "dsid_8e838ab6a98f4cbcb672d41f210ff89c",
+          "distance": 1.0356621742248535,
+          "file_ref": "file_f4e750618ee48513",
+          "source_type": "gmail",
+          "source_path": "gmail/rafael_mendes/20280503-region-fallback-priority-ops-inventory.json",
+          "title": "Regional fallback priorities & logs — post-call inventory"
+        },
+        {
+          "rank": 5,
+          "document_id": "dsid_e04776cee2964731b96192cae88e9e6b",
+          "distance": 1.0557143688201904,
+          "file_ref": "file_934bbcdcf836326c",
+          "source_type": "gmail",
+          "source_path": "gmail/priya_natarajan/20270502-stakeholder-sync-procurement-route-decision.json",
+          "title": "Stakeholder sync: procurement route decision and SOC 2 gating"
+        },
+        {
+          "rank": 6,
+          "document_id": "dsid_c23a3d9d049d4fe79acf83653b564e0b",
+          "distance": 1.0614659786224365,
+          "file_ref": "file_0a39b74730e7812f",
+          "source_type": "gmail",
+          "source_path": "gmail/dylan_brooks/20270609-medsecure-logs-redaction-workplan.json",
+          "title": "MedSecure — follow-up: log controls, PII redaction, residency"
+        },
+        {
+          "rank": 7,
+          "document_id": "dsid_85deb10a652742baaf28af6149600001",
+          "distance": 1.0663676261901855,
+          "file_ref": "file_b277735b50990fa0",
+          "source_type": "gmail",
+          "source_path": "gmail/avery_johnson/20250803-license-offsets-and-migration-incentive.json",
+          "title": "Licensing offsets & packaging for potential migration"
+        },
+        {
+          "rank": 8,
+          "document_id": "dsid_a8f0c8524573431c9b789291d63b716a",
+          "distance": 1.0917422771453857,
+          "file_ref": "file_c3a044013943af72",
+          "source_type": "gmail",
+          "source_path": "gmail/neha_kapoor/20260414-featureflag-licensing-review-stakeholder-sync.json",
+          "title": "Feature flag licensing review & stakeholder sync — LaunchDarkly renewal"
+        },
+        {
+          "rank": 9,
+          "document_id": "dsid_94f011e1d2d04c89a4edc1d68ed9d855",
+          "distance": 1.118321418762207,
+          "file_ref": "file_4b65794e1410f517",
+          "source_type": "gmail",
+          "source_path": "gmail/connor_obrien/20270504-marketplace-technical-evidence-support-rto-query.json",
+          "title": "Marketplace technical evidence & support RTO for AWS/Azure/GCP listing"
+        },
+        {
+          "rank": 10,
+          "document_id": "dsid_27da22aa63b3446387fffc29b45a0883",
+          "distance": 1.1463814973831177,
+          "file_ref": "file_eb0fdfdf32e98756",
+          "source_type": "gmail",
+          "source_path": "gmail/lauren_bishop/20270603-migration-staffing-and-customer-comms-playbook.json",
+          "title": "Migration staffing & comms playbook — API model evolution"
+        },
+        {
+          "rank": 11,
+          "document_id": "dsid_a1e0ff30870f40d7b692aa27bbedc194",
+          "distance": 1.1708070039749146,
+          "file_ref": "file_8d97f1956d947ddf",
+          "source_type": "gmail",
+          "source_path": "gmail/marissa_cole/20260503-marketplace-payout-vat-dispute.json",
+          "title": "Disputed AWS Marketplace Payouts & VAT on INV-2026-03-1152"
+        }
+      ]
+    },
+    {
+      "question_id": "qst_0028",
+      "source_types": [
+        "slack"
+      ],
+      "expected_doc_ids": [
+        "dsid_7c0157af909c4a6190e00e1fc6b92b73"
+      ],
+      "hit_any": true,
+      "best_rank": 1,
+      "top_document_ids": [
+        "dsid_7c0157af909c4a6190e00e1fc6b92b73",
+        "dsid_fa7dba9ea186436281a953c7b376bf11",
+        "dsid_87ef890a0795443bb74815e8a6378405",
+        "dsid_d555b86d66ab43a48018e16e0ec90eb0",
+        "dsid_e56d8d932da04590b336dbc60ad25f41",
+        "dsid_42fcb5c1e0394276b37ecf4308e227ac",
+        "dsid_94095ba27ce5414db28e599562c12908",
+        "dsid_321eee6325824623833bbe754bf83a0b",
+        "dsid_0143493e1a514c28a39f1cf55744d37b",
+        "dsid_27bd877a9fb74bcaa4e93871f28f3f4d",
+        "dsid_fa2d9f0bda0e4d6b9174ae6b15f7b37e"
+      ],
+      "top_hits": [
+        {
+          "rank": 1,
+          "document_id": "dsid_7c0157af909c4a6190e00e1fc6b92b73",
+          "distance": 0.7909268736839294,
+          "file_ref": "file_8956efdd560aef6a",
+          "source_type": "slack",
+          "source_path": "slack/1729999999-tagging-handoff-ops-checkin.json",
+          "title": "eng-releases"
+        },
+        {
+          "rank": 2,
+          "document_id": "dsid_fa7dba9ea186436281a953c7b376bf11",
+          "distance": 1.1316584348678589,
+          "file_ref": "file_5ed83d961e7bb6dd",
+          "source_type": "slack",
+          "source_path": "slack/1769005123-api-v2-deprecation-rollout-checkin.json",
+          "title": "eng-platform"
+        },
+        {
+          "rank": 3,
+          "document_id": "dsid_87ef890a0795443bb74815e8a6378405",
+          "distance": 1.1929419040679932,
+          "file_ref": "file_96a7a2da0e6b2bc1",
+          "source_type": "slack",
+          "source_path": "slack/eng-sre/1768063011-cardinality-risk-review-shadow-dimensions.json",
+          "title": "eng-sre"
+        },
+        {
+          "rank": 4,
+          "document_id": "dsid_d555b86d66ab43a48018e16e0ec90eb0",
+          "distance": 1.20451021194458,
+          "file_ref": "file_ac3895da0b6b94de",
+          "source_type": "slack",
+          "source_path": "slack/1712004829-pen-test-intake-remediation-plan.json",
+          "title": "eng-security"
+        },
+        {
+          "rank": 5,
+          "document_id": "dsid_e56d8d932da04590b336dbc60ad25f41",
+          "distance": 1.2057801485061646,
+          "file_ref": "file_cbc75015d63cd398",
+          "source_type": "slack",
+          "source_path": "slack/general/2109876543-mini-plant-rap-battle.json",
+          "title": "general"
+        },
+        {
+          "rank": 6,
+          "document_id": "dsid_42fcb5c1e0394276b37ecf4308e227ac",
+          "distance": 1.2217928171157837,
+          "file_ref": "file_bff183cb2607c0d5",
+          "source_type": "slack",
+          "source_path": "slack/eng-sre/1798765432-watchdog-latency-regression-hunt.json",
+          "title": "eng-sre"
+        },
+        {
+          "rank": 7,
+          "document_id": "dsid_94095ba27ce5414db28e599562c12908",
+          "distance": 1.228896141052246,
+          "file_ref": "file_131aa50d8adc6edd",
+          "source_type": "slack",
+          "source_path": "slack/temp-alerts/3712345678-kv-wavefront-triage-handoff.json",
+          "title": "incidents"
+        },
+        {
+          "rank": 8,
+          "document_id": "dsid_321eee6325824623833bbe754bf83a0b",
+          "distance": 1.2323790788650513,
+          "file_ref": "file_dc7b5787056c4a82",
+          "source_type": "slack",
+          "source_path": "slack/partnerships/3321112222-kselector-kvcache-noisy-tenant-surge.json",
+          "title": "eng-runtime"
+        },
+        {
+          "rank": 9,
+          "document_id": "dsid_0143493e1a514c28a39f1cf55744d37b",
+          "distance": 1.2355071306228638,
+          "file_ref": "file_b7111001dfc0a365",
+          "source_type": "slack",
+          "source_path": "slack/eng-security/1777777778-partner-s3-transit-quarantine-rotation.json",
+          "title": "eng-security"
+        },
+        {
+          "rank": 10,
+          "document_id": "dsid_27bd877a9fb74bcaa4e93871f28f3f4d",
+          "distance": 1.2700269222259521,
+          "file_ref": "file_2ee4109e79abc0fa",
+          "source_type": "slack",
+          "source_path": "slack/1719234567-cost-aware-routing-cheap-variants.json",
+          "title": "eng-platform"
+        },
+        {
+          "rank": 11,
+          "document_id": "dsid_fa2d9f0bda0e4d6b9174ae6b15f7b37e",
+          "distance": 1.284591555595398,
+          "file_ref": "file_e88326d5252bdf0b",
+          "source_type": "slack",
+          "source_path": "slack/1750345678-tor-ecn-mtu-truncation-debug.json",
+          "title": "eng-infra"
+        }
+      ]
+    },
+    {
+      "question_id": "qst_0029",
+      "source_types": [
+        "jira"
+      ],
+      "expected_doc_ids": [
+        "dsid_429267fe79c74918a26272f6c0e48f10"
+      ],
+      "hit_any": true,
+      "best_rank": 1,
+      "top_document_ids": [
+        "dsid_429267fe79c74918a26272f6c0e48f10",
+        "dsid_9a088141571b435f995568199ec4bcc9",
+        "dsid_b097ab5d9e4c41609f47432dfcb1508b",
+        "dsid_18621ce91fd14b408a2be95336bb4ab0",
+        "dsid_1eba87b0b11b4f31a006f0cf164b8509",
+        "dsid_e728a420a02a4ddcb125e6adb09d211e",
+        "dsid_a673ed031ece43c5bc4a0d27a284c8dc",
+        "dsid_ad3961a5bbd846d09d101bfa951ab739",
+        "dsid_59cb294da8964683bb165a3bb615df71",
+        "dsid_3b9483f629fd423d81ac49a7efff89c9",
+        "dsid_3f4010bdd3c44b99bb1c1ad2326f5eda",
+        "dsid_1d5a3cde61104276b218c05dc101a546",
+        "dsid_8138b96e181940418cc5067b2630064e"
+      ],
+      "top_hits": [
+        {
+          "rank": 1,
+          "document_id": "dsid_429267fe79c74918a26272f6c0e48f10",
+          "distance": 0.8179309368133545,
+          "file_ref": "file_5b3080fe6c959bcc",
+          "source_type": "jira",
+          "source_path": "jira/internal-support/INT-999999-service-cron-sso-refresh-failure-blocks-nightly-model-evals.json",
+          "title": "Scheduled service account token refresh failing after Okta policy update — nightly model-evals jobs stopped"
+        },
+        {
+          "rank": 2,
+          "document_id": "dsid_9a088141571b435f995568199ec4bcc9",
+          "distance": 0.9960073828697205,
+          "file_ref": "file_6ff9af460329608a",
+          "source_type": "jira",
+          "source_path": "jira/ops-requests/INT-738210-runner-service-token-leak-detection-and-rotation-assist.json",
+          "title": "Runner service account token exfiltration alert: rotate tokens and validate CI access paths"
+        },
+        {
+          "rank": 3,
+          "document_id": "dsid_b097ab5d9e4c41609f47432dfcb1508b",
+          "distance": 1.0160411596298218,
+          "file_ref": "file_01e59d4e90004e59",
+          "source_type": "jira",
+          "source_path": "jira/internal-support/INT-772007-role-lookup-groupid-type-mismatch-modelobservability-access.json",
+          "title": "Role resolution fails after Okta group id type change; ModelObservability API returns 403 for newly provisioned users"
+        },
+        {
+          "rank": 4,
+          "document_id": "dsid_18621ce91fd14b408a2be95336bb4ab0",
+          "distance": 1.0896564722061157,
+          "file_ref": "file_1a7b344bbe955870",
+          "source_type": "jira",
+          "source_path": "jira/ops-requests/SUP-700707-bursting-5xx-from-apigw-backpressure-and-runtime-thread-exhaustion.json",
+          "title": "Bursting 5xx errors caused by API gateway backpressure amplifying runtime thread exhaustion on dedicated pool"
+        },
+        {
+          "rank": 5,
+          "document_id": "dsid_1eba87b0b11b4f31a006f0cf164b8509",
+          "distance": 1.1051530838012695,
+          "file_ref": "file_36c4b94270bb4283",
+          "source_type": "jira",
+          "source_path": "jira/customer-support/SUP-28436-disputed-status-accuracy-during-us-east-degradation.json",
+          "title": "Customer disputes status page accuracy during us-east degradation (status showed Operational while streaming requests failed)"
+        },
+        {
+          "rank": 6,
+          "document_id": "dsid_e728a420a02a4ddcb125e6adb09d211e",
+          "distance": 1.1127192974090576,
+          "file_ref": "file_92d62223e3e52f5a",
+          "source_type": "jira",
+          "source_path": "jira/internal-support/INT-738205-wifi-bridge-nat-source-rewrite-breaks-vpn-policy.json",
+          "title": "Office edge bridge in NAT mode rewriting source IPs and causing VPN policy routing failures and SSO timeouts"
+        },
+        {
+          "rank": 7,
+          "document_id": "dsid_a673ed031ece43c5bc4a0d27a284c8dc",
+          "distance": 1.1408566236495972,
+          "file_ref": "file_7c6c5bd3f30ebeec",
+          "source_type": "jira",
+          "source_path": "jira/ops-requests/SUP-99340-structured-audit-delivery-and-PII-redaction-evidence-request.json",
+          "title": "Structured audit export, PII redaction evidence, and intake for privacy-scan SIEM ingest"
+        },
+        {
+          "rank": 8,
+          "document_id": "dsid_ad3961a5bbd846d09d101bfa951ab739",
+          "distance": 1.1410506963729858,
+          "file_ref": "file_e683b7f14171e8f6",
+          "source_type": "jira",
+          "source_path": "jira/customer-support/SUP-77321-temporary-pause-and-traffic-split-mitigation-for-aggressive-opt-profiles.json",
+          "title": "Validate and temporarily pause aggressive per-tenant batching/cache/quant profiles; provide traffic-split mitigation and safe restore"
+        },
+        {
+          "rank": 9,
+          "document_id": "dsid_59cb294da8964683bb165a3bb615df71",
+          "distance": 1.1451586484909058,
+          "file_ref": "file_be5a9bd42cfa4ee9",
+          "source_type": "jira",
+          "source_path": "jira/ops-requests/INT-460811-edge-switch-arp-proxy-ip-duplication.json",
+          "title": "Edge switch ARP proxying leads to VPN client IP duplication and intermittent routing to wrong host"
+        },
+        {
+          "rank": 10,
+          "document_id": "dsid_3b9483f629fd423d81ac49a7efff89c9",
+          "distance": 1.152862310409546,
+          "file_ref": "file_984162fce468691b",
+          "source_type": "jira",
+          "source_path": "jira/internal-support/SUP-208471-harmonized-rate-plan-credit-alloc-reconciliation-discrepancy.json",
+          "title": "Org-level promo credit reallocated across subaccounts after hybrid (dedicated+hosted) reconciliation"
+        },
+        {
+          "rank": 11,
+          "document_id": "dsid_3f4010bdd3c44b99bb1c1ad2326f5eda",
+          "distance": 1.1666728258132935,
+          "file_ref": "file_6514af73d6f2a2eb",
+          "source_type": "jira",
+          "source_path": "jira/internal-support/INT-1000456-m1-macbook-dep-enroll-kext-conflict-blocking-profile-install.json",
+          "title": "M1 MacBook DEP re-enroll fails: third-party kext blocks MDM profile & cert install after depot repair"
+        },
+        {
+          "rank": 12,
+          "document_id": "dsid_1d5a3cde61104276b218c05dc101a546",
+          "distance": 1.1761023998260498,
+          "file_ref": "file_657d0798d09d8f77",
+          "source_type": "jira",
+          "source_path": "jira/ops-requests/INT-827501-dossierhq-ephemeral-collaborator-pool-scim-okta-billing-mapping.json",
+          "title": "DossierHQ: procure ephemeral collaborator pool (120 seats) + SCIM/SSO mapping and billing tags"
+        },
+        {
+          "rank": 13,
+          "document_id": "dsid_8138b96e181940418cc5067b2630064e",
+          "distance": 1.185469150543213,
+          "file_ref": "file_6bec8c981209f234",
+          "source_type": "jira",
+          "source_path": "jira/internal-support/INT-821407-provisional-license-reclaim-and-grace-window-policy-clarify.json",
+          "title": "Clarify provisional license reclaim window and equipment-return grace period for immediate offboarding"
+        }
+      ]
+    },
+    {
+      "question_id": "qst_0030",
+      "source_types": [
+        "linear"
+      ],
+      "expected_doc_ids": [
+        "dsid_54525a33e2d44d4a9b665feaf8fab624"
+      ],
+      "hit_any": true,
+      "best_rank": 1,
+      "top_document_ids": [
+        "dsid_54525a33e2d44d4a9b665feaf8fab624",
+        "dsid_f3c46e1166f34b9c92a83034450fe021",
+        "dsid_7a7c04eebb914edab49f734c8e814beb",
+        "dsid_d921e1d4282b45a7b4990e2366bedc05",
+        "dsid_1a40ab782f8b4d80929a9668462912e2",
+        "dsid_1f81f208f51a4aacaca226109bbedc72",
+        "dsid_8412db85d95a45f7bbfb14dacedb4d8b",
+        "dsid_5fbf425415da4b7487f0ebbf289a39d6",
+        "dsid_3fd6af404fae48e6b8ea5a57875ef78f",
+        "dsid_1867cdf06a00437194b3250c75321a92",
+        "dsid_39e191ec758c41a8adecd223951b8b93",
+        "dsid_f94b93a4bc7948ddab45c371187dc6c6",
+        "dsid_14a447cb5b1140709c7cb3cc9a88c430",
+        "dsid_7a094ff98c3b4c96a77f3949aedeb749",
+        "dsid_8381e16639f148c7863aa3d393cb64da",
+        "dsid_2e5aaaa6db404ec19cb15a6f92be66a3"
+      ],
+      "top_hits": [
+        {
+          "rank": 1,
+          "document_id": "dsid_54525a33e2d44d4a9b665feaf8fab624",
+          "distance": 0.8214330673217773,
+          "file_ref": "file_d6e5fbed6a5d0ce7",
+          "source_type": "linear",
+          "source_path": "linear/product-management/PM-24680-cohort-comparator-and-trace-linker-for-deployment-health.json",
+          "title": "Cohort Comparator & Trace Linker for Deployment Health"
+        },
+        {
+          "rank": 2,
+          "document_id": "dsid_f3c46e1166f34b9c92a83034450fe021",
+          "distance": 1.040892481803894,
+          "file_ref": "file_f0cc1bd274a70e8c",
+          "source_type": "linear",
+          "source_path": "linear/design/DES-832341-private-console-network-path-storyboard-rehearsal.json",
+          "title": "Private Console: Network Path Storyboard & Upgrade Rehearsal (prototype)"
+        },
+        {
+          "rank": 3,
+          "document_id": "dsid_7a7c04eebb914edab49f734c8e814beb",
+          "distance": 1.070529580116272,
+          "file_ref": "file_dd0750f6a9e362f6",
+          "source_type": "linear",
+          "source_path": "linear/business-ops/ENG-99456-tenant-credit-allocator-and-variant-shadowing-hosted-backfill.json",
+          "title": "Tenant credit-based region routing with variant shadowing and graceful hosted backfill"
+        },
+        {
+          "rank": 4,
+          "document_id": "dsid_d921e1d4282b45a7b4990e2366bedc05",
+          "distance": 1.0712835788726807,
+          "file_ref": "file_06b8e28754ed3702",
+          "source_type": "linear",
+          "source_path": "linear/business-ops/ENG-62670-workload-forecast-headroom-controller.json",
+          "title": "Workload-forecast-based headroom controller for Dedicated capacity"
+        },
+        {
+          "rank": 5,
+          "document_id": "dsid_1a40ab782f8b4d80929a9668462912e2",
+          "distance": 1.072099208831787,
+          "file_ref": "file_825bd7381190f2eb",
+          "source_type": "linear",
+          "source_path": "linear/business-ops/DES-420888-span-beacon-correl-lens.json",
+          "title": "Span Beacon — Anchored Thread Navigator & Correlation Lens"
+        },
+        {
+          "rank": 6,
+          "document_id": "dsid_1f81f208f51a4aacaca226109bbedc72",
+          "distance": 1.0729718208312988,
+          "file_ref": "file_585c5a6d1828aa7e",
+          "source_type": "linear",
+          "source_path": "linear/business-ops/ENG-776543-kvcache-ghost-refcount-decay-rolling-heal-playbook.json",
+          "title": "KV cache ghost refcount decay detection, snapshot sanitization, and rolling-heal playbook"
+        },
+        {
+          "rank": 7,
+          "document_id": "dsid_8412db85d95a45f7bbfb14dacedb4d8b",
+          "distance": 1.0805039405822754,
+          "file_ref": "file_b7422f5421c3908c",
+          "source_type": "linear",
+          "source_path": "linear/product-management/PM-921999-model-resilience-propensity-index-and-field-probe-playbook.json",
+          "title": "Model Resilience Propensity Index & Field Probe Playbook"
+        },
+        {
+          "rank": 8,
+          "document_id": "dsid_5fbf425415da4b7487f0ebbf289a39d6",
+          "distance": 1.0838080644607544,
+          "file_ref": "file_6af456d88c1c2093",
+          "source_type": "linear",
+          "source_path": "linear/product-management/PM-765981-api-behavioral-probe-matrix-and-prospectivity-playbook.json",
+          "title": "API Behavioral Probe Matrix and Prospectivity Playbook"
+        },
+        {
+          "rank": 9,
+          "document_id": "dsid_3fd6af404fae48e6b8ea5a57875ef78f",
+          "distance": 1.1043100357055664,
+          "file_ref": "file_65bc1687e9c9baee",
+          "source_type": "linear",
+          "source_path": "linear/design/DES-72681-develop-interactive-tone-derivatives-and-kappa-elevation-scale-for-data-grids.json",
+          "title": "Develop interactive tone derivatives and Kappa elevation scale for data grids"
+        },
+        {
+          "rank": 10,
+          "document_id": "dsid_1867cdf06a00437194b3250c75321a92",
+          "distance": 1.1077288389205933,
+          "file_ref": "file_59964fe919e8c1b1",
+          "source_type": "linear",
+          "source_path": "linear/design/DES-91235-compact-workspace-chips-micro-rail-prototype.json",
+          "title": "Compact workspace chips + contextual micro-rail: progressive IA and routing prototype for Console"
+        },
+        {
+          "rank": 11,
+          "document_id": "dsid_39e191ec758c41a8adecd223951b8b93",
+          "distance": 1.1212520599365234,
+          "file_ref": "file_4e55f640aacd65ce",
+          "source_type": "linear",
+          "source_path": "linear/engineering/ENG-48961-bounded-window-kv-adaptive-backpressure-and-graceful-oom-fallback.json",
+          "title": "Bounded-window KV cache with adaptive backpressure and graceful GPU-OOM fallback"
+        },
+        {
+          "rank": 12,
+          "document_id": "dsid_f94b93a4bc7948ddab45c371187dc6c6",
+          "distance": 1.130486011505127,
+          "file_ref": "file_97fffb38171704e1",
+          "source_type": "linear",
+          "source_path": "linear/business-ops/PM-862431-emission-stability-tool-orchestration-soft-fail-acceptance.json",
+          "title": "Emission Stability and Tool-Orchestration: Soft-Fail & Streaming Acceptance"
+        },
+        {
+          "rank": 13,
+          "document_id": "dsid_14a447cb5b1140709c7cb3cc9a88c430",
+          "distance": 1.1432873010635376,
+          "file_ref": "file_4d4b58f1457afc10",
+          "source_type": "linear",
+          "source_path": "linear/design/DES-100777-adaptive-sparkline-density-and-compression-mode-prototype.json",
+          "title": "Adaptive sparkline density and column compression mode (prototype)"
+        },
+        {
+          "rank": 14,
+          "document_id": "dsid_7a094ff98c3b4c96a77f3949aedeb749",
+          "distance": 1.1442432403564453,
+          "file_ref": "file_178563f27622458b",
+          "source_type": "linear",
+          "source_path": "linear/product-management/PM-91829-intake-lens-minimum-implementation-slate.json",
+          "title": "Intake Lens + Minimum Implementation Slate for High-touch Enterprise Requests"
+        },
+        {
+          "rank": 15,
+          "document_id": "dsid_8381e16639f148c7863aa3d393cb64da",
+          "distance": 1.1757338047027588,
+          "file_ref": "file_499b17aa8f26e77f",
+          "source_type": "linear",
+          "source_path": "linear/design/DES-66120-migrate-interaction-tokens-and-fix-hover-glow.json",
+          "title": "Migrate interaction tokens to theme variable layer and resolve hover glow regression"
+        },
+        {
+          "rank": 16,
+          "document_id": "dsid_2e5aaaa6db404ec19cb15a6f92be66a3",
+          "distance": 1.180942177772522,
+          "file_ref": "file_c590d84a3b233dff",
+          "source_type": "linear",
+          "source_path": "linear/design/DES-12901-consistent-spinner-overlay-and-label-behavior.json",
+          "title": "Consistent spinner overlay and label behavior for button loading/disabled states"
+        }
+      ]
+    }
+  ]
+}
