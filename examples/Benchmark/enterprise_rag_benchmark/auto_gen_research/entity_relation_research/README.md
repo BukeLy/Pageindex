@@ -37,19 +37,26 @@ Input:
 
 Latest result:
 
-- `baseline_metadata_text`: hit@50 `0.99`
-- `summary_only_text`: hit@50 `0.99`
-- `entity_constraint_projection`: hit@50 `0.91`
-- `entity_relation_projection`: hit@50 `0.98`
-- `hybrid_projection_text`: hit@50 `1.00`
+- `baseline_metadata_text`: hit@10 `0.99`, hit@50 `1.00`, MRR `0.9716`
+- `summary_only_text`: hit@10 `0.99`, hit@50 `1.00`, MRR `0.9412`
+- `entity_constraint_projection`: hit@10 `0.94`, hit@50 `0.95`, MRR `0.8592`
+- `entity_relation_projection`: hit@10 `0.98`, hit@50 `1.00`, MRR `0.9502`
+- `hybrid_projection_text`: hit@10 `0.98`, hit@50 `1.00`, MRR `0.9645`
+
+Canonical result directory:
+
+- `results/projection-field-ablation-20260520-100docs/`
 
 Interpretation:
 
-- Pure entity/constraint projection is too lossy.
-- Adding relation text recovers much of the missing signal.
-- Hybrid projection is the only tested variant with no misses at hit@100 in the
-  100-doc profile universe.
-- This is still a small profile-based smoke, not full-corpus proof.
+- Pure entity/constraint projection is too lossy. It misses five questions even
+  at hit@100.
+- Adding relation text recovers the lost recall, which supports keeping
+  relation-aware projection as a candidate semantic index.
+- Hybrid projection is robust, but it does not beat full metadata text on MRR in
+  this 100-doc universe.
+- This result is not full-corpus proof because the document universe is the
+  selected 100-doc benchmark profile set, not a large decoy-heavy workspace.
 
 ## Boundary
 

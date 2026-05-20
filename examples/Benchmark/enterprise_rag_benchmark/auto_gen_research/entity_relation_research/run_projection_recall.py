@@ -134,6 +134,7 @@ class Document:
     title: str
     content: str
     is_expected: bool
+    profile: dict[str, Any]
 
 
 def main() -> int:
@@ -229,6 +230,7 @@ def load_profile_documents(
                 title=str(row.get("title") or profile.get("primary_topic") or doc_id),
                 content=profile_to_text(profile),
                 is_expected=doc_id in expected,
+                profile=profile,
             )
         )
     return docs
@@ -318,6 +320,7 @@ def run_experiment(
         row: dict[str, Any] = {
             "question_id": question.question_id,
             "question": question.question,
+            "question_type": question.question_type,
             "expected_doc_ids": question.expected_doc_ids,
             "source_types": question.source_types,
             "strategy_results": {},
@@ -357,25 +360,94 @@ def build_doc_texts(docs: list[Document], mode: str) -> dict[str, str]:
     for index, doc in enumerate(docs, start=1):
         if index == 1 or index % 5000 == 0:
             LOGGER.info("building %s projection %s/%s", mode, index, len(docs))
-        preview = compact(doc.content, 2400)
-        summary = f"{doc.title}\n{compact(doc.content, 500)}"
-        entities = extract_entities(f"{doc.title}\n{preview}")
-        constraints = extract_constraints(f"{doc.title}\n{preview}")
-        relations = extract_relations(f"{doc.title}. {preview}", entities=entities, constraints=constraints)
+        summary = profile_summary_text(doc)
+        metadata = profile_metadata_text(doc)
+        entities = profile_entity_texts(doc)
+        constraints = profile_constraint_texts(doc)
+        relations = profile_relation_texts(doc)
         if mode == "summary":
             text = summary
         elif mode == "metadata":
-            text = f"{doc.source_type}\n{doc.title}\n{summary}"
+            text = metadata
         elif mode == "entity_constraint":
             text = "\n".join([doc.title, *entities, *constraints])
         elif mode == "entity_relation":
             text = "\n".join([doc.title, *entities, *constraints, *relations])
         elif mode == "hybrid":
-            text = "\n".join([doc.source_type, summary, *entities, *constraints, *relations])
+            text = "\n".join([metadata, *entities, *constraints, *relations])
         else:
             raise ValueError(f"unknown mode: {mode}")
         texts[doc.doc_id] = text
     return texts
+
+
+def profile_summary_text(doc: Document) -> str:
+    return "\n".join(
+        value
+        for value in [
+            doc.title,
+            str(doc.profile.get("semantic_summary") or ""),
+        ]
+        if value
+    )
+
+
+def profile_metadata_text(doc: Document) -> str:
+    profile = doc.profile
+    values: list[str] = [doc.source_type, doc.title]
+    for key in (
+        "doc_type",
+        "primary_topic",
+        "topic_cluster_hint",
+        "time_period",
+        "communication_channel",
+        "product_or_system",
+        "primary_entity",
+        "action_or_event",
+        "semantic_summary",
+    ):
+        value = profile.get(key)
+        if value:
+            values.append(str(value))
+    for key in ("secondary_topics", "search_terms", "folder_hints"):
+        values.extend(str(item) for item in (profile.get(key) or []) if item)
+    return "\n".join(values)
+
+
+def profile_entity_texts(doc: Document) -> list[str]:
+    values: list[str] = []
+    for entity in doc.profile.get("entities") or []:
+        if not isinstance(entity, dict):
+            values.append(str(entity))
+            continue
+        row = [entity.get("name"), entity.get("type")]
+        row.extend(entity.get("aliases") or [])
+        values.append(" | ".join(str(item) for item in row if item))
+    return values
+
+
+def profile_relation_texts(doc: Document) -> list[str]:
+    values: list[str] = []
+    for relation in doc.profile.get("relations") or []:
+        if not isinstance(relation, dict):
+            values.append(str(relation))
+            continue
+        row = [relation.get("subject"), relation.get("relation"), relation.get("object")]
+        row.extend(relation.get("evidence_terms") or [])
+        values.append(" | ".join(str(item) for item in row if item))
+    return values
+
+
+def profile_constraint_texts(doc: Document) -> list[str]:
+    text = "\n".join(
+        [
+            str(doc.profile.get("semantic_summary") or ""),
+            str(doc.profile.get("action_or_event") or ""),
+            "\n".join(str(item) for item in (doc.profile.get("search_terms") or [])),
+            "\n".join(profile_relation_texts(doc)),
+        ]
+    )
+    return extract_constraints(text)
 
 
 def query_projection_texts(question: str) -> dict[str, list[str]]:
