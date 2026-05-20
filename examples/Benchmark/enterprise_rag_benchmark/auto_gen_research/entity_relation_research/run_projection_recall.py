@@ -838,6 +838,9 @@ def strategy_result(expected_doc_ids: list[str], ranked_ids: list[str]) -> dict[
     expected = set(expected_doc_ids)
     ranks = [rank for rank, doc_id in enumerate(ranked_ids, start=1) if doc_id in expected]
     return {
+        "hit_at_1": bool(ranks and min(ranks) <= 1),
+        "hit_at_3": bool(ranks and min(ranks) <= 3),
+        "hit_at_5": bool(ranks and min(ranks) <= 5),
         "hit_at_10": bool(ranks and min(ranks) <= 10),
         "hit_at_20": bool(ranks and min(ranks) <= 20),
         "hit_at_50": bool(ranks and min(ranks) <= 50),
@@ -854,6 +857,9 @@ def summarize_strategy(rows: list[dict[str, Any]], strategy_name: str) -> dict[s
     reciprocal_ranks = [1.0 / result["best_rank"] for result in results if result["best_rank"]]
     return {
         "questions": len(answerable),
+        "hit@1": round(sum(result["hit_at_1"] for result in results) / total, 4),
+        "hit@3": round(sum(result["hit_at_3"] for result in results) / total, 4),
+        "hit@5": round(sum(result["hit_at_5"] for result in results) / total, 4),
         "hit@10": round(sum(result["hit_at_10"] for result in results) / total, 4),
         "hit@20": round(sum(result["hit_at_20"] for result in results) / total, 4),
         "hit@50": round(sum(result["hit_at_50"] for result in results) / total, 4),
@@ -982,12 +988,13 @@ def render_summary(result: dict[str, Any]) -> str:
         "",
         "## Summary",
         "",
-        "| strategy | hit@10 | hit@20 | hit@50 | hit@100 | MRR | misses@100 |",
-        "|---|---:|---:|---:|---:|---:|---:|",
+        "| strategy | hit@1 | hit@3 | hit@5 | hit@10 | hit@20 | hit@50 | hit@100 | MRR | misses@100 |",
+        "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
     ]
     for strategy, row in result["summary"].items():
         lines.append(
-            f"| `{strategy}` | {row['hit@10']:.4f} | {row['hit@20']:.4f} | "
+            f"| `{strategy}` | {row['hit@1']:.4f} | {row['hit@3']:.4f} | "
+            f"{row['hit@5']:.4f} | {row['hit@10']:.4f} | {row['hit@20']:.4f} | "
             f"{row['hit@50']:.4f} | {row['hit@100']:.4f} | {row['mrr']:.4f} | "
             f"{len(row['misses'])} |"
         )

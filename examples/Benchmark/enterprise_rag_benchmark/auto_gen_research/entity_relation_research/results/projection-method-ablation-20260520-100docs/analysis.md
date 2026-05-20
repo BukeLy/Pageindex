@@ -19,20 +19,20 @@ external API and does not regenerate metadata.
 
 ## Result
 
-| strategy | hit@10 | hit@20 | hit@50 | hit@100 | MRR | misses@100 |
-|---|---:|---:|---:|---:|---:|---:|
-| `baseline_metadata_text` | 0.99 | 0.99 | 1.00 | 1.00 | 0.9716 | 0 |
-| `summary_only_text` | 0.99 | 0.99 | 1.00 | 1.00 | 0.9412 | 0 |
-| `entity_constraint_projection` | 0.94 | 0.95 | 0.95 | 0.95 | 0.8592 | 5 |
-| `entity_relation_projection` | 0.98 | 0.98 | 1.00 | 1.00 | 0.9502 | 0 |
-| `hybrid_projection_text` | 0.98 | 0.99 | 1.00 | 1.00 | 0.9645 | 0 |
-| `rrf_summary_metadata_relation` | 0.99 | 1.00 | 1.00 | 1.00 | 0.9768 | 0 |
-| `multi_probe_rrf` | 0.99 | 1.00 | 1.00 | 1.00 | 0.9718 | 0 |
-| `pseudo_late_interaction` | 0.98 | 0.99 | 1.00 | 1.00 | 0.9662 | 0 |
-| `constraint_exact_boost` | 0.98 | 0.99 | 1.00 | 1.00 | 0.9644 | 0 |
-| `source_hint_boost` | 0.99 | 1.00 | 1.00 | 1.00 | 0.9527 | 0 |
-| `prf_metadata_expansion` | 0.99 | 0.99 | 1.00 | 1.00 | 0.9226 | 0 |
-| `hybrid_rrf_exact_source` | 1.00 | 1.00 | 1.00 | 1.00 | 0.9733 | 0 |
+| strategy | hit@1 | hit@3 | hit@5 | hit@10 | hit@20 | hit@50 | hit@100 | MRR | misses@100 |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| `baseline_metadata_text` | 0.96 | 0.98 | 0.98 | 0.99 | 0.99 | 1.00 | 1.00 | 0.9716 | 0 |
+| `summary_only_text` | 0.91 | 0.97 | 0.98 | 0.99 | 0.99 | 1.00 | 1.00 | 0.9412 | 0 |
+| `entity_constraint_projection` | 0.82 | 0.88 | 0.92 | 0.94 | 0.95 | 0.95 | 0.95 | 0.8592 | 5 |
+| `entity_relation_projection` | 0.93 | 0.97 | 0.97 | 0.98 | 0.98 | 1.00 | 1.00 | 0.9502 | 0 |
+| `hybrid_projection_text` | 0.95 | 0.98 | 0.98 | 0.98 | 0.99 | 1.00 | 1.00 | 0.9645 | 0 |
+| `rrf_summary_metadata_relation` | 0.97 | 0.98 | 0.98 | 0.99 | 1.00 | 1.00 | 1.00 | 0.9768 | 0 |
+| `multi_probe_rrf` | 0.96 | 0.98 | 0.98 | 0.99 | 1.00 | 1.00 | 1.00 | 0.9718 | 0 |
+| `pseudo_late_interaction` | 0.95 | 0.98 | 0.98 | 0.98 | 0.99 | 1.00 | 1.00 | 0.9662 | 0 |
+| `constraint_exact_boost` | 0.95 | 0.98 | 0.98 | 0.98 | 0.99 | 1.00 | 1.00 | 0.9644 | 0 |
+| `source_hint_boost` | 0.93 | 0.98 | 0.99 | 0.99 | 1.00 | 1.00 | 1.00 | 0.9527 | 0 |
+| `prf_metadata_expansion` | 0.89 | 0.95 | 0.97 | 0.99 | 0.99 | 1.00 | 1.00 | 0.9226 | 0 |
+| `hybrid_rrf_exact_source` | 0.96 | 0.98 | 0.98 | 1.00 | 1.00 | 1.00 | 1.00 | 0.9733 | 0 |
 
 ## Insight
 
