@@ -17,6 +17,57 @@ scale.
   writeups can cite the original source.
 - `run_projection_recall.py`: local JSON/profile based offline recall preflight.
   It does not require DuckDB, a vector DB, or external APIs.
+- `build_projection_index.py`: full EnterpriseRAG parquet projection-index
+  builder. It builds rebuildable sqlite-vec indexes for `metadata`,
+  `summary`, `entity`, `constraint`, and `relation` projections.
+- `probe_projection_recall.py`: offline recall probe for the five target
+  strategies:
+  `baseline_metadata_vector`, `summary_only_vector`,
+  `entity_constraint_index`, `entity_relation_index`, and
+  `hybrid_entity_relation_vector`.
+
+## Full-Corpus Projection Vector Experiment
+
+First build the projection indexes:
+
+```bash
+uv run --with pyarrow python examples/Benchmark/enterprise_rag_benchmark/auto_gen_research/entity_relation_research/build_projection_index.py \
+  --dataset-dir examples/Benchmark/enterprise_rag_benchmark/dataset \
+  --index-dir examples/Benchmark/enterprise_rag_benchmark/auto_gen_research/entity_relation_research/cache/projection_indexes/enterprise_full_v1 \
+  --embedding-provider openai \
+  --embedding-model text-embedding-3-small \
+  --embedding-dimensions 256
+```
+
+Then run the 100-question offline smoke:
+
+```bash
+uv run --with pyarrow python examples/Benchmark/enterprise_rag_benchmark/auto_gen_research/entity_relation_research/probe_projection_recall.py \
+  --dataset-dir examples/Benchmark/enterprise_rag_benchmark/dataset \
+  --index-dir examples/Benchmark/enterprise_rag_benchmark/auto_gen_research/entity_relation_research/cache/projection_indexes/enterprise_full_v1 \
+  --output-dir examples/Benchmark/enterprise_rag_benchmark/auto_gen_research/entity_relation_research/results/projection-recall-enterprise-100q \
+  --question-start 1 \
+  --question-limit 100 \
+  --embedding-provider openai \
+  --embedding-model text-embedding-3-small \
+  --embedding-dimensions 256
+```
+
+This stage is offline retrieval only:
+
+- no PIFS core changes,
+- no agent prompt changes,
+- no benchmark runner changes,
+- no chunk index,
+- no LLM reranker,
+- no fulltext/BM25 strategy in the comparison table.
+
+Promotion gate:
+
+- if `hybrid_entity_relation_vector` does not reach `hit@50 >= 0.90`, do not
+  spend API tokens on an agent run;
+- if it clearly beats `baseline_metadata_vector`, then package the projection
+  recall path as a candidate ranking backend for shell-like `grep/find`.
 
 ## Current Smoke
 
