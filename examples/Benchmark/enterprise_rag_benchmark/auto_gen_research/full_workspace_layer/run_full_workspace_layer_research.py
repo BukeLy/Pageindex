@@ -2361,7 +2361,7 @@ class EmbeddingCache:
         for start in range(0, len(missing_positions), batch_size):
             positions = missing_positions[start : start + batch_size]
             batch_texts = [texts[index] for index in positions]
-            vectors = embedder.embed(batch_texts)
+            vectors = embed_with_retry(embedder, batch_texts)
             with self.connect() as conn:
                 conn.executemany(
                     """
@@ -2386,6 +2386,26 @@ class EmbeddingCache:
                 cached[hashes[index]] = vector
             LOGGER.info("embedded %d/%d uncached texts", min(start + len(positions), len(missing_positions)), len(missing_positions))
         return [cached[text_hash] for text_hash in hashes]
+
+
+def embed_with_retry(embedder: Any, texts: list[str], *, max_attempts: int = 8) -> list[list[float]]:
+    for attempt in range(1, max_attempts + 1):
+        try:
+            return embedder.embed(texts)
+        except Exception as exc:
+            if attempt >= max_attempts:
+                raise
+            delay = min(120.0, 2.0 ** (attempt - 1))
+            LOGGER.warning(
+                "embedding batch failed attempt=%d/%d texts=%d delay=%.1fs error=%s",
+                attempt,
+                max_attempts,
+                len(texts),
+                delay,
+                exc,
+            )
+            time.sleep(delay)
+    raise RuntimeError("unreachable embedding retry state")
 
 
 class OpenAIEmbeddingClient:
