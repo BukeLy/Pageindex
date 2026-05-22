@@ -274,7 +274,11 @@ def run_pifs_agent(
 
     set_tracing_disabled(True)
     normalized_stream_mode = normalize_agent_stream_mode(stream_mode)
-    executor = PIFSCommandExecutor(filesystem, json_output=False)
+    executor = PIFSCommandExecutor(
+        filesystem,
+        json_output=False,
+        query_context=extract_agent_question_text(question),
+    )
     observer = PIFSAgentStreamObserver(normalized_stream_mode, stream_log=agent_log)
     schema = filesystem._metadata_schema()
     schema_fields = schema.get("fields", {})
@@ -374,3 +378,12 @@ def run_pifs_agent(
             return pool.submit(asyncio.run, _run()).result()
     except RuntimeError:
         return asyncio.run(_run())
+
+
+def extract_agent_question_text(prompt: str) -> str:
+    for line in str(prompt or "").splitlines():
+        if line.startswith("Question:"):
+            value = line.split(":", 1)[1].strip()
+            if value:
+                return value
+    return str(prompt or "").strip()

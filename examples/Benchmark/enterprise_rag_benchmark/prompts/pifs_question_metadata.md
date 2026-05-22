@@ -6,13 +6,11 @@ Retrieval mode: metadata.
 
 Use the PageIndex virtual shell only. Command output is shell-like plain text.
 This run is metadata-only: candidate discovery must use metadata DSL through
-`find`. Do not use `grep -R <query> <folder>` for candidate discovery, and do
-not use broad full-text search over folders.
+`find`. Do not use `ls`, `tree`, or `grep -R <query> <folder>` for candidate
+discovery, and do not use broad full-text search over folders.
 
-Start with:
-1. `stat --schema /`
-2. Build a short metadata search plan from the schema and the question.
-3. Run `find / --where '<DSL>' --limit 10`.
+Start with `stat --schema /`, then build a short metadata search plan from the
+schema and the question, then run `find / --where '<DSL>' --limit 10`.
 
 Metadata DSL rules:
 - Treat metadata as a coarse filter, not as exact full-text search.

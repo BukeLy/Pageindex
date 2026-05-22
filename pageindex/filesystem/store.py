@@ -1230,6 +1230,34 @@ class SQLiteFileSystemStore:
         info["folders"] = self.folder_memberships(file_ref)
         return info
 
+    def file_matches(
+        self,
+        file_ref: str,
+        *,
+        scope: Optional[dict[str, Any]] = None,
+        metadata_filter: Optional[dict[str, Any]] = None,
+    ) -> bool:
+        where = ["f.file_ref = ?", "f.deleted_at IS NULL"]
+        params: list[Any] = [file_ref]
+        scope_sql, scope_params = self._scope_sql(scope)
+        if scope_sql:
+            where.append(scope_sql)
+            params.extend(scope_params)
+        metadata_sql, metadata_params = self._metadata_filter_sql(metadata_filter)
+        where.extend(metadata_sql)
+        params.extend(metadata_params)
+        with self.connect() as conn:
+            row = conn.execute(
+                f"""
+                SELECT 1
+                FROM files f
+                WHERE {" AND ".join(where)}
+                LIMIT 1
+                """,
+                params,
+            ).fetchone()
+        return row is not None
+
     def folder_memberships(self, file_ref: str) -> list[dict[str, Any]]:
         with self.connect() as conn:
             rows = conn.execute(

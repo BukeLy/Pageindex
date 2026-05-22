@@ -40,6 +40,7 @@ Use the same full workspace and question set for all strategies.
 | `entity_constraint_index` | entity and constraint projection rows | extracted entities and constraints | isolate whether explicit objects/rules improve recall |
 | `entity_relation_index` | entity, relation, and constraint rows | extracted entities, relations, constraints | test graph-like retrieval without building a graph DB |
 | `hybrid_projection_vector` | metadata vector plus projection rows | raw question plus extracted projections | likely production candidate if recall improves |
+| `hybrid_summary_entity_relation_vector` | summary vector plus entity and relation rows | raw question plus extracted entities and relations | ablate whether summary should replace metadata/constraints in the hybrid |
 
 ## Projection Shape
 
@@ -111,3 +112,10 @@ Only after offline recall passes the threshold:
 
 Do not run expensive agent evaluations before offline recall proves the index is
 worth using.
+
+Interface variants to compare during command-level smoke:
+
+- bash-like mapping: `grep -R` -> summary, `find --name` -> entity,
+  `find --relation` -> relation;
+- explicit PIFS tools: `search-summary`, `search-entity`, `search-relation`;
+- keep `stat` exact and catalog-oriented.

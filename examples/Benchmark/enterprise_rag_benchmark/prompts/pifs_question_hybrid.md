@@ -15,7 +15,13 @@ direct children of `/github`, `/slack`, etc., not inside a semantic-looking
 subfolder.
 Do not combine a large `ls` output with evidence search in the same command.
 Use one command to inspect folders, then a separate command for `grep`, so the
-search hits are not buried under a long directory listing.
+search hits are not buried under a long directory listing. In hybrid projection
+mode, recursive `grep -R` is a hybrid grep: it uses the grep query itself for
+entity/relation vector retrieval with a 50/50 candidate split, then returns
+only documents whose text actually matches the query terms. `find --name`
+searches the entity space, and `find --relation` searches the relation space. You may also call
+`search-summary`, `search-entity`, and `search-relation` directly when comparing
+semantic spaces.
 When metadata fields clearly apply, use `find <path> -type d --where '<DSL>'`
 to find folders whose subtrees contain matching files. When `grep -R` on a
 folder returns folder matches, choose a narrower folder and run `grep -R` again

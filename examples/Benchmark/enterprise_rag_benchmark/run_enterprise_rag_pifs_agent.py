@@ -15,6 +15,14 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 BENCHMARK_DIR = Path(__file__).resolve().parent
 PROMPTS_DIR = BENCHMARK_DIR / "prompts"
+DEFAULT_PROJECTION_INDEX_DIR = (
+    BENCHMARK_DIR
+    / "auto_gen_research"
+    / "entity_relation_research"
+    / "cache"
+    / "projection_indexes"
+    / "enterprise_full_v1"
+)
 
 from dotenv import load_dotenv
 from pydantic import BaseModel, ConfigDict, Field
@@ -85,6 +93,16 @@ def main() -> int:
 
     run_dir.mkdir(parents=True, exist_ok=True)
     filesystem = PageIndexFileSystem(workspace=workspace)
+    if args.recursive_retrieval_backend == "hybrid_projection":
+        filesystem.configure_hybrid_projection_retrieval(
+            args.projection_index_dir,
+            embedding_provider=args.projection_embedding_provider,
+            embedding_model=args.projection_embedding_model,
+            embedding_dimensions=args.projection_embedding_dimensions,
+            embedding_timeout=args.projection_embedding_timeout,
+            per_channel_limit=args.projection_per_channel_limit,
+            fetch_multiplier=args.projection_fetch_multiplier,
+        )
     system_prompt = read_prompt_file(args.system_prompt_file)
     question_prompt_file = args.question_prompt_file or default_question_prompt_file(args.retrieval_mode)
     question_prompt_template = read_prompt_file(question_prompt_file)
@@ -163,6 +181,12 @@ def main() -> int:
         "base_url": os.environ.get("OPENAI_BASE_URL"),
         "stream_mode": args.stream_mode,
         "retrieval_mode": args.retrieval_mode,
+        "recursive_retrieval_backend": args.recursive_retrieval_backend,
+        "projection_index_dir": (
+            str(Path(args.projection_index_dir).expanduser().resolve())
+            if args.recursive_retrieval_backend == "hybrid_projection"
+            else ""
+        ),
         "system_prompt_file": str(Path(args.system_prompt_file).resolve()),
         "question_prompt_file": str(Path(question_prompt_file).resolve()),
         "reasoning_effort": args.reasoning_effort,
@@ -261,6 +285,46 @@ def parse_args() -> argparse.Namespace:
         default=os.environ.get("PIFS_RETRIEVAL_MODE", "hybrid"),
         choices=RETRIEVAL_MODE_CHOICES,
         help="Constrain agent retrieval strategy: hybrid, folder, or metadata.",
+    )
+    parser.add_argument(
+        "--recursive-retrieval-backend",
+        default=os.environ.get("PIFS_RECURSIVE_RETRIEVAL_BACKEND", "catalog"),
+        choices=["catalog", "hybrid_projection"],
+        help="Backend used by recursive discovery commands such as grep -R, ls -R, and tree.",
+    )
+    parser.add_argument(
+        "--projection-index-dir",
+        default=os.environ.get("PIFS_PROJECTION_INDEX_DIR", str(DEFAULT_PROJECTION_INDEX_DIR)),
+        help="Projection index directory used when --recursive-retrieval-backend=hybrid_projection.",
+    )
+    parser.add_argument(
+        "--projection-embedding-provider",
+        default=os.environ.get("PIFS_PROJECTION_EMBEDDING_PROVIDER", "openai"),
+        choices=["openai", "hash"],
+    )
+    parser.add_argument(
+        "--projection-embedding-model",
+        default=os.environ.get("PIFS_PROJECTION_EMBEDDING_MODEL", "text-embedding-3-small"),
+    )
+    parser.add_argument(
+        "--projection-embedding-dimensions",
+        type=int,
+        default=int(os.environ.get("PIFS_PROJECTION_EMBEDDING_DIMENSIONS", "256")),
+    )
+    parser.add_argument(
+        "--projection-embedding-timeout",
+        type=float,
+        default=float(os.environ.get("PIFS_PROJECTION_EMBEDDING_TIMEOUT", "60")),
+    )
+    parser.add_argument(
+        "--projection-per-channel-limit",
+        type=int,
+        default=int(os.environ.get("PIFS_PROJECTION_PER_CHANNEL_LIMIT", "100")),
+    )
+    parser.add_argument(
+        "--projection-fetch-multiplier",
+        type=int,
+        default=int(os.environ.get("PIFS_PROJECTION_FETCH_MULTIPLIER", "100")),
     )
     parser.add_argument(
         "--system-prompt-file",

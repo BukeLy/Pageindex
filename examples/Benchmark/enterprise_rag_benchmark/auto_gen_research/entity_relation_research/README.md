@@ -20,11 +20,12 @@ scale.
 - `build_projection_index.py`: full EnterpriseRAG parquet projection-index
   builder. It builds rebuildable sqlite-vec indexes for `metadata`,
   `summary`, `entity`, `constraint`, and `relation` projections.
-- `probe_projection_recall.py`: offline recall probe for the five target
+- `probe_projection_recall.py`: offline recall probe for the target
   strategies:
   `baseline_metadata_vector`, `summary_only_vector`,
   `entity_constraint_index`, `entity_relation_index`, and
-  `hybrid_entity_relation_vector`.
+  `hybrid_entity_relation_vector`, plus the summary/entity/relation ablation
+  `hybrid_summary_entity_relation_vector`.
 
 ## Full-Corpus Projection Vector Experiment
 
@@ -68,6 +69,18 @@ Promotion gate:
   spend API tokens on an agent run;
 - if it clearly beats `baseline_metadata_vector`, then package the projection
   recall path as a candidate ranking backend for shell-like `grep/find`.
+
+## PIFS Shell Channel Probe
+
+The current branch also exposes the projection spaces as a research-only PIFS
+shell backend so command behavior can be compared before agent runs:
+
+- explicit commands: `search-summary`, `search-entity`, `search-relation`;
+- bash-like aliases: recursive `grep -R` searches the summary vector space,
+  `find --name` searches the entity vector space, and `find --relation`
+  searches the relation vector space;
+- `stat` remains catalog/schema inspection and is not overloaded for entity
+  search.
 
 ## Current Smoke
 

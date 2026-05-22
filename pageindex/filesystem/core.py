@@ -16,11 +16,12 @@ from .types import OpenResult, SearchResult
 
 
 class PageIndexFileSystem:
-    def __init__(self, workspace: Union[str, Path]):
+    def __init__(self, workspace: Union[str, Path], *, semantic_retrieval_backend: Any | None = None):
         self.workspace = Path(workspace).expanduser()
         self.store = SQLiteFileSystemStore(self.workspace)
         self.metadata = MetadataQueryEngine(self.store)
         self._references: dict[str, str] = {}
+        self.semantic_retrieval_backend = semantic_retrieval_backend
 
     def register_file(
         self,
@@ -106,6 +107,15 @@ class PageIndexFileSystem:
         limit: int = 10,
     ) -> list[SearchResult]:
         parsed_filter = self.metadata.parse_filter(metadata_filter)
+        if self._should_use_semantic_retrieval(query, scope):
+            semantic_results = self._semantic_search(
+                query,
+                scope=scope,
+                metadata_filter=parsed_filter,
+                limit=limit,
+            )
+            if semantic_results:
+                return semantic_results
         rows = self.store.search_files(
             query,
             scope=scope,
@@ -143,6 +153,54 @@ class PageIndexFileSystem:
                 )
             )
         return results
+
+    def search_semantic_channel(
+        self,
+        channel: str,
+        query: Union[str, list[str], None],
+        *,
+        scope: Optional[dict[str, Any]] = None,
+        metadata_filter: Optional[dict[str, Any] | str] = None,
+        limit: int = 10,
+    ) -> list[SearchResult]:
+        parsed_filter = self.metadata.parse_filter(metadata_filter)
+        if self.semantic_retrieval_backend is None or not self._query_text(query):
+            return []
+        return self._semantic_search(
+            query,
+            scope=scope,
+            metadata_filter=parsed_filter,
+            limit=limit,
+            channel=channel,
+        )
+
+    def configure_hybrid_projection_retrieval(
+        self,
+        index_dir: Union[str, Path],
+        *,
+        embedding_provider: str = "openai",
+        embedding_model: str = "text-embedding-3-small",
+        embedding_dimensions: int = 256,
+        embedding_timeout: float = 60,
+        per_channel_limit: int = 100,
+        fetch_multiplier: int = 100,
+    ) -> Any:
+        from .hybrid_projection import HybridProjectionSearchBackend
+
+        self.semantic_retrieval_backend = HybridProjectionSearchBackend.from_provider(
+            index_dir,
+            embedding_provider=embedding_provider,
+            embedding_model=embedding_model,
+            embedding_dimensions=embedding_dimensions,
+            embedding_timeout=embedding_timeout,
+            per_channel_limit=per_channel_limit,
+            fetch_multiplier=fetch_multiplier,
+        )
+        return self.semantic_retrieval_backend
+
+    @property
+    def has_semantic_retrieval_backend(self) -> bool:
+        return self.semantic_retrieval_backend is not None
 
     def find(
         self,
@@ -275,6 +333,94 @@ class PageIndexFileSystem:
             return self._references[reference_id]
         return self.store.resolve_file_ref(reference_id)
 
+    def _should_use_semantic_retrieval(
+        self,
+        query: Union[str, list[str], None],
+        scope: Optional[dict[str, Any]],
+    ) -> bool:
+        if self.semantic_retrieval_backend is None:
+            return False
+        if not self._query_text(query):
+            return False
+        if not scope:
+            return True
+        return bool(scope.get("recursive", True))
+
+    def _semantic_search(
+        self,
+        query: Union[str, list[str], None],
+        *,
+        scope: Optional[dict[str, Any]],
+        metadata_filter: Optional[dict[str, Any]],
+        limit: int,
+        channel: str | None = None,
+    ) -> list[SearchResult]:
+        if self.semantic_retrieval_backend is None:
+            return []
+        filters = self._semantic_filters_for_scope(scope)
+        fetch_limit = max(limit * 10, 50)
+        query_text = self._query_text(query)
+        if channel:
+            search_channel = getattr(self.semantic_retrieval_backend, "search_channel", None)
+            if search_channel is None:
+                return []
+            candidates = search_channel(
+                channel,
+                query_text,
+                limit=fetch_limit,
+                filters=filters,
+            )
+        else:
+            candidates = self.semantic_retrieval_backend.search(
+                query_text,
+                limit=fetch_limit,
+                filters=filters,
+            )
+        results: list[SearchResult] = []
+        seen: set[str] = set()
+        scope_path = self._scope_folder_path(scope)
+        for candidate in candidates:
+            try:
+                file_ref = self.store.resolve_file_ref(candidate.document_id)
+            except KeyError:
+                continue
+            if file_ref in seen:
+                continue
+            if not self.store.file_matches(file_ref, scope=scope, metadata_filter=metadata_filter):
+                continue
+            seen.add(file_ref)
+            entry = self.store.get_file(file_ref)
+            reference_id = self._reference_for(file_ref)
+            folder_paths = [
+                folder["path"]
+                for folder in self.store.folder_memberships(file_ref)
+            ]
+            folder_path = self._preferred_folder_path(folder_paths, scope_path, entry.folder_path)
+            results.append(
+                SearchResult(
+                    reference_id=reference_id,
+                    file_ref=file_ref,
+                    external_id=entry.external_id,
+                    title=entry.title,
+                    snippet=candidate.snippet or entry.descriptor,
+                    folder_path=folder_path,
+                    folder_paths=folder_paths,
+                    metadata=entry.metadata,
+                    source_path=entry.source_path,
+                    id=entry.external_id or file_ref,
+                    document_id=entry.external_id,
+                    name=entry.title,
+                    description=entry.descriptor,
+                    status=entry.pageindex_tree_status,
+                    pageNum=None,
+                    createdAt=None,
+                    folderId=None,
+                )
+            )
+            if len(results) >= limit:
+                break
+        return results
+
     def _reference_for(self, file_ref: str) -> str:
         for reference_id, existing in self._references.items():
             if existing == file_ref:
@@ -299,6 +445,22 @@ class PageIndexFileSystem:
             return None
         path = scope.get("folder_path") or scope.get("path")
         return normalize_path(path) if path else None
+
+    @classmethod
+    def _semantic_filters_for_scope(cls, scope: Optional[dict[str, Any]]) -> dict[str, Any]:
+        path = cls._scope_folder_path(scope)
+        if not path or path == "/":
+            return {}
+        source_type = path.strip("/").split("/", 1)[0]
+        return {"source_type": source_type} if source_type else {}
+
+    @staticmethod
+    def _query_text(query: Union[str, list[str], None]) -> str:
+        if query is None:
+            return ""
+        if isinstance(query, list):
+            return " ".join(str(item) for item in query)
+        return str(query)
 
     @staticmethod
     def _preferred_folder_path(

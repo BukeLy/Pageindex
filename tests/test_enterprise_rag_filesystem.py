@@ -586,6 +586,113 @@ class EnterpriseRAGFileSystemTest(unittest.TestCase):
             self.assertEqual(stat["data"]["external_id"], "dsid_cli_audit")
             self.assertIn("audit logging", opened["data"]["text"])
 
+    def test_pifs_command_executor_supports_semantic_channel_tools(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            from pageindex.filesystem import PIFSCommandExecutor, PageIndexFileSystem
+            from pageindex.filesystem.hybrid_projection import (
+                HybridProjectionSearchBackend,
+                INDEX_BY_CHANNEL,
+            )
+            from pageindex.filesystem.semantic_index import (
+                SQLiteVecSemanticIndex,
+                SemanticIndexRecord,
+            )
+
+            class StaticEmbedder:
+                def embed(self, texts):
+                    return [[1.0, 0.0, 0.0] for _ in texts]
+
+            tmp_path = Path(tmp)
+            filesystem = PageIndexFileSystem(workspace=tmp_path / "workspace")
+            docs = {
+                "summary": (
+                    "dsid_summary_semantic",
+                    "Summary channel doc",
+                    "The summary text covers retention evidence.",
+                ),
+                "entity": (
+                    "dsid_entity_semantic",
+                    "Entity channel doc",
+                    "The AuditService entity owns the retention evidence.",
+                ),
+                "relation": (
+                    "dsid_relation_semantic",
+                    "Relation channel doc",
+                    "AuditService emits the audit event relation for retention evidence.",
+                ),
+            }
+            for channel, (doc_id, title, content) in docs.items():
+                filesystem.register_file(
+                    storage_uri=f"file:///tmp/{channel}.json",
+                    source_path=f"github/redwood/{channel}.json",
+                    folder_path="/github/redwood",
+                    external_id=doc_id,
+                    title=title,
+                    metadata={"source_type": "github"},
+                    content=content,
+                )
+
+            index_dir = tmp_path / "projection-index"
+            for channel in ("summary", "entity", "relation"):
+                doc_id, title, content = docs[channel]
+                index = SQLiteVecSemanticIndex(index_dir / f"{INDEX_BY_CHANNEL[channel]}.sqlite")
+                index.reset(dimension=3, metadata={"channel": channel})
+                index.upsert_many(
+                    [
+                        SemanticIndexRecord(
+                            file_ref=doc_id,
+                            external_id=doc_id,
+                            source_type="github",
+                            source_path=f"github/redwood/{channel}.json",
+                            title=title,
+                            text=content,
+                            vector=[1.0, 0.0, 0.0],
+                            metadata={"source_type": "github"},
+                        )
+                    ]
+                )
+            filesystem.semantic_retrieval_backend = HybridProjectionSearchBackend(
+                index_dir,
+                embedder=StaticEmbedder(),
+                embedding_provider="test",
+                embedding_model="static",
+                embedding_dimensions=3,
+                embedding_cache_path=tmp_path / "embedding_cache.sqlite",
+                fetch_multiplier=1,
+            )
+            executor = PIFSCommandExecutor(
+                filesystem,
+                json_output=True,
+                query_context="Which audit retention evidence should be opened?",
+            )
+
+            summary = json.loads(executor.execute('search-summary "retention evidence" /github'))
+            entity = json.loads(executor.execute('search-entity "AuditService" /github'))
+            relation = json.loads(
+                executor.execute('search-relation "AuditService emits audit event" /github')
+            )
+            grep_alias = json.loads(executor.execute('grep -R "retention evidence" /github'))
+            grep_no_match = json.loads(executor.execute('grep -R "unmentioned exact phrase" /github'))
+            find_entity_alias = json.loads(executor.execute('find /github --name "AuditService"'))
+            find_relation_alias = json.loads(
+                executor.execute('find /github --relation "AuditService emits audit event"')
+            )
+
+            self.assertEqual(summary["data"]["retrieval"], "summary_vector")
+            self.assertEqual(summary["data"]["data"][0]["external_id"], "dsid_summary_semantic")
+            self.assertEqual(entity["data"]["retrieval"], "entity_vector")
+            self.assertEqual(entity["data"]["data"][0]["external_id"], "dsid_entity_semantic")
+            self.assertEqual(relation["data"]["retrieval"], "relation_vector")
+            self.assertEqual(relation["data"]["data"][0]["external_id"], "dsid_relation_semantic")
+            self.assertEqual(grep_alias["data"]["retrieval"], "hybrid_entity_relation_vector_grep")
+            self.assertEqual(grep_alias["data"]["candidate_limit"], 40)
+            self.assertEqual(grep_alias["data"]["data"][0]["external_id"], "dsid_entity_semantic")
+            self.assertIn("retention evidence", grep_alias["data"]["data"][0]["text"])
+            self.assertEqual(grep_no_match["data"]["retrieval"], "hybrid_entity_relation_vector_grep")
+            self.assertEqual(grep_no_match["data"]["data"], [])
+            self.assertEqual(find_entity_alias["data"][0]["external_id"], "dsid_entity_semantic")
+            self.assertEqual(find_relation_alias["data"][0]["external_id"], "dsid_relation_semantic")
+
     def test_pifs_command_executor_defaults_to_shell_like_text(self):
         with tempfile.TemporaryDirectory() as tmp:
             from pageindex.filesystem import PIFSCommandExecutor, PageIndexFileSystem
@@ -610,6 +717,10 @@ class EnterpriseRAGFileSystemTest(unittest.TestCase):
             tree = executor.execute("tree /semantic")
             stat = executor.execute("stat dsid_shell_text")
             content = executor.execute("cat dsid_shell_text --all")
+            headed = executor.execute("head -2 dsid_shell_text")
+            tailed = executor.execute("tail -1 dsid_shell_text")
+            sed_range = executor.execute("sed -n '2,2p' dsid_shell_text")
+            head_tail = executor.execute("head -3 dsid_shell_text | tail -1")
             mkdir = executor.execute("mkdir /manual/new")
             copied = executor.execute(
                 'cp file:///tmp/copied.txt /manual/new --content "copy body" '
@@ -628,6 +739,10 @@ class EnterpriseRAGFileSystemTest(unittest.TestCase):
             self.assertIn("/semantic/topics/api-input", stat)
             self.assertNotIn("private full document tail", stat)
             self.assertEqual(content, "line one\nmax_file_size defaults to 10MiB\nprivate full document tail")
+            self.assertEqual(headed, "line one\nmax_file_size defaults to 10MiB")
+            self.assertEqual(tailed, "private full document tail")
+            self.assertEqual(sed_range, "max_file_size defaults to 10MiB")
+            self.assertEqual(head_tail, "private full document tail")
             self.assertEqual(mkdir, "created folder: /manual/new")
             self.assertIn("copied file:", copied)
             self.assertIn("dsid_copied", copied)
@@ -661,15 +776,20 @@ class EnterpriseRAGFileSystemTest(unittest.TestCase):
             executor = PIFSCommandExecutor(filesystem)
 
             broad = executor.execute('grep -R "multipart upload" /semantic')
+            broad_case = executor.execute('grep -Ri "multipart upload" /semantic')
             listing = executor.execute("ls -R /semantic/topics/api-input/multipart")
+            tree = executor.execute("tree /semantic -L 2")
             leaf = executor.execute('grep -R "multipart upload" /semantic/topics/api-input/multipart')
             local = executor.execute('grep "max_file_size" ref_1')
 
             self.assertIn("# folder matches for: multipart upload", broad)
+            self.assertIn("# folder matches for: multipart upload", broad_case)
             self.assertIn("/semantic/topics/", broad)
             self.assertIn("matched_files=1", broad)
             self.assertNotIn("dsid_multipart_limits", broad)
             self.assertNotIn("ref_1", broad)
+            self.assertIn("/semantic", tree)
+            self.assertIn("topics/", tree)
             self.assertIn("ref_1 dsid_multipart_limits", listing)
             self.assertIn("github/pr-18421.json", listing)
             self.assertNotIn("file_", listing)

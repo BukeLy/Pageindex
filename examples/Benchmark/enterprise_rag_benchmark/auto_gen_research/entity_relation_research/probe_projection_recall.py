@@ -46,6 +46,7 @@ STRATEGIES = [
     "entity_constraint_index",
     "entity_relation_index",
     "hybrid_entity_relation_vector",
+    "hybrid_summary_entity_relation_vector",
 ]
 INDEX_BY_CHANNEL = {
     "metadata": "metadata_composite_vector",
@@ -246,6 +247,16 @@ def rank_strategy(
                 "constraint": channel_hits["constraint"],
             },
             {"metadata": 0.25, "entity": 0.25, "relation": 0.3, "constraint": 0.2},
+            projection,
+        )
+    if strategy == "hybrid_summary_entity_relation_vector":
+        return aggregate_channels(
+            {
+                "summary": channel_hits["summary"],
+                "entity": channel_hits["entity"],
+                "relation": channel_hits["relation"],
+            },
+            {"summary": 0.40, "entity": 0.25, "relation": 0.35},
             projection,
         )
     raise ValueError(f"unknown strategy: {strategy}")
