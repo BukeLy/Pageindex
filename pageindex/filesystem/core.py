@@ -39,6 +39,14 @@ METADATA_GENERATION_STATUSES = {
     "failed",
 }
 
+PROJECTION_INDEX_STATUSES = {
+    "not_indexed",
+    "pending_index",
+    "generated",
+    "ready",
+    "failed",
+}
+
 
 class PageIndexFileSystem:
     def __init__(self, workspace: Union[str, Path], *, semantic_retrieval_backend: Any | None = None):
@@ -306,7 +314,12 @@ class PageIndexFileSystem:
             derived_metadata=derived_metadata,
             status=file.get("metadata_generation_status"),
         )
-        indexed_metadata = self._merge_metadata_values(metadata, derived_metadata)
+        indexed_metadata = SQLiteFileSystemStore.indexed_metadata_values(
+            metadata,
+            derived_metadata,
+            generation_state,
+        )
+        searchable_metadata = self._merge_metadata_values(metadata, derived_metadata)
         external_id = file.get("external_id")
         content = file.get("content") or ""
         content_type = file.get("content_type") or "text/plain"
@@ -354,7 +367,7 @@ class PageIndexFileSystem:
             "metadata_generation": generation_state,
             "metadata_generation_json": json.dumps(generation_state, ensure_ascii=False),
             "indexed_metadata": indexed_metadata,
-            "metadata_text": metadata_text(indexed_metadata),
+            "metadata_text": metadata_text(searchable_metadata),
             "folder_path": folder_path,
             "content": fts_content,
             "skip_fts": bool(file.get("skip_fts", False)),
@@ -528,6 +541,8 @@ class PageIndexFileSystem:
     ) -> dict[str, Any]:
         fields = dict(DEFAULT_METADATA_GENERATION_FIELDS)
         field_statuses: dict[str, str] = {}
+        projection_indexes: dict[str, bool] | None = None
+        projection_index_statuses: dict[str, str] = {}
         mode = None
         top_level_status = None
         if policy is not None:
@@ -561,14 +576,24 @@ class PageIndexFileSystem:
             top_level_status = policy.get("status")
             if top_level_status is not None:
                 cls._validate_metadata_generation_status(str(top_level_status))
+            if "projection_indexes" in policy:
+                projection_indexes, projection_index_statuses = (
+                    cls._normalize_projection_index_policy(policy["projection_indexes"])
+                )
         for name in derived_metadata:
             fields.setdefault(name, True)
         normalized: dict[str, Any] = {
             "fields": fields,
-            "projection_indexes": {"summary": bool(fields.get("summary", False))},
+            "projection_indexes": (
+                projection_indexes
+                if projection_indexes is not None
+                else {"summary": bool(fields.get("summary", False))}
+            ),
         }
         if field_statuses:
             normalized["field_statuses"] = field_statuses
+        if projection_index_statuses:
+            normalized["projection_index_statuses"] = projection_index_statuses
         if mode:
             normalized["mode"] = str(mode)
         if top_level_status:
@@ -618,10 +643,13 @@ class PageIndexFileSystem:
             "fields": fields,
             "projection_indexes": {},
         }
-        if policy.get("projection_indexes", {}).get("summary"):
-            state["projection_indexes"]["summary"] = {
+        projection_statuses = policy.get("projection_index_statuses", {})
+        for name, requested in policy.get("projection_indexes", {}).items():
+            if not requested:
+                continue
+            state["projection_indexes"][name] = {
                 "requested": True,
-                "status": fields.get("summary", {}).get("status", aggregate_status),
+                "status": projection_statuses.get(name, "not_indexed"),
             }
         return state
 
@@ -638,6 +666,40 @@ class PageIndexFileSystem:
     def _validate_metadata_generation_status(status: str) -> None:
         if status not in METADATA_GENERATION_STATUSES:
             raise ValueError(f"Unsupported metadata generation status: {status}")
+
+    @classmethod
+    def _normalize_projection_index_policy(
+        cls,
+        projection_policy: Any,
+    ) -> tuple[dict[str, bool], dict[str, str]]:
+        if projection_policy is None:
+            return {}, {}
+        if not isinstance(projection_policy, dict):
+            raise ValueError("metadata_generation_policy projection_indexes must be a JSON object")
+        projection_indexes: dict[str, bool] = {}
+        projection_index_statuses: dict[str, str] = {}
+        for name, declaration in projection_policy.items():
+            name = str(name)
+            if isinstance(declaration, bool):
+                projection_indexes[name] = declaration
+                continue
+            if isinstance(declaration, dict):
+                projection_indexes[name] = bool(
+                    declaration.get("enabled", declaration.get("requested", True))
+                )
+                status = declaration.get("status")
+                if status is not None:
+                    status = str(status)
+                    cls._validate_projection_index_status(status)
+                    projection_index_statuses[name] = status
+                continue
+            raise ValueError(f"Invalid projection index policy for index: {name}")
+        return projection_indexes, projection_index_statuses
+
+    @staticmethod
+    def _validate_projection_index_status(status: str) -> None:
+        if status not in PROJECTION_INDEX_STATUSES:
+            raise ValueError(f"Unsupported projection index status: {status}")
 
     @classmethod
     def _merge_metadata_values(

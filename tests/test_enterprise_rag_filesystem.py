@@ -125,7 +125,7 @@ class EnterpriseRAGFileSystemTest(unittest.TestCase):
             self.assertFalse(policy_fields["relation"])
             self.assertEqual(
                 stat["metadata_generation"]["projection_indexes"]["summary"]["status"],
-                "pending_generate",
+                "not_indexed",
             )
             self.assertEqual(
                 set(schema["fields"]),
@@ -196,13 +196,17 @@ class EnterpriseRAGFileSystemTest(unittest.TestCase):
             self.assertEqual(stat["derived_metadata"]["domain"], "security")
             self.assertEqual(stat["metadata_generation"]["status"], "generated")
             self.assertEqual(
-                stat["metadata_generation"]["projection_indexes"]["summary"]["status"],
+                stat["metadata_generation"]["fields"]["summary"]["status"],
                 "generated",
+            )
+            self.assertEqual(
+                stat["metadata_generation"]["projection_indexes"]["summary"]["status"],
+                "not_indexed",
             )
             self.assertEqual([result.external_id for result in results], ["dsid_generated_metadata"])
             self.assertEqual(results[0].derived_metadata["doc_type"], "pull_request")
 
-    def test_raw_metadata_with_policy_field_names_is_not_llm_metadata(self):
+    def test_raw_metadata_with_policy_field_names_is_not_generated_metadata(self):
         with tempfile.TemporaryDirectory() as tmp:
             from pageindex.filesystem import PIFSCommandExecutor, PageIndexFileSystem
 
@@ -221,10 +225,30 @@ class EnterpriseRAGFileSystemTest(unittest.TestCase):
                 },
                 content="raw metadata document",
             )
+            filesystem.register_file(
+                storage_uri="file:///tmp/derived-doc.json",
+                source_path="github/redwood/derived-doc.json",
+                folder_path="/github/redwood",
+                external_id="dsid_derived_metadata",
+                title="Derived metadata",
+                metadata={"repo": "redwood", "domain": "raw_should_not_match"},
+                derived_metadata={
+                    "summary": "generated note",
+                    "doc_type": "pull_request",
+                    "domain": "generated_security",
+                    "topic": "audit logging",
+                },
+                content="derived metadata document",
+            )
 
             stat = json.loads(
                 PIFSCommandExecutor(filesystem, json_output=True).execute("stat dsid_raw_metadata")
             )["data"]
+            raw_results = filesystem.search(None, metadata_filter={"domain": "source_domain"})
+            derived_results = filesystem.search(
+                None,
+                metadata_filter={"domain": "generated_security"},
+            )
 
             self.assertEqual(stat["metadata"]["summary"], "source supplied note")
             self.assertEqual(stat["derived_metadata"], {})
@@ -236,6 +260,90 @@ class EnterpriseRAGFileSystemTest(unittest.TestCase):
                 stat["metadata_generation"]["fields"]["doc_type"]["status"],
                 "pending_generate",
             )
+            self.assertEqual(raw_results, [])
+            self.assertEqual(
+                [result.external_id for result in derived_results],
+                ["dsid_derived_metadata"],
+            )
+
+    def test_summary_text_does_not_make_projection_index_ready(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            from pageindex.filesystem import PIFSCommandExecutor, PageIndexFileSystem
+
+            filesystem = PageIndexFileSystem(workspace=Path(tmp) / "workspace")
+            filesystem.register_file(
+                storage_uri="file:///tmp/doc.json",
+                source_path="github/redwood/doc.json",
+                folder_path="/github/redwood",
+                external_id="dsid_summary_only",
+                title="Summary only",
+                metadata={"repo": "redwood"},
+                derived_metadata={
+                    "summary": "Generated document summary exists.",
+                    "doc_type": "pull_request",
+                    "domain": "security",
+                    "topic": "audit logging",
+                },
+                content="summary text exists but no projection index was built",
+            )
+
+            stat = json.loads(
+                PIFSCommandExecutor(filesystem, json_output=True).execute("stat dsid_summary_only")
+            )["data"]
+
+            self.assertEqual(
+                stat["metadata_generation"]["fields"]["summary"]["status"],
+                "generated",
+            )
+            self.assertEqual(
+                stat["metadata_generation"]["projection_indexes"]["summary"]["status"],
+                "not_indexed",
+            )
+            self.assertNotIn(
+                stat["metadata_generation"]["projection_indexes"]["summary"]["status"],
+                {"generated", "ready"},
+            )
+
+    def test_projection_index_policy_disable_is_respected(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            from pageindex.filesystem import PIFSCommandExecutor, PageIndexFileSystem
+
+            filesystem = PageIndexFileSystem(workspace=Path(tmp) / "workspace")
+            filesystem.register_file(
+                storage_uri="file:///tmp/doc.json",
+                source_path="github/redwood/doc.json",
+                folder_path="/github/redwood",
+                external_id="dsid_projection_disabled",
+                title="Projection disabled",
+                metadata={"repo": "redwood"},
+                derived_metadata={
+                    "summary": "Generated document summary exists.",
+                    "doc_type": "pull_request",
+                    "domain": "security",
+                    "topic": "audit logging",
+                },
+                metadata_generation_policy={
+                    "fields": {
+                        "summary": True,
+                        "doc_type": True,
+                        "domain": True,
+                        "topic": True,
+                    },
+                    "projection_indexes": {"summary": False},
+                },
+                content="summary projection policy disabled",
+            )
+
+            stat = json.loads(
+                PIFSCommandExecutor(filesystem, json_output=True).execute(
+                    "stat dsid_projection_disabled"
+                )
+            )["data"]
+
+            self.assertFalse(
+                stat["metadata_generation"]["policy"]["projection_indexes"]["summary"]
+            )
+            self.assertNotIn("summary", stat["metadata_generation"]["projection_indexes"])
 
     def test_batch_metadata_generation_status_is_optional_state(self):
         with tempfile.TemporaryDirectory() as tmp:

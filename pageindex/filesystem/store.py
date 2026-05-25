@@ -277,8 +277,17 @@ class SQLiteFileSystemStore:
             if "derived_metadata_json" in columns
             else "'{}' AS derived_metadata_json"
         )
+        generation_select = (
+            "metadata_generation_json"
+            if "metadata_generation_json" in columns
+            else "'{}' AS metadata_generation_json"
+        )
         rows = conn.execute(
-            f"SELECT file_ref, metadata_json, {derived_select} FROM files WHERE deleted_at IS NULL"
+            f"""
+            SELECT file_ref, metadata_json, {derived_select}, {generation_select}
+            FROM files
+            WHERE deleted_at IS NULL
+            """
         ).fetchall()
         for row in rows:
             try:
@@ -289,10 +298,14 @@ class SQLiteFileSystemStore:
                 derived_metadata = json.loads(row["derived_metadata_json"] or "{}")
             except json.JSONDecodeError:
                 derived_metadata = {}
+            try:
+                metadata_generation = json.loads(row["metadata_generation_json"] or "{}")
+            except json.JSONDecodeError:
+                metadata_generation = {}
             self.replace_metadata_values(
                 conn,
                 row["file_ref"],
-                self._merge_metadata_values(metadata, derived_metadata),
+                self.indexed_metadata_values(metadata, derived_metadata, metadata_generation),
             )
 
     @staticmethod
@@ -1830,6 +1843,33 @@ class SQLiteFileSystemStore:
             if item not in merged:
                 merged.append(item)
         return merged
+
+    @classmethod
+    def indexed_metadata_values(
+        cls,
+        metadata: dict[str, Any],
+        derived_metadata: dict[str, Any],
+        metadata_generation: dict[str, Any] | None,
+    ) -> dict[str, Any]:
+        generated_fields = set(derived_metadata)
+        if isinstance(metadata_generation, dict):
+            policy = metadata_generation.get("policy", {})
+            if isinstance(policy, dict):
+                fields = policy.get("fields", {})
+                if isinstance(fields, dict):
+                    generated_fields.update(
+                        str(name)
+                        for name, requested in fields.items()
+                        if bool(requested)
+                    )
+
+        indexed = {
+            name: value
+            for name, value in metadata.items()
+            if name not in generated_fields
+        }
+        indexed.update(derived_metadata)
+        return indexed
 
     @staticmethod
     def _valid_field_name(name: str) -> bool:
