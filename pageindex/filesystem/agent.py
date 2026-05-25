@@ -296,6 +296,8 @@ def run_pifs_agent(
                 },
                 ensure_ascii=False,
             ),
+            "Workspace retrieval capabilities:",
+            executor.describe_available_command_surfaces(),
         ]
     )
 

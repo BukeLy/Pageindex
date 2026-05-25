@@ -86,6 +86,8 @@ def main() -> int:
         workspace=materialized["workspace"],
         semantic_retrieval_backend=backend,
     )
+    materialized["retrieval_capabilities"] = filesystem.retrieval_capabilities()
+    write_json(output_dir / "workspace_manifest.json", materialized)
     questions = load_questions(dataset_dir)
     selected_questions = select_questions(questions, args.question_ids)
     system_prompt = read_prompt_file(args.system_prompt_file)

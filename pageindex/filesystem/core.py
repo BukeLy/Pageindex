@@ -14,6 +14,9 @@ from .store import (
 )
 from .types import OpenResult, SearchResult
 
+SEMANTIC_RETRIEVAL_CHANNELS = ("summary", "entity", "relation")
+SEMANTIC_GREP_CHANNELS = ("entity", "relation")
+
 
 class PageIndexFileSystem:
     def __init__(self, workspace: Union[str, Path], *, semantic_retrieval_backend: Any | None = None):
@@ -165,7 +168,11 @@ class PageIndexFileSystem:
         limit: int = 10,
     ) -> list[SearchResult]:
         parsed_filter = self.metadata.parse_filter(metadata_filter)
-        if self.semantic_retrieval_backend is None or not self._query_text(query):
+        if (
+            self.semantic_retrieval_backend is None
+            or not self.has_semantic_channel(channel)
+            or not self._query_text(query)
+        ):
             return []
         return self._semantic_search(
             query,
@@ -202,6 +209,43 @@ class PageIndexFileSystem:
     @property
     def has_semantic_retrieval_backend(self) -> bool:
         return self.semantic_retrieval_backend is not None
+
+    def semantic_retrieval_channels(self) -> tuple[str, ...]:
+        backend = self.semantic_retrieval_backend
+        if backend is None:
+            return ()
+        available_channels = getattr(backend, "available_channels", None)
+        if callable(available_channels):
+            raw_channels = available_channels()
+        else:
+            raw_channels = getattr(backend, "semantic_tool_channels", ())
+        available = set(raw_channels or ())
+        return tuple(channel for channel in SEMANTIC_RETRIEVAL_CHANNELS if channel in available)
+
+    def has_semantic_channel(self, channel: str) -> bool:
+        return channel in self.semantic_retrieval_channels()
+
+    def retrieval_capabilities(self) -> dict[str, Any]:
+        semantic_channels = self.semantic_retrieval_channels()
+        semantic_commands = [f"search-{channel}" for channel in semantic_channels]
+        semantic_grep_channels = [
+            channel for channel in SEMANTIC_GREP_CHANNELS if channel in semantic_channels
+        ]
+        if semantic_grep_channels:
+            semantic_commands.append("semantic-grep")
+        return {
+            "lexical": {
+                "grep_recursive": True,
+                "grep_recursive_semantic_prefilter": False,
+                "grep_recursive_guard": "bounded broad-folder notice",
+            },
+            "semantic": {
+                "backend_configured": self.semantic_retrieval_backend is not None,
+                "channels": list(semantic_channels),
+                "commands": semantic_commands,
+                "semantic_grep_channels": semantic_grep_channels,
+            },
+        }
 
     def find(
         self,
