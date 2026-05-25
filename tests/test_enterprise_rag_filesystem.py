@@ -1770,6 +1770,64 @@ class EnterpriseRAGFileSystemTest(unittest.TestCase):
             self.assertIn("dsid_copied", copied)
             self.assertIn("-> /manual/new", copied)
 
+    def test_read_only_executor_hides_and_blocks_mutation_commands(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            from pageindex.filesystem import PIFSCommandExecutor, PageIndexFileSystem
+            from pageindex.filesystem.commands import PIFSCommandError
+
+            filesystem = PageIndexFileSystem(workspace=Path(tmp) / "workspace")
+            filesystem.register_file(
+                storage_uri="file:///tmp/pr.json",
+                source_path="github/pr-18421.json",
+                folder_path="/github",
+                external_id="dsid_read_only",
+                title="Read-only agent evidence",
+                metadata={"source_type": "github"},
+                content="read only evidence",
+            )
+
+            writable = PIFSCommandExecutor(filesystem)
+            read_only = PIFSCommandExecutor(filesystem, allow_mutations=False)
+            capabilities = read_only.command_capabilities()
+            command_surfaces = read_only.describe_available_command_surfaces()
+
+            self.assertIn("mkdir", writable.allowed_commands())
+            self.assertIn("cp", writable.allowed_commands())
+            self.assertNotIn("mkdir", read_only.allowed_commands())
+            self.assertNotIn("cp", read_only.allowed_commands())
+            self.assertNotIn("mkdir", capabilities["allowed_commands"])
+            self.assertNotIn("cp", capabilities["allowed_commands"])
+            self.assertNotRegex(command_surfaces, r"\b(mkdir|cp)\b")
+            self.assertIn("read-only", command_surfaces)
+            with self.assertRaises(PIFSCommandError):
+                read_only.execute("mkdir /manual/new")
+            with self.assertRaises(PIFSCommandError):
+                read_only.execute('cp file:///tmp/copied.txt /github --content "copy body"')
+
+    def test_agent_default_instructions_use_read_only_command_surface(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            from pageindex.filesystem import PageIndexFileSystem
+            from pageindex.filesystem.agent import build_pifs_agent_instructions
+
+            filesystem = PageIndexFileSystem(workspace=Path(tmp) / "workspace")
+            filesystem.register_file(
+                storage_uri="file:///tmp/pr.json",
+                source_path="github/pr-18421.json",
+                folder_path="/github",
+                external_id="dsid_agent_prompt",
+                title="Agent prompt evidence",
+                metadata={"source_type": "github"},
+                content="agent prompt evidence",
+            )
+
+            instructions = build_pifs_agent_instructions(filesystem)
+
+            self.assertIn("read-only", instructions)
+            self.assertIn("PageIndex virtual shell", instructions)
+            self.assertIn("grep -R performs lexical evidence search", instructions)
+            self.assertIn("Semantic search commands are candidate-discovery tools", instructions)
+            self.assertNotRegex(instructions, r"\b(mkdir|cp|register)\b")
+
     def test_recursive_grep_prunes_large_folders_before_returning_file_hits(self):
         with tempfile.TemporaryDirectory() as tmp:
             from pageindex.filesystem import PIFSCommandExecutor, PageIndexFileSystem

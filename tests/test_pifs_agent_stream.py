@@ -1,4 +1,5 @@
 import io
+import os
 import unittest
 from types import SimpleNamespace
 
@@ -10,7 +11,9 @@ from pageindex.filesystem.agent import (
     normalize_agent_stream_mode,
     normalize_reasoning_effort,
     normalize_reasoning_summary,
+    pifs_agent_raw_reasoning_enabled,
     serialize_agent_final_output,
+    should_disable_pifs_agent_tracing,
     should_use_openai_compatible_chat_model,
 )
 
@@ -73,6 +76,38 @@ class PIFSAgentStreamTest(unittest.TestCase):
         self.assertEqual(stream_log[1]["kind"], "tool_result")
         self.assertEqual(stream_log[2], {"kind": "tool_args", "text": '{"command":"ls /"}'})
 
+    def test_raw_reasoning_is_not_logged_by_default_but_summary_is(self):
+        output = io.StringIO()
+        stream_log = []
+        previous = os.environ.pop("PAGEINDEX_PIFS_AGENT_RAW_REASONING", None)
+        try:
+            observer = PIFSAgentStreamObserver("model", stream_log=stream_log, output=output)
+            observer.handle_event(self.raw_event("response.reasoning_text.delta", "private chain"))
+            observer.handle_event(
+                self.raw_event("response.reasoning_summary_text.delta", "visible summary")
+            )
+            observer.finish()
+        finally:
+            if previous is not None:
+                os.environ["PAGEINDEX_PIFS_AGENT_RAW_REASONING"] = previous
+
+        printed = output.getvalue()
+        self.assertNotIn("private chain", printed)
+        self.assertIn("visible summary", printed)
+        self.assertEqual(stream_log, [{"kind": "think_summary", "text": "visible summary"}])
+
+    def test_raw_reasoning_requires_debug_env_flag(self):
+        self.assertFalse(pifs_agent_raw_reasoning_enabled({}))
+        self.assertTrue(
+            pifs_agent_raw_reasoning_enabled({"PAGEINDEX_PIFS_AGENT_RAW_REASONING": "on"})
+        )
+        self.assertTrue(
+            pifs_agent_raw_reasoning_enabled({"PAGEINDEX_PIFS_AGENT_RAW_REASONING": "TRUE"})
+        )
+        self.assertFalse(
+            pifs_agent_raw_reasoning_enabled({"PAGEINDEX_PIFS_AGENT_RAW_REASONING": "0"})
+        )
+
     def test_stream_mode_aliases(self):
         self.assertEqual(normalize_agent_stream_mode("think"), "model")
         self.assertEqual(normalize_agent_stream_mode("debug"), "all")
@@ -106,6 +141,21 @@ class PIFSAgentStreamTest(unittest.TestCase):
         self.assertTrue(should_use_openai_compatible_chat_model("https://example.test/v1"))
         with self.assertRaises(ValueError):
             normalize_reasoning_effort("maximum")
+
+    def test_tracing_is_disabled_by_default_unless_env_enables_it(self):
+        self.assertTrue(should_disable_pifs_agent_tracing({}))
+        self.assertFalse(
+            should_disable_pifs_agent_tracing({"PAGEINDEX_PIFS_AGENT_TRACING": "1"})
+        )
+        self.assertFalse(
+            should_disable_pifs_agent_tracing({"PAGEINDEX_PIFS_AGENT_TRACING": "true"})
+        )
+        self.assertFalse(
+            should_disable_pifs_agent_tracing({"PAGEINDEX_PIFS_AGENT_TRACING": "on"})
+        )
+        self.assertTrue(
+            should_disable_pifs_agent_tracing({"PAGEINDEX_PIFS_AGENT_TRACING": "0"})
+        )
 
     def test_structured_agent_output_serializes_to_json(self):
         output = serialize_agent_final_output(

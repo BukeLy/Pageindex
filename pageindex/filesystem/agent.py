@@ -7,20 +7,46 @@ import os
 import sys
 import time
 from dataclasses import asdict, is_dataclass
-from typing import Any, TextIO
+from typing import Any, Mapping, TextIO
 
 from .commands import PIFSCommandError, PIFSCommandExecutor
 from .core import PageIndexFileSystem
 
 
+TRUTHY_ENV_VALUES = {"1", "true", "yes", "on"}
+PIFS_AGENT_TRACING_ENV = "PAGEINDEX_PIFS_AGENT_TRACING"
+PIFS_AGENT_RAW_REASONING_ENV = "PAGEINDEX_PIFS_AGENT_RAW_REASONING"
+
 AGENT_SYSTEM_PROMPT = """
 You are a PageIndex FileSystem retrieval agent.
 
-You can only inspect the corpus by calling the bash tool. The bash tool is a
-PageIndex virtual shell, not a real operating-system shell.
+You can inspect the corpus only by calling the bash tool. The bash tool is a
+read-only PageIndex virtual shell, not a real operating-system shell.
 
 Follow the task prompt for command policy, retrieval strategy, and answer
 format. If the caller needs stricter behavior, pass an explicit system_prompt.
+"""
+
+BASH_TOOL_DESCRIPTION = """
+Run a command in the PageIndex FileSystem virtual shell. This is not a real
+operating-system shell. By default the tool is read-only: use ls, tree, find,
+grep, cat, stat, head, tail, sed, and any dynamically available semantic search
+commands described in the workspace context. grep -R is lexical evidence search;
+semantic search commands return candidate documents and do not guarantee literal
+text matches. Errors are returned as text prefixed with ERROR. Do not call
+commands that are not listed as available. When evidence is required, inspect it
+with cat or grep before answering.
+"""
+
+AGENT_TOOL_POLICY = """
+Tool policy:
+- The bash tool is a PageIndex virtual shell, not an operating-system shell.
+- The default agent tool surface is read-only.
+- Use only commands listed in the workspace capabilities.
+- grep -R performs lexical evidence search.
+- Semantic search commands are candidate-discovery tools and do not guarantee literal text matches.
+- Tool errors are returned as ERROR text; recover by trying an available command.
+- Use cat or grep to gather evidence before making source-backed claims.
 """
 
 STREAM_MODE_ALIASES = {
@@ -48,6 +74,24 @@ def should_use_openai_compatible_chat_model(base_url: str | None) -> bool:
         return False
     normalized = base_url.strip().rstrip("/")
     return normalized not in {"https://api.openai.com", "https://api.openai.com/v1"}
+
+
+def env_flag_enabled(name: str, environ: Mapping[str, str] | None = None) -> bool:
+    source = os.environ if environ is None else environ
+    value = source.get(name, "")
+    return value.strip().lower() in TRUTHY_ENV_VALUES
+
+
+def pifs_agent_tracing_enabled(environ: Mapping[str, str] | None = None) -> bool:
+    return env_flag_enabled(PIFS_AGENT_TRACING_ENV, environ)
+
+
+def should_disable_pifs_agent_tracing(environ: Mapping[str, str] | None = None) -> bool:
+    return not pifs_agent_tracing_enabled(environ)
+
+
+def pifs_agent_raw_reasoning_enabled(environ: Mapping[str, str] | None = None) -> bool:
+    return env_flag_enabled(PIFS_AGENT_RAW_REASONING_ENV, environ)
 
 
 def normalize_reasoning_effort(reasoning_effort: str | None) -> str | None:
@@ -126,6 +170,7 @@ def build_agent_initial_context(
         filesystem,
         json_output=False,
         query_context=query_context,
+        allow_mutations=False,
     )
     schema = filesystem._metadata_schema()
     schema_fields = schema.get("fields", {})
@@ -163,7 +208,13 @@ def build_pifs_agent_instructions(
         executor=executor,
         query_context=query_context,
     )
-    return (system_prompt or AGENT_SYSTEM_PROMPT).strip() + "\n\n" + initial_context
+    return "\n\n".join(
+        [
+            (system_prompt or AGENT_SYSTEM_PROMPT).strip(),
+            AGENT_TOOL_POLICY.strip(),
+            "Workspace context:\n" + initial_context,
+        ]
+    )
 
 
 class PIFSAgentStreamObserver:
@@ -173,10 +224,16 @@ class PIFSAgentStreamObserver:
         *,
         stream_log: list[dict[str, Any]] | None = None,
         output: TextIO | None = None,
+        include_raw_reasoning: bool | None = None,
     ) -> None:
         self.stream_mode = normalize_agent_stream_mode(stream_mode)
         self.stream_log = stream_log
         self.output = output or sys.stdout
+        self.include_raw_reasoning = (
+            pifs_agent_raw_reasoning_enabled()
+            if include_raw_reasoning is None
+            else include_raw_reasoning
+        )
         self._printed_section: str | None = None
         self._buffers: dict[str, list[str]] = {
             "output": [],
@@ -223,7 +280,8 @@ class PIFSAgentStreamObserver:
         if event_type == "response.output_text.delta":
             self._emit("output", delta, "[llm final output stream]")
         elif event_type == "response.reasoning_text.delta":
-            self._emit("think", delta, "[llm reasoning text stream]")
+            if self.include_raw_reasoning:
+                self._emit("think", delta, "[llm reasoning text stream]")
         elif event_type == "response.reasoning_summary_text.delta":
             self._emit("think_summary", delta, "[llm reasoning summary stream]")
         elif event_type == "response.function_call_arguments.delta":
@@ -323,12 +381,13 @@ def run_pifs_agent(
             raise RuntimeError("openai-agents is required to run the PageIndex FileSystem agent") from exc
         raise
 
-    set_tracing_disabled(True)
+    set_tracing_disabled(should_disable_pifs_agent_tracing())
     normalized_stream_mode = normalize_agent_stream_mode(stream_mode)
     executor = PIFSCommandExecutor(
         filesystem,
         json_output=False,
         query_context=extract_agent_question_text(question),
+        allow_mutations=False,
     )
     observer = PIFSAgentStreamObserver(normalized_stream_mode, stream_log=agent_log)
     instructions = build_pifs_agent_instructions(
@@ -338,9 +397,9 @@ def run_pifs_agent(
         executor=executor,
     )
 
-    @function_tool
+    @function_tool(description_override=BASH_TOOL_DESCRIPTION.strip())
     def bash(command: str) -> str:
-        """Run allowed PageIndex FileSystem shell commands, optionally chained with &&."""
+        """Run an allowed PageIndex FileSystem virtual shell command."""
         started = time.time()
         ok = True
         observer.emit_tool_call(command, force=verbose)
