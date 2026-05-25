@@ -1743,11 +1743,6 @@ class EnterpriseRAGFileSystemTest(unittest.TestCase):
             tailed = executor.execute("tail -1 dsid_shell_text")
             sed_range = executor.execute("sed -n '2,2p' dsid_shell_text")
             head_tail = executor.execute("head -3 dsid_shell_text | tail -1")
-            mkdir = executor.execute("mkdir /manual/new")
-            copied = executor.execute(
-                'cp file:///tmp/copied.txt /manual/new --content "copy body" '
-                '--external-id dsid_copied --title "Copied doc"'
-            )
 
             self.assertFalse(listing.lstrip().startswith("{"))
             self.assertIn("topics/", listing)
@@ -1765,12 +1760,8 @@ class EnterpriseRAGFileSystemTest(unittest.TestCase):
             self.assertEqual(tailed, "private full document tail")
             self.assertEqual(sed_range, "max_file_size defaults to 10MiB")
             self.assertEqual(head_tail, "private full document tail")
-            self.assertEqual(mkdir, "created folder: /manual/new")
-            self.assertIn("copied file:", copied)
-            self.assertIn("dsid_copied", copied)
-            self.assertIn("-> /manual/new", copied)
 
-    def test_read_only_executor_hides_and_blocks_mutation_commands(self):
+    def test_executor_does_not_expose_or_run_removed_mutation_commands(self):
         with tempfile.TemporaryDirectory() as tmp:
             from pageindex.filesystem import PIFSCommandExecutor, PageIndexFileSystem
             from pageindex.filesystem.commands import PIFSCommandError
@@ -1786,23 +1777,43 @@ class EnterpriseRAGFileSystemTest(unittest.TestCase):
                 content="read only evidence",
             )
 
-            writable = PIFSCommandExecutor(filesystem)
-            read_only = PIFSCommandExecutor(filesystem, allow_mutations=False)
-            capabilities = read_only.command_capabilities()
-            command_surfaces = read_only.describe_available_command_surfaces()
+            executor = PIFSCommandExecutor(filesystem)
+            capabilities = executor.command_capabilities()
+            command_surfaces = executor.describe_available_command_surfaces()
 
-            self.assertIn("mkdir", writable.allowed_commands())
-            self.assertIn("cp", writable.allowed_commands())
-            self.assertNotIn("mkdir", read_only.allowed_commands())
-            self.assertNotIn("cp", read_only.allowed_commands())
+            self.assertNotIn("mkdir", executor.allowed_commands())
+            self.assertNotIn("cp", executor.allowed_commands())
             self.assertNotIn("mkdir", capabilities["allowed_commands"])
             self.assertNotIn("cp", capabilities["allowed_commands"])
             self.assertNotRegex(command_surfaces, r"\b(mkdir|cp)\b")
             self.assertIn("read-only", command_surfaces)
-            with self.assertRaises(PIFSCommandError):
-                read_only.execute("mkdir /manual/new")
-            with self.assertRaises(PIFSCommandError):
-                read_only.execute('cp file:///tmp/copied.txt /github --content "copy body"')
+            with self.assertRaisesRegex(PIFSCommandError, "Unsupported command: mkdir"):
+                executor.execute("mkdir /manual/new")
+            with self.assertRaisesRegex(PIFSCommandError, "Unsupported command: cp"):
+                executor.execute('cp file:///tmp/copied.txt /github --content "copy body"')
+
+    def test_cli_rejects_removed_mutation_commands(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp) / "workspace"
+            repo_root = Path(__file__).resolve().parents[1]
+
+            for command in (["mkdir", "/manual/new"], ["cp", "file:///tmp/copied.txt", "/github"]):
+                result = subprocess.run(
+                    [
+                        sys.executable,
+                        "-m",
+                        "pageindex.filesystem.cli",
+                        "--workspace",
+                        str(workspace),
+                        *command,
+                    ],
+                    cwd=repo_root,
+                    text=True,
+                    capture_output=True,
+                )
+
+                self.assertEqual(result.returncode, 2, msg=result.stdout + result.stderr)
+                self.assertIn(f"Unsupported command: {command[0]}", result.stderr)
 
     def test_agent_default_instructions_use_read_only_command_surface(self):
         with tempfile.TemporaryDirectory() as tmp:

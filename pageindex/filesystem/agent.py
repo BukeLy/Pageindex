@@ -170,7 +170,6 @@ def build_agent_initial_context(
         filesystem,
         json_output=False,
         query_context=query_context,
-        allow_mutations=False,
     )
     schema = filesystem._metadata_schema()
     schema_fields = schema.get("fields", {})
@@ -387,7 +386,6 @@ def run_pifs_agent(
         filesystem,
         json_output=False,
         query_context=extract_agent_question_text(question),
-        allow_mutations=False,
     )
     observer = PIFSAgentStreamObserver(normalized_stream_mode, stream_log=agent_log)
     instructions = build_pifs_agent_instructions(
