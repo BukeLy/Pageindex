@@ -773,8 +773,8 @@ class EnterpriseRAGFileSystemTest(unittest.TestCase):
 
             filesystem = PageIndexFileSystem(workspace=Path(tmp) / "workspace")
             file_ref = filesystem.register_file(
-                storage_uri="file:///tmp/full.json",
-                source_path="github/redwood/full.json",
+                storage_uri="file:///tmp/full.txt",
+                source_path="github/redwood/full.txt",
                 external_id="dsid_full_leaf",
                 title="Full leaf document",
                 content="\n".join(f"line {i}" for i in range(1, 121)),
@@ -1353,8 +1353,8 @@ class EnterpriseRAGFileSystemTest(unittest.TestCase):
             long_prefix = "prefix " * 1200
             answer_tail = "FINAL_ANSWER_AFTER_CONTEXT_WINDOW"
             filesystem.register_file(
-                storage_uri="file:///tmp/full.json",
-                source_path="github/redwood/full.json",
+                storage_uri="file:///tmp/full.txt",
+                source_path="github/redwood/full.txt",
                 external_id="dsid_full_context",
                 title="Full context document",
                 content=long_prefix + "\n" + answer_tail,
@@ -1445,8 +1445,8 @@ class EnterpriseRAGFileSystemTest(unittest.TestCase):
                 },
             )
             filesystem.register_file(
-                storage_uri="file:///tmp/pr.json",
-                source_path="github/redwood/pr-audit.json",
+                storage_uri="file:///tmp/pr.txt",
+                source_path="github/redwood/pr-audit.txt",
                 folder_path="/github/redwood",
                 external_id="dsid_cli_audit",
                 title="Audit logging PR",
@@ -1464,7 +1464,7 @@ class EnterpriseRAGFileSystemTest(unittest.TestCase):
             grepped = json.loads(executor.execute('grep -R "bundle verification" /github'))
             leaf_grepped = json.loads(executor.execute('grep -R "bundle verification" /github/redwood'))
             file_grep = json.loads(
-                executor.execute('grep "bundle verification" /github/redwood/pr-audit.json')
+                executor.execute('grep "bundle verification" /github/redwood/pr-audit.txt')
             )
             stat = json.loads(executor.execute("stat dsid_cli_audit"))
             opened = json.loads(executor.execute("cat dsid_cli_audit --all"))
@@ -1722,8 +1722,8 @@ class EnterpriseRAGFileSystemTest(unittest.TestCase):
             filesystem = PageIndexFileSystem(workspace=Path(tmp) / "workspace")
             filesystem.create_folder("/semantic/topics/api-input")
             filesystem.register_file(
-                storage_uri="file:///tmp/pr.json",
-                source_path="github/pr-18421.json",
+                storage_uri="file:///tmp/pr.txt",
+                source_path="github/pr-18421.txt",
                 folder_path="/semantic/topics/api-input",
                 external_id="dsid_shell_text",
                 title="Multipart upload limits",
@@ -1965,8 +1965,8 @@ class EnterpriseRAGFileSystemTest(unittest.TestCase):
 
             filesystem = PageIndexFileSystem(workspace=Path(tmp) / "workspace")
             filesystem.register_file(
-                storage_uri="file:///tmp/pr.json",
-                source_path="github/redwood/pr-audit.json",
+                storage_uri="file:///tmp/pr.txt",
+                source_path="github/redwood/pr-audit.txt",
                 folder_path="/github/redwood",
                 external_id="dsid_chain_audit",
                 title="Audit logging PR",
@@ -1974,8 +1974,8 @@ class EnterpriseRAGFileSystemTest(unittest.TestCase):
                 content="first line\nThe PR adds audit logging and literal alpha && beta wording.",
             )
             filesystem.register_file(
-                storage_uri="file:///tmp/pr2.json",
-                source_path="github/redwood/pr-audit-2.json",
+                storage_uri="file:///tmp/pr2.txt",
+                source_path="github/redwood/pr-audit-2.txt",
                 folder_path="/github/redwood",
                 external_id="dsid_chain_audit_2",
                 title="Audit logging follow-up",

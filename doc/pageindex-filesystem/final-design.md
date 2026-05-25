@@ -22,7 +22,7 @@ PageIndex FileSystem
   Metadata implementation
   virtual/aggregate nodes
   multi-file search/find/open/summarize tools
-  lazy bridge into PageIndex Core
+  cached structural reads backed by PageIndex Core
 ```
 
 The purpose is to make PageIndex work for multi-file benchmarks and enterprise
@@ -124,13 +124,19 @@ file_ref
   pageindex_tree_status
 ```
 
-When deep reading is needed, FileSystem calls the existing PageIndex Core
-through the normal public surface and records the resulting `pageindex_doc_id`.
+For PDF and Markdown files, registration calls the existing PageIndex Core
+through `PageIndexClient(workspace=<pifs workspace>/artifacts/pageindex_client)`.
+PIFS first reuses a matching cached PageIndexClient document by canonical file
+path; on cache miss it calls `PageIndexClient.index(source_path)` synchronously.
+SQLite records only `pageindex_doc_id` plus tree status. Metadata generation
+remains the existing PIFS policy/status path in this PR.
 
 ## 4. Ingestion Model
 
-The ingestion method is not "upload and immediately build a rich document
-tree." It is "register a file into the FileSystem catalog."
+The ingestion method is "register a file into the FileSystem catalog." For PDF
+and Markdown files, registration also builds the PageIndex Core structure unless
+a matching PageIndexClient cache entry already exists. Text and unsupported
+formats still only register PIFS catalog/text artifacts.
 
 Recommended API shape for future implementation:
 
@@ -141,7 +147,6 @@ file_ref = filesystem.register_file(
     folder_path="/github/redwood",
     metadata={...},
     external_id="dsid_...",
-    tree_policy="lazy",
 )
 ```
 
@@ -175,7 +180,7 @@ workspace/
   artifacts/
     text/
     shallow_trees/
-    pageindex_trees/
+    pageindex_client/
 ```
 
 Cloud or S3 storage can be added through `storage_uri`, but the logical
@@ -656,7 +661,7 @@ PageIndex FileSystem
   SQLite FTS search
   find over text artifacts
   open text/page windows
-  lazy bridge to PageIndex Core
+  cached structural reads backed by PageIndex Core
   benchmark external_id mapping
 ```
 
