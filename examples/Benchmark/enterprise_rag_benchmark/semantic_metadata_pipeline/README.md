@@ -1,11 +1,11 @@
 # EnterpriseRAG Semantic Metadata Pipeline
 
-This directory contains the newer EnterpriseRAG / PIFS metadata -> extension schema -> folder -> semantic projection pipeline.
+This directory contains the newer EnterpriseRAG / PIFS metadata -> extension schema -> Semantic Folder Projection artifact -> semantic projection index pipeline.
 
 The design keeps four tool surfaces separate:
 
 - metadata DSL: exact/canonical filters over approved fields
-- folder browse: low-cardinality browseable projections
+- Semantic Folder Projection: low-cardinality browseable mounts under `/semantic/...`
 - semantic vector search: candidate discovery only
 - grep/FTS/BM25: lexical text search with real matching lines
 
@@ -68,7 +68,7 @@ This writes:
 - `extension_schema_audit.json`
 - `extension_schema_prompt.sample.md`
 
-3. Build folder projections:
+3. Build the Semantic Folder Projection artifact:
 
 ```bash
 uv run python examples/Benchmark/enterprise_rag_benchmark/semantic_metadata_pipeline/build_folders.py \
@@ -80,6 +80,14 @@ This writes:
 
 - `folder_plan.json`
 - `folder_field_report.json`
+
+`build_folders.py` is a benchmark artifact builder, not the product API. The
+product operation is the explicit Semantic Folder Projection step that applies a
+plan to an already registered workspace. Its allowed inputs are
+`metadata_base.doc_type`, `metadata_base.domain`, `metadata_base.topic`,
+Extension Fields marked `suitable_for_folder`, and `system.source_type` as the
+browse root. Summaries, entities, relations, constraints, retrieval cues,
+`dataset_doc_uuid`, paths, and URIs are excluded from folder inputs.
 
 4. Build semantic projection indexes:
 
@@ -148,9 +156,10 @@ uv run python examples/Benchmark/enterprise_rag_benchmark/semantic_metadata_pipe
   --verbose
 ```
 
-This registers only the documents from `metadata.normalized.jsonl`, creates
-folders from `folder_plan.json`, attaches the summary/entity/relation projection
-indexes, and runs the PIFS agent against that materialized workspace.
+This registers only the documents from `metadata.normalized.jsonl`, applies the
+Semantic Folder Projection from `folder_plan.json`, attaches the
+summary/entity/relation projection indexes, and runs the PIFS agent against that
+materialized workspace.
 
 This writes under `agent_smoke/<timestamp>/`:
 
@@ -212,7 +221,7 @@ Every normalized field records provenance:
 
 ## Extension Discovery Policy
 
-Extension fields are not hardcoded as base schema. Fields such as repo, channel, project, customer, status, or source bucket must be discovered from candidate metadata and pass audit checks.
+Extension fields are not hardcoded as base schema. Fields such as repo, channel, project, customer, or status must be discovered from candidate metadata and pass audit checks.
 
 An extension field records:
 

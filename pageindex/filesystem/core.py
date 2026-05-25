@@ -15,6 +15,27 @@ from .store import (
 from .types import OpenResult, SearchResult
 
 
+SEMANTIC_FOLDER_ROOT = "/semantic"
+SEMANTIC_FOLDER_BASE_FIELDS = {"doc_type", "domain", "topic"}
+SEMANTIC_FOLDER_SYSTEM_FIELDS = {"source_type"}
+SEMANTIC_FOLDER_FORBIDDEN_FIELDS = {
+    "summary",
+    "entities",
+    "relations",
+    "constraints",
+    "retrieval_cues",
+    "dataset_doc_uuid",
+    "path",
+    "uri",
+    "source_path",
+    "storage_uri",
+    "title",
+    "content_type",
+    "created_at",
+    "updated_at",
+}
+
+
 class PageIndexFileSystem:
     def __init__(self, workspace: Union[str, Path], *, semantic_retrieval_backend: Any | None = None):
         self.workspace = Path(workspace).expanduser()
@@ -98,6 +119,79 @@ class PageIndexFileSystem:
 
     def attach_files_to_folders(self, items: list[dict[str, Any]]) -> None:
         self.store.attach_files_to_folders(items)
+
+    def apply_semantic_folder_projection(
+        self,
+        projection_plan: dict[str, Any],
+        *,
+        file_ref_by_document_id: Optional[dict[str, str]] = None,
+    ) -> dict[str, Any]:
+        """Attach registered files to a Semantic Folder Projection.
+
+        Registration remains the explicit folder placement step. This method is
+        the separate product API for adding derived `/semantic/...` memberships.
+        """
+        folders = list(projection_plan.get("folders") or [])
+        memberships = list(projection_plan.get("memberships") or [])
+        policy_raw = projection_plan.get("policy")
+        policy = policy_raw if isinstance(policy_raw, dict) else {}
+        allowed_extension_fields = {
+            str(field)
+            for field in policy.get("allowed_extension_fields", [])
+            if str(field)
+        }
+        for folder in folders:
+            self._validate_semantic_folder_projection_item(folder, allowed_extension_fields)
+        for membership in memberships:
+            self._validate_semantic_folder_projection_item(membership, allowed_extension_fields)
+
+        for folder in folders:
+            folder_metadata = folder.get("metadata")
+            self.create_folder(
+                self._validate_semantic_folder_projection_path(str(folder["path"])),
+                kind=str(folder.get("kind") or "semantic_projection"),
+                description=str(folder.get("description") or ""),
+                metadata=folder_metadata if isinstance(folder_metadata, dict) else {},
+            )
+
+        items: list[dict[str, Any]] = []
+        file_ref_by_document_id = file_ref_by_document_id or {}
+        for membership in memberships:
+            document_id = self._semantic_folder_projection_document_id(membership)
+            file_ref = file_ref_by_document_id.get(document_id)
+            if not file_ref:
+                file_ref = self.store.resolve_file_ref(document_id)
+            metadata = (
+                dict(membership.get("folder_metadata"))
+                if isinstance(membership.get("folder_metadata"), dict)
+                else {}
+            )
+            metadata.update(
+                {
+                    "projection": "Semantic Folder Projection",
+                    "field": membership.get("field", ""),
+                    "value": membership.get("value", ""),
+                    "mount_kind": membership.get(
+                        "mount_kind",
+                        "semantic_folder_projection",
+                    ),
+                }
+            )
+            items.append(
+                {
+                    "file_ref": file_ref,
+                    "folder": self._validate_semantic_folder_projection_path(
+                        str(membership["folder_path"])
+                    ),
+                    "metadata": metadata,
+                }
+            )
+        self.attach_files_to_folders(items)
+        return {
+            "projection": "Semantic Folder Projection",
+            "folders_applied": len(folders),
+            "memberships_attached": len(items),
+        }
 
     def search(
         self,
@@ -457,10 +551,57 @@ class PageIndexFileSystem:
 
     @staticmethod
     def _source_type_filter_from_path(path: str) -> str:
-        first_segment = path.strip("/").split("/", 1)[0]
+        segments = [segment for segment in path.strip("/").split("/") if segment]
+        if not segments:
+            return ""
+        if segments[0] == SEMANTIC_FOLDER_ROOT.strip("/"):
+            segments = segments[1:]
+        if not segments:
+            return ""
+        first_segment = segments[0]
         if first_segment.startswith("source_type="):
             return first_segment.split("=", 1)[1].replace("-", "_")
+        if path.startswith(f"{SEMANTIC_FOLDER_ROOT}/"):
+            return ""
         return first_segment
+
+    @classmethod
+    def _validate_semantic_folder_projection_item(
+        cls,
+        item: dict[str, Any],
+        allowed_extension_fields: set[str],
+    ) -> None:
+        path = item.get("folder_path") or item.get("path")
+        if not path:
+            raise ValueError("Semantic Folder Projection items must include a folder path")
+        cls._validate_semantic_folder_projection_path(str(path))
+        field = str(item.get("field") or "")
+        if not field:
+            return
+        allowed_fields = (
+            SEMANTIC_FOLDER_BASE_FIELDS
+            | SEMANTIC_FOLDER_SYSTEM_FIELDS
+            | allowed_extension_fields
+        )
+        if field in SEMANTIC_FOLDER_FORBIDDEN_FIELDS or field not in allowed_fields:
+            raise ValueError(f"Field is not allowed for Semantic Folder Projection: {field}")
+
+    @staticmethod
+    def _validate_semantic_folder_projection_path(path: str) -> str:
+        normalized = normalize_path(path)
+        if normalized != SEMANTIC_FOLDER_ROOT and not normalized.startswith(
+            f"{SEMANTIC_FOLDER_ROOT}/"
+        ):
+            raise ValueError("Semantic Folder Projection paths must be under /semantic")
+        return normalized
+
+    @staticmethod
+    def _semantic_folder_projection_document_id(membership: dict[str, Any]) -> str:
+        for key in ("dataset_doc_uuid", "document_id", "external_id", "file_ref"):
+            value = str(membership.get(key) or "").strip()
+            if value:
+                return value
+        raise ValueError("Semantic Folder Projection membership is missing a document id")
 
     @staticmethod
     def _query_text(query: Union[str, list[str], None]) -> str:
