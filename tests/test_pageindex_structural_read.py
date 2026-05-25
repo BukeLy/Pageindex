@@ -29,6 +29,22 @@ def write_pageindex_client_doc(workspace: Path, doc_id: str, doc: dict) -> None:
     )
 
 
+class RecordingMetadataGenerator:
+    values = {
+        "summary": "Generated retrieval summary.",
+        "doc_type": "technical_note",
+        "domain": "documentation",
+        "topic": "pageindex extraction",
+    }
+
+    def __init__(self):
+        self.calls = []
+
+    def generate(self, request, *, fields):
+        self.calls.append((request, list(fields)))
+        return {field: self.values[field] for field in fields if field in self.values}
+
+
 def test_pageindex_structure_options_report_failed_register_build(monkeypatch):
     from pageindex import PageIndexClient
     from pageindex.filesystem import PIFSCommandExecutor, PageIndexFileSystem
@@ -72,6 +88,135 @@ def test_pageindex_structure_options_report_failed_register_build(monkeypatch):
 
         assert "cp" not in executor.allowed_commands()
         assert "mkdir" not in executor.allowed_commands()
+
+
+def test_register_pdf_markdown_uses_pageindex_extracted_text_for_metadata_and_fts(monkeypatch):
+    from pageindex import PageIndexClient
+    from pageindex.filesystem import PageIndexFileSystem
+
+    def fake_index(self, file_path, mode="auto"):
+        suffix = Path(file_path).suffix.lower()
+        doc_id = f"doc_{suffix.lstrip('.')}"
+        if suffix == ".pdf":
+            doc = {
+                "id": doc_id,
+                "type": "pdf",
+                "path": str(Path(file_path).resolve()),
+                "doc_name": "report.pdf",
+                "doc_description": "",
+                "page_count": 2,
+                "structure": [{"title": "Report", "node_id": "0001", "nodes": []}],
+                "pages": [
+                    {"page": 1, "content": "PageIndex PDF extracted alpha text."},
+                    {"page": 2, "content": "Second PageIndex PDF extracted beta text."},
+                ],
+            }
+        else:
+            doc = {
+                "id": doc_id,
+                "type": "md",
+                "path": str(Path(file_path).resolve()),
+                "doc_name": "notes",
+                "doc_description": "",
+                "line_count": 3,
+                "structure": [
+                    {
+                        "title": "Notes",
+                        "node_id": "0001",
+                        "line_num": 1,
+                        "text": "# Notes\n\nPageIndex Markdown extracted gamma text.",
+                        "nodes": [],
+                    }
+                ],
+            }
+        write_pageindex_client_doc(self.workspace, doc_id, doc)
+        self.documents[doc_id] = doc
+        return doc_id
+
+    monkeypatch.setattr(PageIndexClient, "index", fake_index)
+    with tempfile.TemporaryDirectory() as tmp:
+        source_pdf = Path(tmp) / "report.pdf"
+        source_md = Path(tmp) / "notes.md"
+        source_pdf.write_bytes(b"%PDF-1.4\n% test fixture\n")
+        source_md.write_text("# Notes\n\nCaller markdown content", encoding="utf-8")
+        generator = RecordingMetadataGenerator()
+        filesystem = PageIndexFileSystem(
+            workspace=Path(tmp) / "workspace",
+            metadata_generator=generator,
+        )
+
+        filesystem.register_file(
+            storage_uri=source_pdf.as_uri(),
+            source_path="docs/report.pdf",
+            external_id="dsid_pdf_extracted",
+            title="PDF extracted",
+            content="CALLER PDF CONTENT MUST NOT REACH GENERATOR",
+        )
+        filesystem.register_file(
+            storage_uri=source_md.as_uri(),
+            source_path="docs/notes.md",
+            external_id="dsid_md_extracted",
+            title="Markdown extracted",
+            content="CALLER MD CONTENT MUST NOT REACH GENERATOR",
+        )
+
+        pdf_request = generator.calls[0][0]
+        md_request = generator.calls[1][0]
+        pdf_stat = filesystem.store.file_info("dsid_pdf_extracted")
+        md_stat = filesystem.store.file_info("dsid_md_extracted")
+
+        assert "PageIndex PDF extracted alpha text" in pdf_request.text
+        assert "Second PageIndex PDF extracted beta text" in pdf_request.text
+        assert "CALLER PDF CONTENT" not in pdf_request.text
+        assert "PageIndex Markdown extracted gamma text" in md_request.text
+        assert "CALLER MD CONTENT" not in md_request.text
+        assert "PageIndex PDF extracted alpha text" in Path(
+            pdf_stat["text_artifact_path"]
+        ).read_text(encoding="utf-8")
+        assert "PageIndex Markdown extracted gamma text" in Path(
+            md_stat["text_artifact_path"]
+        ).read_text(encoding="utf-8")
+        assert [r.external_id for r in filesystem.search("alpha beta", limit=5)] == [
+            "dsid_pdf_extracted"
+        ]
+        assert [r.external_id for r in filesystem.search("gamma", limit=5)] == [
+            "dsid_md_extracted"
+        ]
+        assert filesystem.search("CALLER", limit=5) == []
+
+
+def test_register_text_metadata_generation_keeps_caller_content_without_pageindex(monkeypatch):
+    from pageindex import PageIndexClient
+    from pageindex.filesystem import PageIndexFileSystem
+
+    def fail_index(*args, **kwargs):
+        raise AssertionError("PageIndexClient.index should not be called for text files")
+
+    monkeypatch.setattr(PageIndexClient, "index", fail_index)
+    with tempfile.TemporaryDirectory() as tmp:
+        generator = RecordingMetadataGenerator()
+        filesystem = PageIndexFileSystem(
+            workspace=Path(tmp) / "workspace",
+            metadata_generator=generator,
+        )
+
+        filesystem.register_file(
+            storage_uri="file:///tmp/readme.txt",
+            source_path="docs/readme.txt",
+            external_id="dsid_text_generation",
+            title="Text generation",
+            content="Plain text caller content stays authoritative.",
+            content_type="text/plain",
+        )
+
+        stat = filesystem.store.file_info("dsid_text_generation")
+
+        assert generator.calls[0][0].text == "Plain text caller content stays authoritative."
+        assert stat["pageindex_doc_id"] is None
+        assert stat["pageindex_tree_status"] == "not_built"
+        assert Path(stat["text_artifact_path"]).read_text(
+            encoding="utf-8"
+        ) == "Plain text caller content stays authoritative."
 
 
 def test_register_pdf_markdown_cache_miss_invokes_pageindex_client_index(monkeypatch):

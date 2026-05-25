@@ -8,6 +8,7 @@ from .metadata_generation import (
     MetadataGenerator,
     OpenAIMetadataGenerator,
 )
+from .projection_indexing import SummaryProjectionIndexer
 from .semantic_index import (
     RebuildableSemanticIndex,
     SemanticIndexRecord,
@@ -30,5 +31,6 @@ __all__ = [
     "SearchResult",
     "SemanticIndexRecord",
     "SemanticSearchResult",
+    "SummaryProjectionIndexer",
     "SQLiteVecSemanticIndex",
 ]

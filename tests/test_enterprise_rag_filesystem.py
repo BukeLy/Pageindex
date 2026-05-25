@@ -221,11 +221,50 @@ class EnterpriseRAGFileSystemTest(unittest.TestCase):
                 stat["metadata_generation"]["fields"]["summary"]["status"],
                 "generated",
             )
+            self.assertEqual(
+                stat["metadata_generation"]["projection_indexes"]["summary"]["status"],
+                "pending_index",
+            )
             self.assertFalse(stat["metadata_generation"]["fields"]["entity"]["requested"])
             self.assertFalse(stat["metadata_generation"]["fields"]["relation"]["requested"])
             raw_artifact = json.loads(Path(stat["raw_artifact_path"]).read_text(encoding="utf-8"))
             self.assertEqual(raw_artifact["derived_metadata"], stat["derived_metadata"])
             self.assertEqual(raw_artifact["metadata_generation"]["status"], "generated")
+
+    def test_register_completes_metadata_and_summary_vector(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            from pageindex.filesystem import PIFSCommandExecutor, PageIndexFileSystem
+
+            generator = FakeMetadataGenerator()
+            filesystem = PageIndexFileSystem(
+                workspace=Path(tmp) / "workspace",
+                metadata_generator=generator,
+                summary_projection_embedding_provider="hash",
+                summary_projection_embedding_dimensions=32,
+            )
+            filesystem.register(
+                storage_uri="file:///tmp/doc.txt",
+                source_path="docs/audit.txt",
+                folder_path="/docs",
+                external_id="dsid_register_ready",
+                title="Register ready",
+                metadata={"repo": "redwood"},
+                content="The audit logging rollout adds bundle verification events.",
+                content_type="text/plain",
+            )
+
+            executor = PIFSCommandExecutor(filesystem, json_output=True)
+            stat = json.loads(executor.execute("stat dsid_register_ready"))["data"]
+            summary = json.loads(executor.execute('search-summary "audit logging" /docs'))
+
+            self.assertEqual(stat["metadata_generation"]["status"], "generated")
+            self.assertEqual(
+                stat["metadata_generation"]["projection_indexes"]["summary"]["status"],
+                "ready",
+            )
+            self.assertIn("search-summary", executor.allowed_commands())
+            self.assertEqual(summary["data"]["retrieval"], "summary_vector")
+            self.assertEqual(summary["data"]["data"][0]["external_id"], "dsid_register_ready")
 
     def test_register_file_does_not_infer_raw_metadata_schema(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -296,7 +335,7 @@ class EnterpriseRAGFileSystemTest(unittest.TestCase):
             )
             self.assertEqual(
                 stat["metadata_generation"]["projection_indexes"]["summary"]["status"],
-                "not_indexed",
+                "pending_index",
             )
             self.assertEqual([result.external_id for result in results], ["dsid_generated_metadata"])
             self.assertEqual(results[0].derived_metadata["doc_type"], "pull_request")
@@ -391,10 +430,18 @@ class EnterpriseRAGFileSystemTest(unittest.TestCase):
 
             self.assertEqual(before["derived_metadata"], {})
             self.assertEqual(before["metadata_generation"]["status"], "pending_submit")
+            self.assertEqual(
+                before["metadata_generation"]["projection_indexes"]["summary"]["status"],
+                "not_indexed",
+            )
             self.assertEqual(before_raw_artifact["metadata_generation"]["status"], "pending_submit")
             self.assertEqual(result["processed"], 1)
             self.assertEqual(after["metadata_generation"]["status"], "generated")
             self.assertEqual(after["derived_metadata"]["summary"], generator.values["summary"])
+            self.assertEqual(
+                after["metadata_generation"]["projection_indexes"]["summary"]["status"],
+                "pending_index",
+            )
             after_raw_artifact = json.loads(
                 Path(after["raw_artifact_path"]).read_text(encoding="utf-8")
             )
@@ -506,7 +553,7 @@ class EnterpriseRAGFileSystemTest(unittest.TestCase):
             )
             self.assertEqual(
                 stat["metadata_generation"]["projection_indexes"]["summary"]["status"],
-                "not_indexed",
+                "pending_index",
             )
             self.assertNotIn(
                 stat["metadata_generation"]["projection_indexes"]["summary"]["status"],
@@ -587,6 +634,10 @@ class EnterpriseRAGFileSystemTest(unittest.TestCase):
 
             self.assertEqual(stat["metadata_generation"]["status"], "pending_submit")
             self.assertEqual(stat["metadata_generation"]["policy"]["mode"], "batch")
+            self.assertEqual(
+                stat["metadata_generation"]["projection_indexes"]["summary"]["status"],
+                "not_indexed",
+            )
             self.assertEqual(
                 stat["metadata_generation"]["fields"]["entity"]["status"],
                 "pending_submit",
