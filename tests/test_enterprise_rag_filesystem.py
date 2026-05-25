@@ -5,10 +5,40 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 
 
 def register_metadata_schema(filesystem, fields):
     filesystem._register_metadata_schema({"fields": fields})
+
+
+class SummaryOnlyBackend:
+    def __init__(self, document_id):
+        self.document_id = document_id
+        self.calls = []
+
+    def available_channels(self):
+        return ("summary",)
+
+    def search_channel(self, channel, query, *, limit=10, filters=None):
+        self.calls.append(("search_channel", channel, query, filters))
+        if channel != "summary":
+            raise AssertionError(f"unexpected channel search: {channel}")
+        return [
+            SimpleNamespace(
+                document_id=self.document_id,
+                snippet=f"summary_vector candidate: {query}",
+            )
+        ]
+
+    def search(self, query, *, limit=10, filters=None):
+        self.calls.append(("search", query, filters))
+        return [
+            SimpleNamespace(
+                document_id=self.document_id,
+                snippet=f"default semantic candidate: {query}",
+            )
+        ]
 
 
 class EnterpriseRAGFileSystemTest(unittest.TestCase):
@@ -597,6 +627,91 @@ class EnterpriseRAGFileSystemTest(unittest.TestCase):
         self.assertIn("Retrieval mode: hybrid", hybrid_prompt)
         self.assertIn("find <path> -type d --where", hybrid_prompt)
 
+    def test_enterprise_rag_agent_prompts_do_not_hardcode_semantic_tools(self):
+        prompt_dir = (
+            Path(__file__).resolve().parents[1]
+            / "examples"
+            / "Benchmark"
+            / "enterprise_rag_benchmark"
+            / "prompts"
+        )
+        prompt_files = [
+            prompt_dir / "pifs_agent_system.md",
+            prompt_dir / "pifs_question_hybrid.md",
+            prompt_dir / "pifs_question_semantic_channels.md",
+            prompt_dir / "pifs_question_semantic_channels_adaptive.md",
+            prompt_dir / "pifs_question_semantic_channels_crosscheck.md",
+            prompt_dir / "pifs_question_semantic_channels_ranked_crosscheck.md",
+        ]
+        forbidden_snippets = [
+            "Allowed commands:",
+            "search-summary",
+            "search-entity",
+            "search-relation",
+            "find --relation",
+            "hybrid grep",
+            "entity/relation vector retrieval",
+            "grep query itself",
+            "50/50 candidate split",
+        ]
+
+        for prompt_file in prompt_files:
+            text = prompt_file.read_text(encoding="utf-8")
+            with self.subTest(prompt=prompt_file.name):
+                for snippet in forbidden_snippets:
+                    self.assertNotIn(snippet, text)
+                self.assertNotIn("semantic vector preselection", text.lower())
+
+    def test_legacy_enterprise_agent_entrypoint_uses_summary_only_capabilities(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            from examples.Benchmark.enterprise_rag_benchmark.enterprise_rag import (
+                EnterpriseRAGQuestion,
+            )
+            from examples.Benchmark.enterprise_rag_benchmark.run_enterprise_rag_pifs_agent import (
+                PROMPTS_DIR,
+                agent_prompt,
+                read_prompt_file,
+            )
+            from pageindex.filesystem import PageIndexFileSystem
+            from pageindex.filesystem.agent import build_pifs_agent_instructions
+
+            filesystem = PageIndexFileSystem(workspace=Path(tmp) / "workspace")
+            filesystem.register_file(
+                storage_uri="file:///tmp/summary-only.json",
+                source_path="github/redwood/summary-only.json",
+                folder_path="/github/redwood",
+                external_id="dsid_summary_only_prompt",
+                title="Summary only prompt doc",
+                metadata={"source_type": "github"},
+                content="The prompt fixture contains lexical-only evidence.",
+            )
+            filesystem.semantic_retrieval_backend = SummaryOnlyBackend("dsid_summary_only_prompt")
+            system_prompt = read_prompt_file(PROMPTS_DIR / "pifs_agent_system.md")
+            question = EnterpriseRAGQuestion(
+                question_id="qst_test",
+                question_type="basic",
+                source_types=["github"],
+                question="Which doc mentions lexical-only evidence?",
+                expected_doc_ids=["dsid_summary_only_prompt"],
+            )
+
+            instructions = build_pifs_agent_instructions(
+                filesystem,
+                root="/",
+                system_prompt=system_prompt,
+            )
+            old_entrypoint_prompt = agent_prompt(question, retrieval_mode="hybrid")
+            combined_prompt = instructions + "\n\n" + old_entrypoint_prompt
+
+            self.assertIn("Workspace retrieval capabilities:", instructions)
+            self.assertIn("search-summary", combined_prompt)
+            self.assertNotIn("search-entity", combined_prompt)
+            self.assertNotIn("search-relation", combined_prompt)
+            self.assertNotIn("find --relation", combined_prompt)
+            self.assertIn("recursive lexical/FTS", combined_prompt)
+            self.assertNotIn("hybrid grep", combined_prompt)
+            self.assertNotIn("vector retrieval", combined_prompt)
+
     def test_search_handles_punctuation_heavy_enterprise_identifiers(self):
         with tempfile.TemporaryDirectory() as tmp:
             from pageindex.filesystem import PageIndexFileSystem
@@ -1028,6 +1143,123 @@ class EnterpriseRAGFileSystemTest(unittest.TestCase):
             self.assertEqual(find_entity_alias["data"][0]["external_id"], "dsid_entity_semantic")
             self.assertEqual(find_relation_alias["data"][0]["external_id"], "dsid_relation_semantic")
 
+    def test_summary_only_capabilities_do_not_expose_entity_relation_tools(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            from pageindex.filesystem import PIFSCommandExecutor, PageIndexFileSystem
+            from pageindex.filesystem.commands import PIFSCommandError
+            from pageindex.filesystem.hybrid_projection import (
+                HybridProjectionSearchBackend,
+                INDEX_BY_CHANNEL,
+            )
+            from pageindex.filesystem.semantic_index import (
+                SQLiteVecSemanticIndex,
+                SemanticIndexRecord,
+            )
+
+            class StaticEmbedder:
+                def embed(self, texts):
+                    return [[1.0, 0.0, 0.0] for _ in texts]
+
+            filesystem = PageIndexFileSystem(workspace=Path(tmp) / "workspace")
+            filesystem.register_file(
+                storage_uri="file:///tmp/summary-only.json",
+                source_path="github/redwood/summary-only.json",
+                folder_path="/semantic/topics/api-input/multipart",
+                external_id="dsid_summary_only",
+                title="Summary only vector doc",
+                metadata={"source_type": "github"},
+                content="The document text is intentionally lexical-only evidence.",
+            )
+            index_dir = Path(tmp) / "projection-index"
+            summary_index = SQLiteVecSemanticIndex(
+                index_dir / f"{INDEX_BY_CHANNEL['summary']}.sqlite"
+            )
+            summary_index.reset(dimension=3, metadata={"channel": "summary"})
+            summary_index.upsert_many(
+                [
+                    SemanticIndexRecord(
+                        file_ref="dsid_summary_only",
+                        external_id="dsid_summary_only",
+                        source_type="github",
+                        source_path="github/redwood/summary-only.json",
+                        title="Summary only vector doc",
+                        text="summary vector-only signal",
+                        vector=[1.0, 0.0, 0.0],
+                        metadata={"source_type": "github"},
+                    )
+                ]
+            )
+            filesystem.semantic_retrieval_backend = HybridProjectionSearchBackend(
+                index_dir,
+                embedder=StaticEmbedder(),
+                embedding_provider="test",
+                embedding_model="static",
+                embedding_dimensions=3,
+                embedding_cache_path=Path(tmp) / "embedding_cache.sqlite",
+                fetch_multiplier=1,
+            )
+            executor = PIFSCommandExecutor(filesystem, json_output=True)
+
+            capabilities = filesystem.retrieval_capabilities()
+            command_surfaces = executor.describe_available_command_surfaces()
+            summary = json.loads(executor.execute('search-summary "vector-only signal" /'))
+            blocked = json.loads(executor.execute('grep -R "vector-only signal" /semantic'))
+            shell_blocked = PIFSCommandExecutor(filesystem).execute(
+                'grep -R "vector-only signal" /semantic'
+            )
+
+            self.assertEqual(capabilities["semantic"]["channels"], ["summary"])
+            self.assertIn("search-summary", executor.allowed_commands())
+            self.assertNotIn("search-entity", executor.allowed_commands())
+            self.assertNotIn("search-relation", executor.allowed_commands())
+            self.assertNotIn("semantic-grep", executor.allowed_commands())
+            self.assertIn("search-summary", command_surfaces)
+            self.assertNotIn("search-entity", command_surfaces)
+            self.assertNotIn("search-relation", command_surfaces)
+            self.assertEqual(summary["data"]["data"][0]["external_id"], "dsid_summary_only")
+            self.assertEqual(blocked["data"]["mode"], "limited")
+            self.assertIn("search-summary", blocked["data"]["hint"])
+            self.assertNotIn("search-entity", blocked["data"]["hint"])
+            self.assertNotIn("search-relation", blocked["data"]["hint"])
+            self.assertNotIn("semantic-grep", blocked["data"]["hint"])
+            self.assertIn("search-summary", shell_blocked)
+            self.assertNotIn("search-entity", shell_blocked)
+            self.assertNotIn("search-relation", shell_blocked)
+            with self.assertRaises(PIFSCommandError):
+                executor.execute('search-entity "AuditService" /semantic')
+            with self.assertRaises(PIFSCommandError):
+                executor.execute('search-relation "AuditService emits event" /semantic')
+
+    def test_grep_recursive_does_not_use_semantic_prefilter(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            from pageindex.filesystem import PIFSCommandExecutor, PageIndexFileSystem
+
+            filesystem = PageIndexFileSystem(workspace=Path(tmp) / "workspace")
+            filesystem.register_file(
+                storage_uri="file:///tmp/vector-only.json",
+                source_path="github/redwood/vector-only.json",
+                folder_path="/github/redwood",
+                external_id="dsid_vector_only",
+                title="Vector only candidate",
+                metadata={"source_type": "github"},
+                content="The raw text never mentions the semantic-only phrase.",
+            )
+            backend = SummaryOnlyBackend("dsid_vector_only")
+            filesystem.semantic_retrieval_backend = backend
+            executor = PIFSCommandExecutor(filesystem, json_output=True)
+
+            grepped = json.loads(executor.execute('grep -R "astral checksum" /github/redwood'))
+
+            self.assertEqual(grepped["data"]["mode"], "files")
+            self.assertEqual(grepped["data"]["data"], [])
+            self.assertEqual(backend.calls, [])
+
+            summary = json.loads(executor.execute('search-summary "astral checksum" /github'))
+
+            self.assertEqual(summary["data"]["data"][0]["external_id"], "dsid_vector_only")
+            self.assertIn("astral checksum", summary["data"]["data"][0]["text"])
+            self.assertEqual(backend.calls[0][0], "search_channel")
+
     def test_pifs_command_executor_defaults_to_shell_like_text(self):
         with tempfile.TemporaryDirectory() as tmp:
             from pageindex.filesystem import PIFSCommandExecutor, PageIndexFileSystem
@@ -1120,7 +1352,8 @@ class EnterpriseRAGFileSystemTest(unittest.TestCase):
             self.assertIn("# grep -R skipped for broad folder: /semantic", broad)
             self.assertIn("# grep -R skipped for broad folder: /semantic", broad_case)
             self.assertIn("deeper than 2 levels or has more than 10 files", broad)
-            self.assertIn("semantic-grep -R", broad)
+            self.assertIn("narrow with ls/tree/find --where", broad)
+            self.assertNotIn("semantic-grep -R", broad)
             self.assertNotIn("dsid_multipart_limits", broad)
             self.assertNotIn("ref_1", broad)
             self.assertIn("/semantic", tree)
@@ -1170,12 +1403,14 @@ class EnterpriseRAGFileSystemTest(unittest.TestCase):
             self.assertEqual(blocked["data"]["sampled_file_count"], 10)
             self.assertTrue(blocked["data"]["folder_depth_exceeds_limit"])
             self.assertFalse(blocked["data"]["file_count_exceeds_limit"])
-            self.assertIn("semantic-grep -R", blocked["data"]["hint"])
-            self.assertIn("search-summary", blocked["data"]["hint"])
+            self.assertIn("narrow first", blocked["data"]["hint"])
+            self.assertNotIn("semantic-grep -R", blocked["data"]["hint"])
+            self.assertNotIn("search-summary", blocked["data"]["hint"])
             self.assertEqual(leaf["data"]["mode"], "files")
             self.assertTrue(leaf["data"]["data"])
             self.assertIn("# grep -R skipped for broad folder: /semantic", shell_blocked)
-            self.assertIn("semantic-grep -R", shell_blocked)
+            self.assertIn("narrow with ls/tree/find --where", shell_blocked)
+            self.assertNotIn("semantic-grep -R", shell_blocked)
 
     def test_recursive_grep_limits_shallow_large_folder_scope(self):
         with tempfile.TemporaryDirectory() as tmp:

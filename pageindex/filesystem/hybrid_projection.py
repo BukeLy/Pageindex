@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from .semantic_index import SQLiteVecSemanticIndex, SemanticSearchResult
+from .semantic_index import SQLiteVecSemanticIndex, SemanticIndexError, SemanticSearchResult
 
 
 INDEX_BY_CHANNEL = {
@@ -125,12 +125,19 @@ class HybridProjectionSearchBackend:
         if not query:
             return []
         projection = heuristic_query_projection(query)
+        channels = tuple(
+            channel
+            for channel in HYBRID_ENTITY_RELATION_CHANNELS
+            if self._channel_document_count(channel) > 0
+        )
+        if not channels:
+            return []
         channel_hits = self._search_channels(
             query=query,
             projection=projection,
             limit=max(limit, self.per_channel_limit),
             filters=filters,
-            channels=HYBRID_ENTITY_RELATION_CHANNELS,
+            channels=channels,
         )
         return aggregate_hybrid_entity_relation(channel_hits, projection)[:limit]
 
@@ -144,6 +151,8 @@ class HybridProjectionSearchBackend:
     ) -> list[HybridProjectionCandidate]:
         if channel not in SEMANTIC_TOOL_CHANNELS:
             raise ValueError(f"unsupported semantic channel: {channel}")
+        if channel not in self.available_channels():
+            return []
         query = normalize_text(query)
         if not query:
             return []
@@ -163,6 +172,13 @@ class HybridProjectionSearchBackend:
         )
         return rank_single_semantic_channel(channel, results)
 
+    def available_channels(self) -> tuple[str, ...]:
+        return tuple(
+            channel
+            for channel in SEMANTIC_TOOL_CHANNELS
+            if self._channel_document_count(channel) > 0
+        )
+
     def info(self) -> dict[str, Any]:
         return {
             "index_dir": str(self.index_dir),
@@ -170,11 +186,38 @@ class HybridProjectionSearchBackend:
             "embedding_model": self.embedding_model,
             "embedding_dimensions": self.embedding_dimensions,
             "strategy": "hybrid_entity_relation_vector",
+            "available_channels": list(self.available_channels()),
             "channels": {
-                channel: index.info()
-                for channel, index in self.indexes.items()
+                channel: self._safe_channel_info(channel)
+                for channel in self.indexes
             },
         }
+
+    def _channel_document_count(self, channel: str) -> int:
+        info = self._safe_channel_info(channel)
+        if not info.get("available"):
+            return 0
+        return int(info.get("document_count") or 0)
+
+    def _safe_channel_info(self, channel: str) -> dict[str, Any]:
+        index = self.indexes[channel]
+        if not index.db_path.exists():
+            return {
+                "db_path": str(index.db_path),
+                "available": False,
+                "document_count": 0,
+                "error": "index file is missing",
+            }
+        try:
+            info = index.info()
+        except (OSError, sqlite3.Error, SemanticIndexError) as exc:
+            return {
+                "db_path": str(index.db_path),
+                "available": False,
+                "document_count": 0,
+                "error": str(exc),
+            }
+        return {**info, "available": int(info.get("document_count") or 0) > 0}
 
     def _search_channels(
         self,

@@ -115,6 +115,57 @@ def serialize_agent_final_output(value: Any) -> str:
     return str(value)
 
 
+def build_agent_initial_context(
+    filesystem: PageIndexFileSystem,
+    *,
+    root: str = "/",
+    executor: PIFSCommandExecutor | None = None,
+    query_context: str | None = None,
+) -> str:
+    executor = executor or PIFSCommandExecutor(
+        filesystem,
+        json_output=False,
+        query_context=query_context,
+    )
+    schema = filesystem._metadata_schema()
+    schema_fields = schema.get("fields", {})
+    schema_sample = dict(list(schema_fields.items())[:50])
+    return "\n".join(
+        [
+            f"Root path: {root}",
+            "Top-level listing:",
+            executor.execute(f"ls {root}"),
+            "Metadata schema summary:",
+            json.dumps(
+                {
+                    "field_count": len(schema_fields),
+                    "sample_fields": schema_sample,
+                },
+                ensure_ascii=False,
+            ),
+            "Workspace retrieval capabilities:",
+            executor.describe_available_command_surfaces(),
+        ]
+    )
+
+
+def build_pifs_agent_instructions(
+    filesystem: PageIndexFileSystem,
+    *,
+    root: str = "/",
+    system_prompt: str | None = None,
+    executor: PIFSCommandExecutor | None = None,
+    query_context: str | None = None,
+) -> str:
+    initial_context = build_agent_initial_context(
+        filesystem,
+        root=root,
+        executor=executor,
+        query_context=query_context,
+    )
+    return (system_prompt or AGENT_SYSTEM_PROMPT).strip() + "\n\n" + initial_context
+
+
 class PIFSAgentStreamObserver:
     def __init__(
         self,
@@ -280,23 +331,11 @@ def run_pifs_agent(
         query_context=extract_agent_question_text(question),
     )
     observer = PIFSAgentStreamObserver(normalized_stream_mode, stream_log=agent_log)
-    schema = filesystem._metadata_schema()
-    schema_fields = schema.get("fields", {})
-    schema_sample = dict(list(schema_fields.items())[:50])
-    initial_context = "\n".join(
-        [
-            f"Root path: {root}",
-            "Top-level listing:",
-            executor.execute(f"ls {root}"),
-            "Metadata schema summary:",
-            json.dumps(
-                {
-                    "field_count": len(schema_fields),
-                    "sample_fields": schema_sample,
-                },
-                ensure_ascii=False,
-            ),
-        ]
+    instructions = build_pifs_agent_instructions(
+        filesystem,
+        root=root,
+        system_prompt=system_prompt,
+        executor=executor,
     )
 
     @function_tool
@@ -341,7 +380,7 @@ def run_pifs_agent(
 
     agent_kwargs: dict[str, Any] = {
         "name": "PageIndexFileSystem",
-        "instructions": (system_prompt or AGENT_SYSTEM_PROMPT).strip() + "\n\n" + initial_context,
+        "instructions": instructions,
         "tools": [bash],
         "model": model_config,
     }

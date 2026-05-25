@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
-from .core import PageIndexFileSystem
+from .core import SEMANTIC_GREP_CHANNELS, SEMANTIC_RETRIEVAL_CHANNELS, PageIndexFileSystem
 
 
 class PIFSCommandError(ValueError):
@@ -19,12 +19,11 @@ class PIFSCommandError(ValueError):
 class PIFSCommandExecutor:
     FORBIDDEN_SUBSTRINGS = (";", "`", "$(", "||", "\n", "\r")
     FORBIDDEN_TOKENS = {"|", ">", "<", ">>", "<<", "&"}
-    ALLOWED_COMMANDS = {
+    BASE_ALLOWED_COMMANDS = {
         "ls",
         "tree",
         "find",
         "grep",
-        "semantic-grep",
         "cat",
         "stat",
         "mkdir",
@@ -32,10 +31,17 @@ class PIFSCommandExecutor:
         "head",
         "tail",
         "sed",
-        "search-summary",
-        "search-entity",
-        "search-relation",
     }
+    SEMANTIC_CHANNEL_COMMANDS = {
+        "summary": "search-summary",
+        "entity": "search-entity",
+        "relation": "search-relation",
+    }
+    ALLOWED_COMMANDS = (
+        BASE_ALLOWED_COMMANDS
+        | {"semantic-grep"}
+        | set(SEMANTIC_CHANNEL_COMMANDS.values())
+    )
     ALLOWED_PIPE_FILTERS = {"head", "tail", "grep", "sed"}
     COMMAND_METHODS = {
         "search-summary": "_cmd_search_summary",
@@ -47,7 +53,6 @@ class PIFSCommandExecutor:
     MAX_LS_RENDER_FILES = 25
     MAX_STAT_METADATA_FIELDS = 8
     SEMANTIC_GREP_VECTOR_CANDIDATE_LIMIT = 20
-    SEMANTIC_GREP_CHANNELS = ("entity", "relation")
     GREP_RECURSIVE_FOLDER_DEPTH_LIMIT = 2
     GREP_RECURSIVE_FOLDER_FILE_LIMIT = 10
 
@@ -61,6 +66,55 @@ class PIFSCommandExecutor:
         self.filesystem = filesystem
         self.json_output = json_output
         self.query_context = query_context
+
+    def allowed_commands(self) -> set[str]:
+        commands = set(self.BASE_ALLOWED_COMMANDS)
+        semantic_channels = set(self.filesystem.semantic_retrieval_channels())
+        for channel in SEMANTIC_RETRIEVAL_CHANNELS:
+            if channel in semantic_channels:
+                commands.add(self.SEMANTIC_CHANNEL_COMMANDS[channel])
+        if any(channel in semantic_channels for channel in SEMANTIC_GREP_CHANNELS):
+            commands.add("semantic-grep")
+        return commands
+
+    def command_capabilities(self) -> dict[str, Any]:
+        return {
+            "allowed_commands": sorted(self.allowed_commands()),
+            "retrieval": self.filesystem.retrieval_capabilities(),
+        }
+
+    def describe_available_command_surfaces(self) -> str:
+        capabilities = self.filesystem.retrieval_capabilities()
+        semantic = capabilities["semantic"]
+        semantic_channels = set(semantic["channels"])
+        lines = [
+            "Available command surfaces for this workspace:",
+            "- ls/tree: folder browsing",
+            "- find --where: exact/canonical metadata DSL filtering",
+            "- grep -R: recursive lexical/FTS search only; semantic vector prefilter is disabled",
+        ]
+        if "entity" in semantic_channels:
+            lines.append("- find --name: entity semantic candidate discovery alias")
+        if "relation" in semantic_channels:
+            lines.append("- find --relation: relation semantic candidate discovery alias")
+        for channel in SEMANTIC_RETRIEVAL_CHANNELS:
+            if channel not in semantic_channels:
+                continue
+            lines.append(
+                f"- {self.SEMANTIC_CHANNEL_COMMANDS[channel]}: "
+                f"{channel} semantic vector candidate discovery"
+            )
+        semantic_grep_channels = semantic.get("semantic_grep_channels") or []
+        if semantic_grep_channels:
+            lines.append(
+                "- semantic-grep -R: semantic candidates from "
+                + ", ".join(semantic_grep_channels)
+                + " indexes followed by real line matching"
+            )
+        if not semantic.get("commands"):
+            lines.append("- semantic vector commands: none available in this workspace")
+        lines.append("- grep <query> <ref>, cat, stat: evidence inspection")
+        return "\n".join(lines)
 
     def execute(self, command: str) -> str:
         try:
@@ -97,7 +151,7 @@ class PIFSCommandExecutor:
         else:
             json_output = self.json_output
         name = tokens[0]
-        if name not in self.ALLOWED_COMMANDS:
+        if name not in self.allowed_commands():
             raise PIFSCommandError(f"Unsupported command: {name}")
         method_name = self.COMMAND_METHODS.get(name, f"_cmd_{name}")
         data = getattr(self, method_name)(tokens[1:])
@@ -207,7 +261,11 @@ class PIFSCommandExecutor:
             if where:
                 return self.filesystem.find_folders(path, metadata_filter=where, limit=limit)
             return self.filesystem.browse(path, recursive=True, limit=limit)["folders"]
-        if relation and self.filesystem.has_semantic_retrieval_backend:
+        if relation:
+            if not self.filesystem.has_semantic_channel("relation"):
+                raise PIFSCommandError(
+                    "find --relation requires a relation semantic index in this workspace"
+                )
             return self.filesystem.search_semantic_channel(
                 "relation",
                 self._semantic_retrieval_query(relation),
@@ -215,7 +273,7 @@ class PIFSCommandExecutor:
                 metadata_filter=where,
                 limit=limit,
             )
-        if name and self.filesystem.has_semantic_retrieval_backend:
+        if name and self.filesystem.has_semantic_channel("entity"):
             return self.filesystem.search_semantic_channel(
                 "entity",
                 self._semantic_retrieval_query(name),
@@ -510,8 +568,11 @@ class PIFSCommandExecutor:
             i += 1
         if not recursive:
             raise PIFSCommandError("semantic-grep requires -R/--recursive")
-        if not self.filesystem.has_semantic_retrieval_backend:
-            raise PIFSCommandError("semantic retrieval backend is not configured")
+        channels = self._semantic_grep_channels()
+        if not channels:
+            raise PIFSCommandError(
+                "semantic-grep is not available; entity/relation semantic indexes are not configured"
+            )
         if not positionals:
             raise PIFSCommandError("semantic-grep requires a query")
         query = positionals[0]
@@ -523,11 +584,14 @@ class PIFSCommandExecutor:
             query,
             metadata_filter=where,
             limit=limit,
+            channels=channels,
         )
 
     def _cmd_semantic_channel(self, channel: str, args: list[str]) -> Any:
-        if not self.filesystem.has_semantic_retrieval_backend:
-            raise PIFSCommandError("semantic retrieval backend is not configured")
+        if not self.filesystem.has_semantic_channel(channel):
+            raise PIFSCommandError(
+                f"search-{channel} is not available; {channel} semantic index is not configured"
+            )
         where = None
         limit = 10
         positionals = []
@@ -572,10 +636,11 @@ class PIFSCommandExecutor:
         *,
         metadata_filter: str | None,
         limit: int,
+        channels: tuple[str, ...],
     ) -> dict[str, Any]:
         vector_query = str(query or "").strip()
         candidate_debug: dict[str, Any] = {}
-        for channel in self.SEMANTIC_GREP_CHANNELS:
+        for channel in channels:
             channel_results = self.filesystem.search_semantic_channel(
                 channel,
                 vector_query,
@@ -602,7 +667,7 @@ class PIFSCommandExecutor:
                     "mode": "files",
                     "query": query,
                     "scope": folder_path,
-                    "retrieval": "semantic_grep_entity_then_relation",
+                    "retrieval": "semantic_grep_" + "_then_".join(channels),
                     "candidate_limit_per_channel": self.SEMANTIC_GREP_VECTOR_CANDIDATE_LIMIT,
                     "matched_channel": channel,
                     "candidate_debug": candidate_debug,
@@ -612,12 +677,16 @@ class PIFSCommandExecutor:
             "mode": "files",
             "query": query,
             "scope": folder_path,
-            "retrieval": "semantic_grep_entity_then_relation",
+            "retrieval": "semantic_grep_" + "_then_".join(channels),
             "candidate_limit_per_channel": self.SEMANTIC_GREP_VECTOR_CANDIDATE_LIMIT,
             "matched_channel": "",
             "candidate_debug": candidate_debug,
             "data": [],
         }
+
+    def _semantic_grep_channels(self) -> tuple[str, ...]:
+        available = set(self.filesystem.semantic_retrieval_channels())
+        return tuple(channel for channel in SEMANTIC_GREP_CHANNELS if channel in available)
 
     def _render(self, data: Any, *, json_output: bool, command_name: str) -> str:
         jsonable = self._jsonable(data)
@@ -716,6 +785,7 @@ class PIFSCommandExecutor:
         if mode == "limited":
             query = str(data.get("query") or "")
             scope = str(data.get("scope") or "/")
+            suggested_commands = list(data.get("suggested_commands") or [])
             lines = [
                 f"# grep -R skipped for broad folder: {scope}",
                 (
@@ -723,9 +793,12 @@ class PIFSCommandExecutor:
                     f"than {data.get('folder_depth_limit', self.GREP_RECURSIVE_FOLDER_DEPTH_LIMIT)} "
                     f"levels or has more than {data.get('file_count_limit', self.GREP_RECURSIVE_FOLDER_FILE_LIMIT)} files"
                 ),
-                f"# suggested: semantic-grep -R {shlex.quote(query)} {shlex.quote(scope)}",
-                "# also try: search-summary, search-entity, search-relation, or narrow with ls/tree/find --where",
             ]
+            if suggested_commands:
+                lines.extend(f"# suggested: {command}" for command in suggested_commands)
+                lines.append("# also try: narrow with ls/tree/find --where")
+            else:
+                lines.append("# suggested: narrow with ls/tree/find --where")
             if data.get("sample_deep_folder_path"):
                 lines.append(f"# deep descendant example: {data['sample_deep_folder_path']}/")
             return "\n".join(lines)
@@ -826,6 +899,12 @@ class PIFSCommandExecutor:
             or stats["file_count_exceeds_limit"]
         ):
             return None
+        suggested_commands = self._semantic_alternative_commands(query, folder_path)
+        semantic_hint = (
+            "Use " + "; ".join(suggested_commands) + " to discover candidates. "
+            if suggested_commands
+            else ""
+        )
         return {
             "mode": "limited",
             "query": query,
@@ -836,14 +915,25 @@ class PIFSCommandExecutor:
             "file_count_exceeds_limit": stats["file_count_exceeds_limit"],
             "sampled_file_count": stats["sampled_file_count"],
             "sample_deep_folder_path": stats["sample_deep_folder_path"],
+            "suggested_commands": suggested_commands,
             "hint": (
                 "Default grep -R remains lexical and is intentionally limited for broad deep folders "
                 "because the SQLite FTS path cannot guarantee fast recursive search at this scope. "
-                f"Use semantic-grep -R {shlex.quote(query)} {shlex.quote(folder_path)} for semantic "
-                "candidate discovery followed by real line matching, or use search-summary, "
-                "search-entity, search-relation, ls/tree, or find --where to narrow first."
+                f"{semantic_hint}Use ls/tree or find --where to narrow first."
             ),
         }
+
+    def _semantic_alternative_commands(self, query: str, folder_path: str) -> list[str]:
+        commands = []
+        quoted_query = shlex.quote(query)
+        quoted_folder = shlex.quote(folder_path)
+        if self._semantic_grep_channels():
+            commands.append(f"semantic-grep -R {quoted_query} {quoted_folder}")
+        for channel in SEMANTIC_RETRIEVAL_CHANNELS:
+            if self.filesystem.has_semantic_channel(channel):
+                command = self.SEMANTIC_CHANNEL_COMMANDS[channel]
+                commands.append(f"{command} {quoted_query} {quoted_folder}")
+        return commands
 
     def _rank_child_folders(
         self,
