@@ -381,6 +381,9 @@ class PIFSCommandExecutor:
 
     def _cmd_cp(self, args: list[str]) -> Any:
         metadata: dict[str, Any] = {}
+        derived_metadata: dict[str, Any] = {}
+        metadata_generation_policy = None
+        metadata_generation_status = None
         title = None
         external_id = None
         source_path = None
@@ -392,6 +395,15 @@ class PIFSCommandExecutor:
             if arg == "--metadata-json":
                 i += 1
                 metadata = json.loads(args[i])
+            elif arg == "--derived-metadata-json":
+                i += 1
+                derived_metadata = json.loads(args[i])
+            elif arg == "--metadata-policy-json":
+                i += 1
+                metadata_generation_policy = json.loads(args[i])
+            elif arg == "--metadata-generation-status":
+                i += 1
+                metadata_generation_status = args[i]
             elif arg == "--title":
                 i += 1
                 title = args[i]
@@ -428,6 +440,9 @@ class PIFSCommandExecutor:
             external_id=external_id,
             title=title,
             content=content,
+            derived_metadata=derived_metadata,
+            metadata_generation_policy=metadata_generation_policy,
+            metadata_generation_status=metadata_generation_status,
         )
         return {"folder_path": folder_path, "file": self.filesystem._stat(file_ref)}
 

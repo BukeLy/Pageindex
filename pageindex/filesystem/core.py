@@ -14,6 +14,31 @@ from .store import (
 )
 from .types import OpenResult, SearchResult
 
+DEFAULT_METADATA_GENERATION_FIELDS = {
+    "summary": True,
+    "doc_type": True,
+    "domain": True,
+    "topic": True,
+    "entity": False,
+    "relation": False,
+}
+
+DEFAULT_DERIVED_METADATA_FIELD_TYPES = {
+    "summary": "string",
+    "doc_type": "string",
+    "domain": "string",
+    "topic": "string",
+    "entity": "string",
+    "relation": "string",
+}
+
+METADATA_GENERATION_STATUSES = {
+    "pending_submit",
+    "pending_generate",
+    "generated",
+    "failed",
+}
+
 
 class PageIndexFileSystem:
     def __init__(self, workspace: Union[str, Path], *, semantic_retrieval_backend: Any | None = None):
@@ -35,6 +60,9 @@ class PageIndexFileSystem:
         content: str = "",
         content_type: str = "text/plain",
         source_type: Optional[str] = None,
+        derived_metadata: Optional[dict[str, Any]] = None,
+        metadata_generation_policy: Optional[dict[str, Any]] = None,
+        metadata_generation_status: Optional[str] = None,
     ) -> str:
         return self.register_files(
             [
@@ -48,14 +76,25 @@ class PageIndexFileSystem:
                     "content": content,
                     "content_type": content_type,
                     "source_type": source_type,
+                    "derived_metadata": derived_metadata,
+                    "metadata_generation_policy": metadata_generation_policy,
+                    "metadata_generation_status": metadata_generation_status,
                 }
             ]
         )[0]
 
     def register_files(self, files: list[dict[str, Any]]) -> list[str]:
         records = [self._prepare_file_record(file) for file in files]
+        self._register_generation_policy_schema(records)
         self.store.insert_files(records)
         return [record["file_ref"] for record in records]
+
+    @classmethod
+    def default_metadata_generation_policy(cls) -> dict[str, Any]:
+        return {
+            "fields": dict(DEFAULT_METADATA_GENERATION_FIELDS),
+            "projection_indexes": {"summary": True},
+        }
 
     def browse(
         self,
@@ -142,6 +181,8 @@ class PageIndexFileSystem:
                     folder_path=folder_path,
                     folder_paths=folder_paths,
                     metadata=row["metadata"],
+                    derived_metadata=row["derived_metadata"],
+                    metadata_generation=row["metadata_generation"],
                     source_path=row["source_path"],
                     id=row["id"],
                     document_id=row["document_id"],
@@ -251,6 +292,21 @@ class PageIndexFileSystem:
         storage_uri = file["storage_uri"]
         source_path = str(file["source_path"]).strip("/")
         metadata = file.get("metadata") or {}
+        derived_metadata = file.get("derived_metadata") or {}
+        if not isinstance(metadata, dict):
+            raise ValueError("metadata must be a JSON object")
+        if not isinstance(derived_metadata, dict):
+            raise ValueError("derived_metadata must be a JSON object")
+        generation_policy = self._normalize_metadata_generation_policy(
+            file.get("metadata_generation_policy"),
+            derived_metadata=derived_metadata,
+        )
+        generation_state = self._metadata_generation_state(
+            generation_policy,
+            derived_metadata=derived_metadata,
+            status=file.get("metadata_generation_status"),
+        )
+        indexed_metadata = self._merge_metadata_values(metadata, derived_metadata)
         external_id = file.get("external_id")
         content = file.get("content") or ""
         content_type = file.get("content_type") or "text/plain"
@@ -272,6 +328,8 @@ class PageIndexFileSystem:
                     "source_path": source_path,
                     "folder_path": folder_path,
                     "metadata": metadata,
+                    "derived_metadata": derived_metadata,
+                    "metadata_generation": generation_state,
                 },
             )
         descriptor = self._build_descriptor(title, metadata)
@@ -291,7 +349,12 @@ class PageIndexFileSystem:
             "pageindex_tree_status": "not_built",
             "metadata": metadata,
             "metadata_json": json.dumps(metadata, ensure_ascii=False),
-            "metadata_text": metadata_text(metadata),
+            "derived_metadata": derived_metadata,
+            "derived_metadata_json": json.dumps(derived_metadata, ensure_ascii=False),
+            "metadata_generation": generation_state,
+            "metadata_generation_json": json.dumps(generation_state, ensure_ascii=False),
+            "indexed_metadata": indexed_metadata,
+            "metadata_text": metadata_text(indexed_metadata),
             "folder_path": folder_path,
             "content": fts_content,
             "skip_fts": bool(file.get("skip_fts", False)),
@@ -407,6 +470,8 @@ class PageIndexFileSystem:
                     folder_path=folder_path,
                     folder_paths=folder_paths,
                     metadata=entry.metadata,
+                    derived_metadata=entry.derived_metadata,
+                    metadata_generation=entry.metadata_generation,
                     source_path=entry.source_path,
                     id=entry.external_id or file_ref,
                     document_id=entry.external_id,
@@ -434,6 +499,179 @@ class PageIndexFileSystem:
     def _build_descriptor(title: str, metadata: dict[str, Any]) -> str:
         source = metadata.get("source_type") or metadata.get("repo") or metadata.get("channel")
         return f"{title} ({source})" if source else title
+
+    def _register_generation_policy_schema(self, records: list[dict[str, Any]]) -> None:
+        fields: dict[str, dict[str, str]] = {}
+        for record in records:
+            policy_fields = record["metadata_generation"]["policy"]["fields"]
+            for name, requested in policy_fields.items():
+                if requested:
+                    fields[name] = {
+                        "type": DEFAULT_DERIVED_METADATA_FIELD_TYPES.get(
+                            name,
+                            self._infer_metadata_field_type(
+                                record.get("derived_metadata", {}).get(name)
+                            ),
+                        )
+                    }
+            for name, value in record.get("derived_metadata", {}).items():
+                fields.setdefault(name, {"type": self._infer_metadata_field_type(value)})
+        if fields:
+            self.metadata.register_schema({"fields": fields}, source="derived")
+
+    @classmethod
+    def _normalize_metadata_generation_policy(
+        cls,
+        policy: Optional[dict[str, Any]],
+        *,
+        derived_metadata: dict[str, Any],
+    ) -> dict[str, Any]:
+        fields = dict(DEFAULT_METADATA_GENERATION_FIELDS)
+        field_statuses: dict[str, str] = {}
+        mode = None
+        top_level_status = None
+        if policy is not None:
+            if not isinstance(policy, dict):
+                raise ValueError("metadata_generation_policy must be a JSON object")
+            raw_fields = policy.get("fields")
+            if raw_fields is None:
+                raw_fields = {
+                    name: declaration
+                    for name, declaration in policy.items()
+                    if name not in {"mode", "status", "projection_indexes"}
+                }
+            if not isinstance(raw_fields, dict):
+                raise ValueError("metadata_generation_policy fields must be a JSON object")
+            for name, declaration in raw_fields.items():
+                name = str(name)
+                if isinstance(declaration, bool):
+                    fields[name] = declaration
+                    continue
+                if isinstance(declaration, dict):
+                    fields[name] = bool(
+                        declaration.get("enabled", declaration.get("requested", True))
+                    )
+                    field_status = declaration.get("status")
+                    if field_status is not None:
+                        cls._validate_metadata_generation_status(str(field_status))
+                        field_statuses[name] = str(field_status)
+                    continue
+                raise ValueError(f"Invalid metadata generation policy for field: {name}")
+            mode = policy.get("mode")
+            top_level_status = policy.get("status")
+            if top_level_status is not None:
+                cls._validate_metadata_generation_status(str(top_level_status))
+        for name in derived_metadata:
+            fields.setdefault(name, True)
+        normalized: dict[str, Any] = {
+            "fields": fields,
+            "projection_indexes": {"summary": bool(fields.get("summary", False))},
+        }
+        if field_statuses:
+            normalized["field_statuses"] = field_statuses
+        if mode:
+            normalized["mode"] = str(mode)
+        if top_level_status:
+            normalized["status"] = str(top_level_status)
+        return normalized
+
+    @classmethod
+    def _metadata_generation_state(
+        cls,
+        policy: dict[str, Any],
+        *,
+        derived_metadata: dict[str, Any],
+        status: Optional[str],
+    ) -> dict[str, Any]:
+        explicit_status = status or policy.get("status")
+        if explicit_status is not None:
+            explicit_status = str(explicit_status)
+            cls._validate_metadata_generation_status(explicit_status)
+        field_statuses = policy.get("field_statuses", {})
+        fields: dict[str, dict[str, Any]] = {}
+        for name, requested in policy["fields"].items():
+            if not requested:
+                fields[name] = {"requested": False}
+                continue
+            field_status = field_statuses.get(name)
+            if field_status is None:
+                field_status = explicit_status
+            if field_status is None:
+                field_status = "generated" if name in derived_metadata else "pending_generate"
+            fields[name] = {"requested": True, "status": field_status}
+
+        requested_statuses = [
+            item["status"]
+            for item in fields.values()
+            if item.get("requested") and item.get("status")
+        ]
+        aggregate_status = explicit_status or cls._aggregate_generation_status(requested_statuses)
+        policy_summary = {
+            "fields": dict(policy["fields"]),
+            "projection_indexes": dict(policy.get("projection_indexes", {})),
+        }
+        if "mode" in policy:
+            policy_summary["mode"] = policy["mode"]
+        state = {
+            "status": aggregate_status,
+            "policy": policy_summary,
+            "fields": fields,
+            "projection_indexes": {},
+        }
+        if policy.get("projection_indexes", {}).get("summary"):
+            state["projection_indexes"]["summary"] = {
+                "requested": True,
+                "status": fields.get("summary", {}).get("status", aggregate_status),
+            }
+        return state
+
+    @staticmethod
+    def _aggregate_generation_status(statuses: list[str]) -> str:
+        if not statuses:
+            return "generated"
+        for status in ("failed", "pending_submit", "pending_generate"):
+            if status in statuses:
+                return status
+        return "generated"
+
+    @staticmethod
+    def _validate_metadata_generation_status(status: str) -> None:
+        if status not in METADATA_GENERATION_STATUSES:
+            raise ValueError(f"Unsupported metadata generation status: {status}")
+
+    @classmethod
+    def _merge_metadata_values(
+        cls,
+        metadata: dict[str, Any],
+        derived_metadata: dict[str, Any],
+    ) -> dict[str, Any]:
+        merged = dict(metadata)
+        for name, value in derived_metadata.items():
+            if name not in merged:
+                merged[name] = value
+                continue
+            if merged[name] == value:
+                continue
+            merged[name] = cls._merge_metadata_value(merged[name], value)
+        return merged
+
+    @staticmethod
+    def _merge_metadata_value(raw_value: Any, derived_value: Any) -> Any:
+        values = raw_value if isinstance(raw_value, list) else [raw_value]
+        derived_values = derived_value if isinstance(derived_value, list) else [derived_value]
+        merged = list(values)
+        for item in derived_values:
+            if item not in merged:
+                merged.append(item)
+        return merged
+
+    @staticmethod
+    def _infer_metadata_field_type(value: Any) -> str:
+        if isinstance(value, bool):
+            return "boolean"
+        if isinstance(value, (int, float)):
+            return "number"
+        return "string"
 
     @staticmethod
     def _infer_source_type(source_path: str) -> Optional[str]:

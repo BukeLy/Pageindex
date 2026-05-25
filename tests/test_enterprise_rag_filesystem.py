@@ -96,7 +96,43 @@ class EnterpriseRAGFileSystemTest(unittest.TestCase):
             self.assertEqual(opened.end_line, 4)
             self.assertIn("private.bundle_verification.succeeded", opened.text)
 
-    def test_register_file_does_not_infer_metadata_schema(self):
+    def test_register_file_uses_default_metadata_generation_policy(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            from pageindex.filesystem import PIFSCommandExecutor, PageIndexFileSystem
+
+            filesystem = PageIndexFileSystem(workspace=Path(tmp) / "workspace")
+            filesystem.register_file(
+                storage_uri="file:///tmp/doc.json",
+                source_path="github/redwood/doc.json",
+                folder_path="/github/redwood",
+                external_id="dsid_default_policy",
+                title="Default policy",
+                metadata={"repo": "redwood"},
+                content="default policy document",
+            )
+
+            executor = PIFSCommandExecutor(filesystem, json_output=True)
+            stat = json.loads(executor.execute("stat dsid_default_policy"))["data"]
+            schema = json.loads(executor.execute("stat --schema /"))["data"]
+
+            policy_fields = stat["metadata_generation"]["policy"]["fields"]
+            self.assertEqual(stat["metadata_generation"]["status"], "pending_generate")
+            self.assertTrue(policy_fields["summary"])
+            self.assertTrue(policy_fields["doc_type"])
+            self.assertTrue(policy_fields["domain"])
+            self.assertTrue(policy_fields["topic"])
+            self.assertFalse(policy_fields["entity"])
+            self.assertFalse(policy_fields["relation"])
+            self.assertEqual(
+                stat["metadata_generation"]["projection_indexes"]["summary"]["status"],
+                "pending_generate",
+            )
+            self.assertEqual(
+                set(schema["fields"]),
+                {"doc_type", "domain", "summary", "topic"},
+            )
+
+    def test_register_file_does_not_infer_raw_metadata_schema(self):
         with tempfile.TemporaryDirectory() as tmp:
             from pageindex.filesystem import PIFSCommandExecutor, PageIndexFileSystem
             from pageindex.filesystem.metadata import MetadataQueryError
@@ -119,10 +155,126 @@ class EnterpriseRAGFileSystemTest(unittest.TestCase):
                 PIFSCommandExecutor(filesystem, json_output=True).execute("stat dsid_no_infer")
             )["data"]
 
-            self.assertEqual(schema["fields"], {})
+            self.assertEqual(
+                set(schema["fields"]),
+                {"doc_type", "domain", "summary", "topic"},
+            )
             self.assertEqual(stat["metadata"]["repo"], "redwood")
+            self.assertEqual(stat["derived_metadata"], {})
             with self.assertRaises(MetadataQueryError):
                 filesystem.search(None, metadata_filter={"repo": "redwood"})
+
+    def test_register_file_stores_derived_metadata_separately_and_indexes_it(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            from pageindex.filesystem import PIFSCommandExecutor, PageIndexFileSystem
+
+            filesystem = PageIndexFileSystem(workspace=Path(tmp) / "workspace")
+            filesystem.register_file(
+                storage_uri="file:///tmp/doc.json",
+                source_path="github/redwood/doc.json",
+                folder_path="/github/redwood",
+                external_id="dsid_generated_metadata",
+                title="Generated metadata",
+                metadata={"repo": "redwood"},
+                derived_metadata={
+                    "summary": "Audit logging PR summary.",
+                    "doc_type": "pull_request",
+                    "domain": "security",
+                    "topic": "audit logging",
+                },
+                content="generated metadata remains separate from raw metadata",
+            )
+
+            stat = json.loads(
+                PIFSCommandExecutor(filesystem, json_output=True).execute(
+                    "stat dsid_generated_metadata"
+                )
+            )["data"]
+            results = filesystem.search(None, metadata_filter={"domain": "security"})
+
+            self.assertEqual(stat["metadata"], {"repo": "redwood"})
+            self.assertEqual(stat["derived_metadata"]["domain"], "security")
+            self.assertEqual(stat["metadata_generation"]["status"], "generated")
+            self.assertEqual(
+                stat["metadata_generation"]["projection_indexes"]["summary"]["status"],
+                "generated",
+            )
+            self.assertEqual([result.external_id for result in results], ["dsid_generated_metadata"])
+            self.assertEqual(results[0].derived_metadata["doc_type"], "pull_request")
+
+    def test_raw_metadata_with_policy_field_names_is_not_llm_metadata(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            from pageindex.filesystem import PIFSCommandExecutor, PageIndexFileSystem
+
+            filesystem = PageIndexFileSystem(workspace=Path(tmp) / "workspace")
+            filesystem.register_file(
+                storage_uri="file:///tmp/doc.json",
+                source_path="github/redwood/doc.json",
+                folder_path="/github/redwood",
+                external_id="dsid_raw_metadata",
+                title="Raw metadata",
+                metadata={
+                    "summary": "source supplied note",
+                    "doc_type": "source_doc_type",
+                    "domain": "source_domain",
+                    "topic": "source_topic",
+                },
+                content="raw metadata document",
+            )
+
+            stat = json.loads(
+                PIFSCommandExecutor(filesystem, json_output=True).execute("stat dsid_raw_metadata")
+            )["data"]
+
+            self.assertEqual(stat["metadata"]["summary"], "source supplied note")
+            self.assertEqual(stat["derived_metadata"], {})
+            self.assertEqual(
+                stat["metadata_generation"]["fields"]["summary"]["status"],
+                "pending_generate",
+            )
+            self.assertEqual(
+                stat["metadata_generation"]["fields"]["doc_type"]["status"],
+                "pending_generate",
+            )
+
+    def test_batch_metadata_generation_status_is_optional_state(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            from pageindex.filesystem import PIFSCommandExecutor, PageIndexFileSystem
+
+            filesystem = PageIndexFileSystem(workspace=Path(tmp) / "workspace")
+            filesystem.register_file(
+                storage_uri="file:///tmp/doc.json",
+                source_path="github/redwood/doc.json",
+                folder_path="/github/redwood",
+                external_id="dsid_batch_pending",
+                title="Batch pending",
+                metadata={"repo": "redwood"},
+                metadata_generation_policy={
+                    "mode": "batch",
+                    "fields": {
+                        "summary": True,
+                        "doc_type": True,
+                        "domain": True,
+                        "topic": True,
+                        "entity": True,
+                        "relation": False,
+                    },
+                },
+                metadata_generation_status="pending_submit",
+                content="batch metadata generation state document",
+            )
+
+            stat = json.loads(
+                PIFSCommandExecutor(filesystem, json_output=True).execute("stat dsid_batch_pending")
+            )["data"]
+
+            self.assertEqual(stat["metadata_generation"]["status"], "pending_submit")
+            self.assertEqual(stat["metadata_generation"]["policy"]["mode"], "batch")
+            self.assertEqual(
+                stat["metadata_generation"]["fields"]["entity"]["status"],
+                "pending_submit",
+            )
+            self.assertFalse(stat["metadata_generation"]["fields"]["relation"]["requested"])
 
     def test_semantic_scope_parses_source_type_facet_folder(self):
         from pageindex.filesystem import PageIndexFileSystem
