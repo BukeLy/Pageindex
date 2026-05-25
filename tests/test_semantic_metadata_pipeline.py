@@ -40,6 +40,41 @@ def write_jsonl(path: Path, rows: list[dict]) -> None:
     )
 
 
+def write_legacy_schema_run_artifacts(run_dir: Path) -> None:
+    write_jsonl(run_dir / "metadata.normalized.jsonl", [normalized_row("doc_1"), normalized_row("doc_2")])
+    (run_dir / "extension_schema.json").write_text(
+        json.dumps(
+            {
+                "generated_by": "heuristic_extension_discovery",
+                "fields": [
+                    {
+                        "name": "business_unit",
+                        "suitable_for_dsl": True,
+                        "suitable_for_folder": True,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    (run_dir / "folder_plan.json").write_text(
+        json.dumps(
+            {
+                "selected_fields": ["business_unit"],
+                "folders": [
+                    {
+                        "path": "/source_type=github/business_unit=enterprise",
+                        "field": "business_unit",
+                        "value": "enterprise",
+                    }
+                ],
+                "memberships": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
 class SemanticMetadataPipelineTest(unittest.TestCase):
     def test_pending_discovery_tombstones_stale_schema_and_blocks_folder_build(self):
         import build_folders
@@ -118,6 +153,44 @@ class SemanticMetadataPipelineTest(unittest.TestCase):
 
             self.assertIn("status=missing", str(raised.exception))
             self.assertFalse((run_dir / "folder_plan.json").exists())
+
+    def test_agent_materialize_rejects_legacy_extension_schema_without_status(self):
+        import run_agent_smoke
+
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp)
+            write_legacy_schema_run_artifacts(run_dir)
+
+            with self.assertRaises(SystemExit) as raised:
+                run_agent_smoke.materialize_workspace(
+                    run_dir=run_dir,
+                    dataset_dir=run_dir / "dataset",
+                    workspace=run_dir / "workspace",
+                    reset=True,
+                )
+
+            self.assertIn("status=missing", str(raised.exception))
+            self.assertFalse((run_dir / "workspace" / "filesystem.sqlite").exists())
+
+    def test_inspect_rejects_legacy_extension_schema_without_status(self):
+        import inspect_artifacts
+
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp)
+            write_legacy_schema_run_artifacts(run_dir)
+            (run_dir / "projection_manifest.json").write_text(
+                json.dumps({"channels": {}, "forbidden_channels_not_built": []}),
+                encoding="utf-8",
+            )
+            (run_dir / "sample_projection_rows.json").write_text(
+                json.dumps({"summary": [], "entity": [], "relation": []}),
+                encoding="utf-8",
+            )
+
+            with self.assertRaises(SystemExit) as raised:
+                inspect_artifacts.inspect_run(run_dir, sample_size=1, seed=7)
+
+            self.assertIn("status=missing", str(raised.exception))
 
     def test_extension_audit_rejects_malformed_lists_objects_and_non_numeric_coverage(self):
         import discover_extensions

@@ -7,7 +7,13 @@ import re
 from pathlib import Path
 from typing import Any
 
-from pipeline_common import has_unsafe_generation, load_normalized_metadata, read_json, write_json
+from pipeline_common import (
+    has_unsafe_generation,
+    load_normalized_metadata,
+    load_ready_extension_schema,
+    read_json,
+    write_json,
+)
 
 
 FORBIDDEN_FOLDER_FIELDS = {
@@ -46,7 +52,7 @@ def parse_args() -> argparse.Namespace:
 
 def inspect_run(run_dir: Path, *, sample_size: int, seed: int) -> dict[str, Any]:
     metadata_rows = load_normalized_metadata(run_dir / "metadata.normalized.jsonl")
-    extension_schema = read_json(run_dir / "extension_schema.json")
+    extension_schema = load_ready_extension_schema(run_dir)
     folder_plan = read_json(run_dir / "folder_plan.json")
     projection_manifest = read_json(run_dir / "projection_manifest.json")
     sample_projection_rows = read_json(run_dir / "sample_projection_rows.json")
