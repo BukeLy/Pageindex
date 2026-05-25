@@ -7,16 +7,29 @@ import os
 import re
 import sqlite3
 import struct
+import sys
 import time
 from collections import Counter, defaultdict
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable, Iterator
 
-
 PIPELINE_DIR = Path(__file__).resolve().parent
 BENCHMARK_DIR = PIPELINE_DIR.parent
 REPO_ROOT = PIPELINE_DIR.parents[3]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from pageindex.filesystem.semantic_folder_policy import (
+    SEMANTIC_FOLDER_FORBIDDEN_FIELDS,
+    SEMANTIC_FOLDER_ROOT,
+    canonical_semantic_folder_field_name,
+    is_semantic_folder_forbidden_field,
+    semantic_folder_allowed_extension_fields,
+    semantic_folder_field_identity_keys,
+    semantic_folder_field_identity_set,
+)
+
 DEFAULT_DATASET_DIR = BENCHMARK_DIR / "dataset"
 DEFAULT_RESULTS_DIR = PIPELINE_DIR / "results"
 DEFAULT_DOC_PROFILES = BENCHMARK_DIR / "auto_gen_research" / "generated" / "doc_profiles.json"
@@ -77,6 +90,9 @@ FORBIDDEN_FIELD_PATTERNS = [
         r"(^|_)filename(_|$)",
     ]
 ]
+FORBIDDEN_EXTENSION_FIELD_IDENTITIES = semantic_folder_field_identity_set(
+    FORBIDDEN_EXTENSION_FIELDS | METADATA_BASE_FIELDS
+)
 SAFE_GENERATION_METHODS = {
     "llm",
     "normalized_from_llm",
@@ -417,15 +433,15 @@ def slug(value: Any, *, max_len: int = 80) -> str:
     return text[:max_len].strip("-") or "unknown"
 
 
-def is_forbidden_extension_field(name: str) -> bool:
-    key = slug(name).replace("-", "_")
-    if key in FORBIDDEN_EXTENSION_FIELDS or key in METADATA_BASE_FIELDS:
+def is_forbidden_extension_field(name: Any) -> bool:
+    key = canonical_field_name(name)
+    if semantic_folder_field_identity_keys(name) & FORBIDDEN_EXTENSION_FIELD_IDENTITIES:
         return True
     return any(pattern.search(key) for pattern in FORBIDDEN_FIELD_PATTERNS)
 
 
-def canonical_field_name(name: str) -> str:
-    value = re.sub(r"[^A-Za-z0-9]+", "_", name).strip("_").lower()
+def canonical_field_name(name: Any) -> str:
+    value = canonical_semantic_folder_field_name(name)
     return value or "field"
 
 
@@ -539,12 +555,13 @@ def field_values_for_doc(row: dict[str, Any], field: str) -> list[str]:
     base = row.get("metadata_base") or {}
     candidates = row.get("extension_candidates") or {}
     system = row.get("system") or {}
-    if field in base:
-        return dedupe_strings(ensure_list(base.get(field)))
-    if field in candidates:
-        return dedupe_strings(ensure_list(candidates.get(field)))
-    if field in system:
-        return dedupe_strings(ensure_list(system.get(field)))
+    field_keys = semantic_folder_field_identity_keys(field)
+    for payload in (base, candidates, system):
+        if field in payload:
+            return dedupe_strings(ensure_list(payload.get(field)))
+        for key, value in payload.items():
+            if semantic_folder_field_identity_keys(key) & field_keys:
+                return dedupe_strings(ensure_list(value))
     return []
 
 

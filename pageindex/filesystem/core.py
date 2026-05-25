@@ -1,11 +1,18 @@
 from __future__ import annotations
 
 import json
-import re
 from pathlib import Path
 from typing import Any, Optional, Union
 
 from .metadata import MetadataQueryEngine
+from .semantic_folder_policy import (
+    SEMANTIC_FOLDER_BASE_FIELDS,
+    SEMANTIC_FOLDER_ROOT,
+    SEMANTIC_FOLDER_SYSTEM_FIELDS,
+    canonical_semantic_folder_field_name,
+    is_semantic_folder_forbidden_field,
+    semantic_folder_allowed_extension_fields,
+)
 from .store import (
     SQLiteFileSystemStore,
     fingerprint,
@@ -14,27 +21,6 @@ from .store import (
     normalize_path,
 )
 from .types import OpenResult, SearchResult
-
-
-SEMANTIC_FOLDER_ROOT = "/semantic"
-SEMANTIC_FOLDER_BASE_FIELDS = {"doc_type", "domain", "topic"}
-SEMANTIC_FOLDER_SYSTEM_FIELDS = {"source_type"}
-SEMANTIC_FOLDER_FORBIDDEN_FIELDS = {
-    "summary",
-    "entities",
-    "relations",
-    "constraints",
-    "retrieval_cues",
-    "dataset_doc_uuid",
-    "path",
-    "uri",
-    "source_path",
-    "storage_uri",
-    "title",
-    "content_type",
-    "created_at",
-    "updated_at",
-}
 
 
 class PageIndexFileSystem:
@@ -136,11 +122,9 @@ class PageIndexFileSystem:
         memberships = list(projection_plan.get("memberships") or [])
         policy_raw = projection_plan.get("policy")
         policy = policy_raw if isinstance(policy_raw, dict) else {}
-        allowed_extension_fields = {
-            self._canonical_semantic_folder_field_name(field)
-            for field in policy.get("allowed_extension_fields", [])
-            if self._canonical_semantic_folder_field_name(field)
-        }
+        allowed_extension_fields = semantic_folder_allowed_extension_fields(
+            policy.get("allowed_extension_fields", [])
+        )
         for folder in folders:
             self._validate_semantic_folder_projection_item(folder, allowed_extension_fields)
         for membership in memberships:
@@ -597,7 +581,7 @@ class PageIndexFileSystem:
                 allowed_fields,
             )
         for field in fields:
-            if field in SEMANTIC_FOLDER_FORBIDDEN_FIELDS or field not in allowed_fields:
+            if is_semantic_folder_forbidden_field(field) or field not in allowed_fields:
                 raise ValueError(f"Field is not allowed for Semantic Folder Projection: {field}")
 
     @staticmethod
@@ -633,7 +617,7 @@ class PageIndexFileSystem:
             for key, value in payload.items():
                 key_text = str(key)
                 key_field = cls._canonical_semantic_folder_field_name(key)
-                if key_field in SEMANTIC_FOLDER_FORBIDDEN_FIELDS:
+                if is_semantic_folder_forbidden_field(key_field):
                     raise ValueError(
                         "Forbidden metadata field in Semantic Folder Projection payload: "
                         f"{key_text}"
@@ -641,7 +625,7 @@ class PageIndexFileSystem:
                 if key_field in {"field", "source_field", "metadata_field"}:
                     field = cls._canonical_semantic_folder_field_name(value)
                     if field and (
-                        field in SEMANTIC_FOLDER_FORBIDDEN_FIELDS
+                        is_semantic_folder_forbidden_field(field)
                         or field not in allowed_fields
                     ):
                         raise ValueError(
@@ -653,7 +637,7 @@ class PageIndexFileSystem:
                 cls._validate_semantic_folder_projection_metadata_payload(item, allowed_fields)
         elif isinstance(payload, str):
             field = cls._canonical_semantic_folder_field_name(payload)
-            if field in SEMANTIC_FOLDER_FORBIDDEN_FIELDS:
+            if is_semantic_folder_forbidden_field(field):
                 raise ValueError(
                     "Forbidden metadata field label in Semantic Folder Projection payload: "
                     f"{payload}"
@@ -661,12 +645,7 @@ class PageIndexFileSystem:
 
     @staticmethod
     def _canonical_semantic_folder_field_name(value: Any) -> str:
-        text = str(value or "").strip()
-        if not text:
-            return ""
-        text = re.sub(r"(.)([A-Z][a-z]+)", r"\1_\2", text)
-        text = re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", text)
-        return re.sub(r"[^A-Za-z0-9]+", "_", text).strip("_").casefold()
+        return canonical_semantic_folder_field_name(value)
 
     @staticmethod
     def _semantic_folder_projection_document_id(membership: dict[str, Any]) -> str:

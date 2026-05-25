@@ -583,6 +583,27 @@ class EnterpriseRAGFileSystemTest(unittest.TestCase):
                     "memberships": [],
                 },
             ]
+            for field in (
+                "sourcePath",
+                "sourcepath",
+                "storageUri",
+                "storageuri",
+                "datasetDocUuid",
+                "datasetdocuuid",
+            ):
+                plans.append(
+                    {
+                        "policy": {"allowed_extension_fields": [field]},
+                        "folders": [
+                            {
+                                "path": f"/semantic/{field}=leak",
+                                "kind": "facet",
+                                "value": "leak",
+                            }
+                        ],
+                        "memberships": [],
+                    }
+                )
             for plan in plans:
                 with self.subTest(plan=plan):
                     with self.assertRaisesRegex(ValueError, "Semantic Folder Projection"):
@@ -746,8 +767,14 @@ class EnterpriseRAGFileSystemTest(unittest.TestCase):
                         "extension_candidates": {
                             "project": project,
                             "dataset_doc_uuid": "dsid_forbidden_value",
+                            "datasetDocUuid": project,
+                            "datasetdocuuid": project,
                             "path": "/forbidden/path",
                             "uri": "https://example.invalid/forbidden",
+                            "sourcePath": project,
+                            "sourcepath": project,
+                            "storageUri": project,
+                            "storageuri": project,
                             "summary": "forbidden extension summary",
                             "retrieval_cues": "forbidden extension cue",
                         },
@@ -769,8 +796,14 @@ class EnterpriseRAGFileSystemTest(unittest.TestCase):
                             {"name": "constraints", "suitable_for_folder": True},
                             {"name": "retrieval_cues", "suitable_for_folder": True},
                             {"name": "dataset_doc_uuid", "suitable_for_folder": True},
+                            {"name": "datasetDocUuid", "suitable_for_folder": True},
+                            {"name": "datasetdocuuid", "suitable_for_folder": True},
                             {"name": "path", "suitable_for_folder": True},
                             {"name": "uri", "suitable_for_folder": True},
+                            {"name": "sourcePath", "suitable_for_folder": True},
+                            {"name": "sourcepath", "suitable_for_folder": True},
+                            {"name": "storageUri", "suitable_for_folder": True},
+                            {"name": "storageuri", "suitable_for_folder": True},
                         ]
                     }
                 ),
@@ -807,8 +840,13 @@ class EnterpriseRAGFileSystemTest(unittest.TestCase):
                 "constraints",
                 "retrieval_cues",
                 "dataset_doc_uuid",
+                "datasetdocuuid",
                 "path",
                 "uri",
+                "source_path",
+                "sourcepath",
+                "storage_uri",
+                "storageuri",
             }
             plan_fields = (
                 set(plan["selected_fields"])
@@ -826,6 +864,7 @@ class EnterpriseRAGFileSystemTest(unittest.TestCase):
             self.assertEqual(plan["root"], "/semantic")
             self.assertIn("project", plan["selected_fields"])
             self.assertFalse(forbidden & plan_fields)
+            self.assertFalse(forbidden & set(plan["policy"]["allowed_extension_fields"]))
             self.assertTrue(all("file_key" in membership for membership in plan["memberships"]))
             self.assertTrue(all("dataset_doc_uuid" not in membership for membership in plan["memberships"]))
             self.assertTrue(all(folder["path"].startswith("/semantic") for folder in plan["folders"]))

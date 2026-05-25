@@ -8,10 +8,14 @@ from typing import Any
 
 from pipeline_common import (
     FOLDER_BASE_FIELDS,
+    SEMANTIC_FOLDER_FORBIDDEN_FIELDS,
+    SEMANTIC_FOLDER_ROOT,
     TEXT_HEAVY_FIELDS,
     cardinality_expectation,
+    canonical_semantic_folder_field_name,
     field_distribution,
     field_values_for_doc,
+    is_semantic_folder_forbidden_field,
     is_forbidden_extension_field,
     load_normalized_metadata,
     read_json,
@@ -21,23 +25,12 @@ from pipeline_common import (
     value_key,
     write_json,
     write_summary,
+    semantic_folder_allowed_extension_fields,
 )
 
 
 SEMANTIC_FOLDER_PROJECTION_NAME = "Semantic Folder Projection"
-SEMANTIC_FOLDER_ROOT = "/semantic"
-FORBIDDEN_FOLDER_FIELDS = {
-    "summary",
-    "entities",
-    "relations",
-    "constraints",
-    "retrieval_cues",
-    "dataset_doc_uuid",
-    "path",
-    "uri",
-    "source_path",
-    "storage_uri",
-}
+FORBIDDEN_FOLDER_FIELDS = SEMANTIC_FOLDER_FORBIDDEN_FIELDS
 
 
 def main() -> int:
@@ -107,14 +100,14 @@ def build_folder_plan(
     args: argparse.Namespace,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     suitable_extension_fields = {
-        str(field.get("name") or "")
+        canonical_semantic_folder_field_name(field.get("name"))
         for field in extension_schema.get("fields", [])
-        if field.get("suitable_for_folder") is True and str(field.get("name") or "")
+        if field.get("suitable_for_folder") is True and canonical_semantic_folder_field_name(field.get("name"))
     }
     allowed_extension_fields = {
         field
-        for field in suitable_extension_fields
-        if field and not is_forbidden_extension_field(field) and field not in FORBIDDEN_FOLDER_FIELDS
+        for field in semantic_folder_allowed_extension_fields(suitable_extension_fields)
+        if not is_forbidden_extension_field(field)
     }
     rejected_extension_fields = sorted(suitable_extension_fields - allowed_extension_fields)
     candidate_fields = sorted(FOLDER_BASE_FIELDS | allowed_extension_fields)
@@ -122,7 +115,7 @@ def build_folder_plan(
     selected_fields = [
         field
         for field, report in field_report["fields"].items()
-        if report["selected_for_folder"] and field not in FORBIDDEN_FOLDER_FIELDS
+        if report["selected_for_folder"] and not is_semantic_folder_forbidden_field(field)
     ]
     selected_fields = sorted(selected_fields, key=lambda field: field_sort_key(field, field_report))
 
@@ -173,7 +166,7 @@ def build_field_report(rows: list[dict[str, Any]], fields: list[str], args: argp
         cardinality_rate = unique_count / max(1, len(values_by_doc))
         reasons = []
         if (
-            field in FORBIDDEN_FOLDER_FIELDS
+            is_semantic_folder_forbidden_field(field)
             or field in TEXT_HEAVY_FIELDS
             or is_forbidden_extension_field(field)
             and field not in FOLDER_BASE_FIELDS
