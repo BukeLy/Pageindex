@@ -32,6 +32,7 @@ class PIFSCommandExecutor:
         "tail",
         "sed",
     }
+    MUTATION_COMMANDS = {"mkdir", "cp"}
     SEMANTIC_CHANNEL_COMMANDS = {
         "summary": "search-summary",
         "entity": "search-entity",
@@ -62,13 +63,17 @@ class PIFSCommandExecutor:
         *,
         json_output: bool = False,
         query_context: str | None = None,
+        allow_mutations: bool = True,
     ):
         self.filesystem = filesystem
         self.json_output = json_output
         self.query_context = query_context
+        self.allow_mutations = allow_mutations
 
     def allowed_commands(self) -> set[str]:
         commands = set(self.BASE_ALLOWED_COMMANDS)
+        if not self.allow_mutations:
+            commands -= self.MUTATION_COMMANDS
         semantic_channels = set(self.filesystem.semantic_retrieval_channels())
         for channel in SEMANTIC_RETRIEVAL_CHANNELS:
             if channel in semantic_channels:
@@ -89,10 +94,13 @@ class PIFSCommandExecutor:
         semantic_channels = set(semantic["channels"])
         lines = [
             "Available command surfaces for this workspace:",
+            "- mode: read-only inspection" if not self.allow_mutations else "- mode: read/write workspace management",
             "- ls/tree: folder browsing",
             "- find --where: exact/canonical metadata DSL filtering",
             "- grep -R: recursive lexical/FTS search only; semantic vector prefilter is disabled",
         ]
+        if self.allow_mutations:
+            lines.append("- mkdir/cp: workspace folder creation and file import")
         if "entity" in semantic_channels:
             lines.append("- find --name: entity semantic candidate discovery alias")
         if "relation" in semantic_channels:
