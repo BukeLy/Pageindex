@@ -13,8 +13,8 @@ from pipeline_common import (
     field_distribution,
     field_values_for_doc,
     is_forbidden_extension_field,
+    load_ready_extension_schema,
     load_normalized_metadata,
-    read_json,
     slug,
     update_config,
     value_key,
@@ -41,7 +41,7 @@ def main() -> int:
     metadata_path = Path(args.metadata) if args.metadata else run_dir / "metadata.normalized.jsonl"
     schema_path = Path(args.extension_schema) if args.extension_schema else run_dir / "extension_schema.json"
     rows = load_normalized_metadata(metadata_path)
-    extension_schema = read_json(schema_path)
+    extension_schema = load_ready_extension_schema(run_dir, schema_path)
 
     folder_plan, field_report = build_folder_plan(rows, extension_schema, args)
     plan_path = run_dir / "folder_plan.json"

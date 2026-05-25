@@ -69,7 +69,7 @@ The ability for one registered document to appear in more than one folder path i
 _Avoid_: copy, duplicate file
 
 **Extension Schema Discovery**:
-A product-level opt-in process that identifies canonical non-text metadata fields suitable for exact filtering or folder browsing from document understanding. When enabled, discovered Extension Fields become active Retrieval Capabilities without an interactive approval step.
+A product-level opt-in LLM capability that identifies canonical non-text metadata fields suitable for exact filtering or folder browsing from document understanding. It requires provider participation; offline code may only prepare prompts or mark discovery pending. When enabled, discovered Extension Fields become active Retrieval Capabilities without an interactive approval step.
 _Avoid_: field profiler, heuristic discovery, statistical audit
 
 **Extension Field**:
@@ -112,7 +112,7 @@ Developer: Can summaries or entities be used directly as semantic folder names?
 Domain expert: No. Semantic Folder Projection uses Semantic Folder Fields, not text-heavy retrieval projections.
 
 Developer: Can extension fields be discovered by counting field coverage and cardinality?
-Domain expert: No. Extension Schema Discovery is a document-understanding concept, not a statistical profiler.
+Domain expert: No. Extension Schema Discovery is a document-understanding concept that requires an LLM/provider. Code may audit forbidden fields and JSON shape, but it must not choose fields with coverage, cardinality, field-name regex, or source-type heuristics.
 
 Developer: Does an SDK user need to approve discovered extension fields interactively?
 Domain expert: No. Extension Schema Discovery is opt-in; when enabled, its fields become active capabilities for the workspace.

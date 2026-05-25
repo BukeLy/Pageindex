@@ -786,7 +786,7 @@ def merge_profile_extension_candidates(
             source,
             field,
             confidence=0.85,
-            notes="Candidate extension value from generated LLM profile; schema discovery must still audit coverage/cardinality.",
+            notes="Candidate extension value from generated LLM profile; extension schema discovery must explicitly approve the field before downstream use.",
         )
 
 
@@ -847,7 +847,7 @@ def merge_registered_metadata(
                 source_field=f"metadata.{field}",
                 generation_method="source_metadata",
                 confidence=0.7,
-                notes="Registered metadata candidate; schema discovery must audit coverage/cardinality before use.",
+                notes="Registered metadata candidate; extension schema discovery must explicitly approve the field before downstream use.",
             ),
         )
 

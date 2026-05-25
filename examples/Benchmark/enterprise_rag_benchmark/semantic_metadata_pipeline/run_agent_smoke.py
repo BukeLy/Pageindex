@@ -32,6 +32,7 @@ from examples.Benchmark.enterprise_rag_benchmark.semantic_metadata_pipeline.pipe
     DatasetDocument,
     canonical_field_name,
     load_dataset_documents,
+    load_ready_extension_schema,
     read_json,
     read_jsonl,
     slug,
@@ -183,8 +184,8 @@ def materialize_workspace(
     if reset and workspace.exists():
         shutil.rmtree(workspace)
     metadata_rows = read_jsonl(run_dir / "metadata.normalized.jsonl")
+    extension_schema = load_ready_extension_schema(run_dir)
     folder_plan = read_json(run_dir / "folder_plan.json")
-    extension_schema = read_json(run_dir / "extension_schema.json")
     doc_ids = {dataset_doc_uuid(row) for row in metadata_rows if dataset_doc_uuid(row)}
     docs = {
         doc.dataset_doc_uuid: doc
