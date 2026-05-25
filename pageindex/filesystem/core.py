@@ -13,7 +13,9 @@ from .metadata_generation import (
     MetadataGenerationInput,
     MetadataGenerationResult,
     MetadataGenerator,
+    OpenAIMetadataGenerator,
 )
+from .projection_indexing import SummaryProjectionIndexer
 from .semantic_folder_policy import (
     SEMANTIC_FOLDER_BASE_FIELDS,
     SEMANTIC_FOLDER_ROOT,
@@ -89,6 +91,13 @@ class PageIndexFileSystem:
         *,
         semantic_retrieval_backend: Any | None = None,
         metadata_generator: MetadataGenerator | None = None,
+        summary_projection_indexer: SummaryProjectionIndexer | None = None,
+        summary_projection_index: bool = True,
+        summary_projection_index_dir: Union[str, Path, None] = None,
+        summary_projection_embedding_provider: str = "openai",
+        summary_projection_embedding_model: str = "text-embedding-3-small",
+        summary_projection_embedding_dimensions: int = 256,
+        summary_projection_embedding_timeout: float = 60,
     ):
         self.workspace = Path(workspace).expanduser()
         self.store = SQLiteFileSystemStore(self.workspace)
@@ -96,6 +105,17 @@ class PageIndexFileSystem:
         self._references: dict[str, str] = {}
         self.semantic_retrieval_backend = semantic_retrieval_backend
         self.metadata_generator = metadata_generator
+        self.summary_projection_indexer = summary_projection_indexer
+        self.summary_projection_index = summary_projection_index
+        self.summary_projection_index_dir = (
+            Path(summary_projection_index_dir).expanduser()
+            if summary_projection_index_dir is not None
+            else self.workspace / "artifacts" / "projection_indexes"
+        )
+        self.summary_projection_embedding_provider = summary_projection_embedding_provider
+        self.summary_projection_embedding_model = summary_projection_embedding_model
+        self.summary_projection_embedding_dimensions = summary_projection_embedding_dimensions
+        self.summary_projection_embedding_timeout = summary_projection_embedding_timeout
 
     def register_file(
         self,
@@ -132,10 +152,16 @@ class PageIndexFileSystem:
             ]
         )[0]
 
+    def register(self, **kwargs: Any) -> str:
+        if not self._register_uses_deferred_metadata(kwargs.get("metadata_generation_policy")):
+            self._ensure_register_completion_defaults()
+        return self.register_file(**kwargs)
+
     def register_files(self, files: list[dict[str, Any]]) -> list[str]:
         records = [self._prepare_file_record(file) for file in files]
         for record in records:
             self._generate_register_metadata(record)
+            self._complete_summary_projection_index(record)
             self._sync_owned_raw_artifact(record)
         self._register_generation_policy_schema(records)
         self.store.insert_files(records)
@@ -153,6 +179,7 @@ class PageIndexFileSystem:
         for row in rows:
             record = self._record_from_file_entry(row)
             self._generate_register_metadata(record, force=True)
+            self._complete_summary_projection_index(record)
             self._register_generation_policy_schema([record])
             self.store.update_file_metadata_generation(
                 record["file_ref"],
@@ -171,6 +198,32 @@ class PageIndexFileSystem:
             "failed": failed,
             "file_refs": file_refs,
         }
+
+    def _ensure_register_completion_defaults(self) -> None:
+        if self.metadata_generator is None:
+            self.metadata_generator = OpenAIMetadataGenerator()
+        if self.summary_projection_index and self.summary_projection_indexer is None:
+            self.summary_projection_indexer = SummaryProjectionIndexer.from_provider(
+                self.summary_projection_index_dir,
+                embedding_provider=self.summary_projection_embedding_provider,
+                embedding_model=self.summary_projection_embedding_model,
+                embedding_dimensions=self.summary_projection_embedding_dimensions,
+                embedding_timeout=self.summary_projection_embedding_timeout,
+            )
+        if self.summary_projection_index and self.semantic_retrieval_backend is None:
+            self.configure_hybrid_projection_retrieval(
+                self.summary_projection_index_dir,
+                embedding_provider=self.summary_projection_embedding_provider,
+                embedding_model=self.summary_projection_embedding_model,
+                embedding_dimensions=self.summary_projection_embedding_dimensions,
+                embedding_timeout=self.summary_projection_embedding_timeout,
+            )
+
+    @staticmethod
+    def _register_uses_deferred_metadata(policy: Any) -> bool:
+        if not isinstance(policy, dict):
+            return False
+        return bool(policy.get("batch")) or policy.get("mode") == "batch"
 
     @classmethod
     def default_metadata_generation_policy(cls) -> dict[str, Any]:
@@ -772,7 +825,14 @@ class PageIndexFileSystem:
             source_path=raw_source_path,
             content_type=content_type,
         )
-        fts_content = file.get("fts_content", content)
+        artifact_content = self._registration_text_artifact_content(
+            source_path=raw_source_path,
+            content_type=content_type,
+            pageindex_doc_id=pageindex_doc_id,
+            pageindex_tree_status=pageindex_tree_status,
+            fallback_content=content,
+        )
+        fts_content = file.get("fts_content", artifact_content)
         source_type = file.get("source_type") or self._infer_source_type(source_path)
         generation_policy = self._normalize_metadata_generation_policy(
             file.get("metadata_generation_policy"),
@@ -794,7 +854,7 @@ class PageIndexFileSystem:
         file_ref = make_file_ref(external_id or source_path)
         text_artifact_path = file.get("text_artifact_path") or self.store.write_text_artifact(
             file_ref,
-            content,
+            artifact_content,
         )
         raw_artifact_path = file.get("raw_artifact_path")
         if raw_artifact_path is None and file.get("write_raw_artifact", True):
@@ -819,7 +879,7 @@ class PageIndexFileSystem:
             "descriptor": descriptor,
             "content_type": content_type,
             "source_type": source_type,
-            "fingerprint": fingerprint(content),
+            "fingerprint": fingerprint(artifact_content),
             "text_artifact_path": str(text_artifact_path),
             "raw_artifact_path": str(raw_artifact_path) if raw_artifact_path is not None else None,
             "pageindex_doc_id": pageindex_doc_id,
@@ -836,6 +896,64 @@ class PageIndexFileSystem:
             "content": fts_content,
             "skip_fts": bool(file.get("skip_fts", False)),
         }
+
+    def _registration_text_artifact_content(
+        self,
+        *,
+        source_path: str,
+        content_type: str,
+        pageindex_doc_id: str | None,
+        pageindex_tree_status: str,
+        fallback_content: str,
+    ) -> str:
+        if self._source_format(source_path, content_type) not in {"pdf", "markdown"}:
+            return fallback_content
+        if pageindex_tree_status != "built" or not pageindex_doc_id:
+            return fallback_content
+        return self._pageindex_extracted_text(pageindex_doc_id)
+
+    def _pageindex_extracted_text(self, doc_id: str) -> str:
+        client = self._pageindex_client()
+        if doc_id not in client.documents:
+            return ""
+        client._ensure_doc_loaded(doc_id)
+        doc = client.documents.get(doc_id) or {}
+        page_text = self._pageindex_pages_text(doc.get("pages"))
+        if page_text:
+            return page_text
+        return self._pageindex_structure_text(doc.get("structure", []))
+
+    @staticmethod
+    def _pageindex_pages_text(pages: Any) -> str:
+        if not isinstance(pages, list):
+            return ""
+        parts: list[str] = []
+        for page in pages:
+            if not isinstance(page, dict):
+                continue
+            content = str(page.get("content") or "").strip()
+            if content:
+                parts.append(content)
+        return "\n\n".join(parts)
+
+    @classmethod
+    def _pageindex_structure_text(cls, structure: Any) -> str:
+        parts: list[str] = []
+        cls._collect_pageindex_node_text(structure, parts)
+        return "\n\n".join(parts)
+
+    @classmethod
+    def _collect_pageindex_node_text(cls, node: Any, parts: list[str]) -> None:
+        if isinstance(node, list):
+            for item in node:
+                cls._collect_pageindex_node_text(item, parts)
+            return
+        if not isinstance(node, dict):
+            return
+        text = str(node.get("text") or "").strip()
+        if text:
+            parts.append(text)
+        cls._collect_pageindex_node_text(node.get("nodes", []), parts)
 
     @staticmethod
     def _raw_artifact_payload(
@@ -972,6 +1090,30 @@ class PageIndexFileSystem:
             }
         self._refresh_record_metadata_generation(record)
 
+    def _complete_summary_projection_index(self, record: dict[str, Any]) -> None:
+        generation = record["metadata_generation"]
+        summary_index = generation.get("projection_indexes", {}).get("summary")
+        if not summary_index or not summary_index.get("requested"):
+            return
+        summary = str(record.get("derived_metadata", {}).get("summary") or "").strip()
+        if not summary:
+            return
+        if self.summary_projection_indexer is None:
+            self._refresh_record_metadata_generation(record)
+            return
+        try:
+            result = self.summary_projection_indexer.upsert_summary(record)
+        except Exception as exc:
+            summary_index["status"] = "failed"
+            summary_index["error"] = str(exc)
+            self._refresh_record_metadata_generation(record)
+            return
+        summary_index.clear()
+        summary_index.update({"requested": True, **result})
+        if summary_index.get("status") != "ready":
+            summary_index["status"] = "ready"
+        self._refresh_record_metadata_generation(record)
+
     @staticmethod
     def _metadata_generation_is_batch(policy: dict[str, Any]) -> bool:
         return bool(policy.get("batch")) or policy.get("mode") == "batch"
@@ -1026,6 +1168,7 @@ class PageIndexFileSystem:
             if field.get("requested") and field.get("status")
         ]
         generation["status"] = explicit_status or self._aggregate_generation_status(statuses)
+        self._refresh_projection_index_statuses(generation, record["derived_metadata"])
         record["derived_metadata_json"] = json.dumps(record["derived_metadata"], ensure_ascii=False)
         record["metadata_generation_json"] = json.dumps(generation, ensure_ascii=False)
         record["indexed_metadata"] = SQLiteFileSystemStore.indexed_metadata_values(
@@ -1348,6 +1491,7 @@ class PageIndexFileSystem:
                 "requested": True,
                 "status": projection_statuses.get(name, "not_indexed"),
             }
+        cls._refresh_projection_index_statuses(state, derived_metadata)
         return state
 
     @staticmethod
@@ -1397,6 +1541,20 @@ class PageIndexFileSystem:
     def _validate_projection_index_status(status: str) -> None:
         if status not in PROJECTION_INDEX_STATUSES:
             raise ValueError(f"Unsupported projection index status: {status}")
+
+    @classmethod
+    def _refresh_projection_index_statuses(
+        cls,
+        generation: dict[str, Any],
+        derived_metadata: dict[str, Any],
+    ) -> None:
+        summary_index = generation.get("projection_indexes", {}).get("summary")
+        if not summary_index or not summary_index.get("requested"):
+            return
+        if "summary" not in derived_metadata:
+            return
+        if summary_index.get("status", "not_indexed") == "not_indexed":
+            summary_index["status"] = "pending_index"
 
     @classmethod
     def _merge_metadata_values(
