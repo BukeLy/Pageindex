@@ -474,7 +474,10 @@ class EnterpriseRAGFileSystemTest(unittest.TestCase):
         )
         self.assertEqual(
             PageIndexFileSystem._semantic_filters_for_scope(
-                {"folder_path": "/source_type=github/facets/doc_type=pull-request", "recursive": True}
+                {
+                    "folder_path": "/semantic/source_type=github/facets/doc_type=pull-request",
+                    "recursive": True,
+                }
             ),
             {"source_type": "github"},
         )
@@ -859,6 +862,458 @@ class EnterpriseRAGFileSystemTest(unittest.TestCase):
                 if folder["path"] == "/semantic/problem/memory-pressure"
             )
             self.assertEqual(semantic_problem["kind"], "semantic")
+
+    def test_semantic_folder_projection_is_explicit_and_coexists_with_registered_folder(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            from pageindex.filesystem import PageIndexFileSystem
+
+            filesystem = PageIndexFileSystem(workspace=Path(tmp) / "workspace")
+            file_ref = filesystem.register_file(
+                storage_uri="file:///tmp/pr.json",
+                source_path="github/redwood/pr.json",
+                folder_path="/docs/github",
+                external_id="dsid_projection",
+                title="Projection doc",
+                metadata={"doc_type": "pull-request"},
+                content="semantic folder projection keeps explicit folders",
+            )
+
+            projection = filesystem.apply_semantic_folder_projection(
+                {
+                    "policy": {
+                        "allowed_base_fields": ["doc_type", "domain", "topic"],
+                        "allowed_extension_fields": [],
+                        "forbidden_fields": ["summary", "entities", "dataset_doc_uuid", "path", "uri"],
+                    },
+                    "folders": [
+                        {
+                            "path": "/semantic/source_type=github",
+                            "kind": "source_root",
+                            "field": "source_type",
+                            "value": "github",
+                        },
+                        {
+                            "path": "/semantic/source_type=github/facets/doc_type=pull-request",
+                            "kind": "facet",
+                            "field": "doc_type",
+                            "value": "pull-request",
+                        },
+                    ],
+                    "memberships": [
+                        {
+                            "file_key": file_ref,
+                            "folder_path": "/semantic/source_type=github",
+                            "field": "source_type",
+                            "value": "github",
+                            "mount_kind": "source_root",
+                        },
+                        {
+                            "file_key": file_ref,
+                            "folder_path": "/semantic/source_type=github/facets/doc_type=pull-request",
+                            "field": "doc_type",
+                            "value": "pull-request",
+                            "mount_kind": "multimount",
+                        },
+                    ],
+                }
+            )
+
+            stat = filesystem._stat(file_ref)
+            explicit_results = filesystem.search(
+                "explicit folders",
+                scope={"folder_path": "/docs/github"},
+            )
+            semantic_results = filesystem.search(
+                "explicit folders",
+                scope={"folder_path": "/semantic/source_type=github", "recursive": True},
+            )
+
+            self.assertEqual(projection["projection"], "Semantic Folder Projection")
+            self.assertEqual(projection["memberships_attached"], 2)
+            self.assertEqual(
+                {folder["path"] for folder in stat["folders"]},
+                {
+                    "/docs/github",
+                    "/semantic/source_type=github",
+                    "/semantic/source_type=github/facets/doc_type=pull-request",
+                },
+            )
+            self.assertEqual([result.external_id for result in explicit_results], ["dsid_projection"])
+            self.assertEqual([result.external_id for result in semantic_results], ["dsid_projection"])
+
+    def test_semantic_folder_projection_rejects_forbidden_product_fields(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            from pageindex.filesystem import PageIndexFileSystem
+
+            filesystem = PageIndexFileSystem(workspace=Path(tmp) / "workspace")
+            filesystem.register_file(
+                storage_uri="file:///tmp/pr.json",
+                source_path="github/redwood/pr.json",
+                external_id="dsid_forbidden_projection",
+                title="Forbidden projection doc",
+                content="forbidden fields should not project",
+            )
+
+            plans = [
+                {
+                    "policy": {"allowed_extension_fields": []},
+                    "folders": [
+                        {
+                            "path": "/semantic/summary=memory-pressure",
+                            "kind": "facet",
+                            "value": "memory pressure",
+                        }
+                    ],
+                    "memberships": [
+                        {
+                            "file_key": "file_forbidden_projection",
+                            "folder_path": "/semantic/summary=memory-pressure",
+                            "value": "memory pressure",
+                        }
+                    ],
+                },
+                {
+                    "policy": {"allowed_extension_fields": ["Summary"]},
+                    "folders": [
+                        {
+                            "path": "/semantic/Summary=leak",
+                            "kind": "facet",
+                            "value": "leak",
+                        }
+                    ],
+                    "memberships": [],
+                },
+                {
+                    "policy": {"allowed_extension_fields": ["SOURCE_PATH"]},
+                    "folders": [
+                        {
+                            "path": "/semantic/source_type=github/facets/SOURCE_PATH=foo",
+                            "kind": "facet",
+                            "value": "foo",
+                        }
+                    ],
+                    "memberships": [],
+                },
+                {
+                    "policy": {"allowed_extension_fields": ["Path"]},
+                    "folders": [
+                        {
+                            "path": "/semantic/source_type=github",
+                            "kind": "source_root",
+                            "field": "Path",
+                            "value": "github",
+                        }
+                    ],
+                    "memberships": [],
+                },
+            ]
+            for field in (
+                "sourcePath",
+                "sourcepath",
+                "storageUri",
+                "storageuri",
+                "datasetDocUuid",
+                "datasetdocuuid",
+            ):
+                plans.append(
+                    {
+                        "policy": {"allowed_extension_fields": [field]},
+                        "folders": [
+                            {
+                                "path": f"/semantic/{field}=leak",
+                                "kind": "facet",
+                                "value": "leak",
+                            }
+                        ],
+                        "memberships": [],
+                    }
+                )
+            for plan in plans:
+                with self.subTest(plan=plan):
+                    with self.assertRaisesRegex(ValueError, "Semantic Folder Projection"):
+                        filesystem.apply_semantic_folder_projection(plan)
+
+    def test_semantic_folder_projection_rejects_forbidden_payload_metadata(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            from pageindex.filesystem import PageIndexFileSystem
+
+            filesystem = PageIndexFileSystem(workspace=Path(tmp) / "workspace")
+            file_ref = filesystem.register_file(
+                storage_uri="file:///tmp/pr.json",
+                source_path="github/redwood/pr.json",
+                external_id="dsid_forbidden_payload",
+                title="Forbidden payload doc",
+                content="forbidden metadata payload should not persist",
+            )
+
+            key_plans = [
+                {
+                    "folders": [
+                        {
+                            "path": "/semantic/source_type=github",
+                            "kind": "source_root",
+                            "field": "source_type",
+                            "value": "github",
+                            "metadata": {"Summary": "leaked summary"},
+                        }
+                    ],
+                    "memberships": [],
+                },
+                {
+                    "folders": [
+                        {
+                            "path": "/semantic/source_type=github",
+                            "kind": "source_root",
+                            "field": "source_type",
+                            "value": "github",
+                        }
+                    ],
+                    "memberships": [
+                        {
+                            "file_key": file_ref,
+                            "folder_path": "/semantic/source_type=github",
+                            "field": "source_type",
+                            "value": "github",
+                            "folder_metadata": {"SOURCE_PATH": "github/redwood/pr.json"},
+                        }
+                    ],
+                },
+                {
+                    "folders": [
+                        {
+                            "path": "/semantic/source_type=github",
+                            "kind": "source_root",
+                            "field": "source_type",
+                            "value": "github",
+                            "metadata": {"Path": "/leaked/path"},
+                        }
+                    ],
+                    "memberships": [],
+                },
+            ]
+            value_plans = [
+                {
+                    "folders": [
+                        {
+                            "path": "/semantic/source_type=github",
+                            "kind": "source_root",
+                            "field": "source_type",
+                            "value": "github",
+                        }
+                    ],
+                    "memberships": [
+                        {
+                            "file_key": file_ref,
+                            "folder_path": "/semantic/source_type=github",
+                            "field": "source_type",
+                            "value": "github",
+                            "folder_metadata": {"note": "summary"},
+                        }
+                    ],
+                },
+                {
+                    "folders": [
+                        {
+                            "path": "/semantic/source_type=github",
+                            "kind": "source_root",
+                            "field": "source_type",
+                            "value": "github",
+                            "metadata": {"nested": {"label": "source_path"}},
+                        }
+                    ],
+                    "memberships": [],
+                },
+                {
+                    "folders": [
+                        {
+                            "path": "/semantic/source_type=github",
+                            "kind": "source_root",
+                            "field": "source_type",
+                            "value": "github",
+                        }
+                    ],
+                    "memberships": [
+                        {
+                            "file_key": file_ref,
+                            "folder_path": "/semantic/source_type=github",
+                            "field": "source_type",
+                            "value": "github",
+                            "folder_metadata": {
+                                "labels": [{"label": "storage_uri"}],
+                            },
+                        }
+                    ],
+                },
+            ]
+            for plan in key_plans + value_plans:
+                with self.subTest(plan=plan):
+                    with self.assertRaisesRegex(ValueError, "Semantic Folder Projection"):
+                        filesystem.apply_semantic_folder_projection(plan)
+
+    def test_semantic_folder_projection_builder_excludes_forbidden_fields(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            from examples.Benchmark.enterprise_rag_benchmark.semantic_metadata_pipeline.pipeline_common import (
+                semantic_folder_file_key,
+            )
+            from pageindex.filesystem import PageIndexFileSystem
+
+            repo_root = Path(__file__).resolve().parents[1]
+            run_dir = Path(tmp) / "run"
+            run_dir.mkdir()
+            rows = []
+            for index, (doc_type, topic, project) in enumerate(
+                [
+                    ("pull-request", "api", "redwood"),
+                    ("pull-request", "api", "redwood"),
+                    ("incident", "audit", "maple"),
+                    ("incident", "audit", "maple"),
+                ],
+                1,
+            ):
+                rows.append(
+                    {
+                        "dataset_doc_uuid": f"dsid_projection_{index}",
+                        "system": {
+                            "source_type": "github",
+                            "source_path": f"github/redwood/{index}.json",
+                            "storage_uri": f"file:///tmp/{index}.json",
+                        },
+                        "metadata_base": {
+                            "doc_type": doc_type,
+                            "domain": "engineering",
+                            "topic": topic,
+                            "summary": "forbidden summary value",
+                            "entities": ["forbidden entity"],
+                            "relations": ["forbidden relation"],
+                            "constraints": ["forbidden constraint"],
+                            "retrieval_cues": ["forbidden cue"],
+                        },
+                        "extension_candidates": {
+                            "project": project,
+                            "dataset_doc_uuid": "dsid_forbidden_value",
+                            "datasetDocUuid": project,
+                            "datasetdocuuid": project,
+                            "path": "/forbidden/path",
+                            "uri": "https://example.invalid/forbidden",
+                            "sourcePath": project,
+                            "sourcepath": project,
+                            "storageUri": project,
+                            "storageuri": project,
+                            "summary": "forbidden extension summary",
+                            "retrieval_cues": "forbidden extension cue",
+                        },
+                        "provenance": {},
+                    }
+                )
+            (run_dir / "metadata.normalized.jsonl").write_text(
+                "\n".join(json.dumps(row) for row in rows) + "\n",
+                encoding="utf-8",
+            )
+            (run_dir / "extension_schema.json").write_text(
+                json.dumps(
+                    {
+                        "status": "ready",
+                        "fields": [
+                            {"name": "project", "suitable_for_folder": True},
+                            {"name": "summary", "suitable_for_folder": True},
+                            {"name": "entities", "suitable_for_folder": True},
+                            {"name": "relations", "suitable_for_folder": True},
+                            {"name": "constraints", "suitable_for_folder": True},
+                            {"name": "retrieval_cues", "suitable_for_folder": True},
+                            {"name": "dataset_doc_uuid", "suitable_for_folder": True},
+                            {"name": "datasetDocUuid", "suitable_for_folder": True},
+                            {"name": "datasetdocuuid", "suitable_for_folder": True},
+                            {"name": "path", "suitable_for_folder": True},
+                            {"name": "uri", "suitable_for_folder": True},
+                            {"name": "sourcePath", "suitable_for_folder": True},
+                            {"name": "sourcepath", "suitable_for_folder": True},
+                            {"name": "storageUri", "suitable_for_folder": True},
+                            {"name": "storageuri", "suitable_for_folder": True},
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(
+                        repo_root
+                        / "examples/Benchmark/enterprise_rag_benchmark/semantic_metadata_pipeline/build_folders.py"
+                    ),
+                    "--run-dir",
+                    str(run_dir),
+                    "--mode",
+                    "both",
+                ],
+                cwd=repo_root,
+                text=True,
+                capture_output=True,
+            )
+
+            self.assertEqual(
+                result.returncode,
+                0,
+                msg=f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}",
+            )
+            plan = json.loads((run_dir / "folder_plan.json").read_text(encoding="utf-8"))
+            forbidden = {
+                "summary",
+                "entities",
+                "relations",
+                "constraints",
+                "retrieval_cues",
+                "dataset_doc_uuid",
+                "datasetdocuuid",
+                "path",
+                "uri",
+                "source_path",
+                "sourcepath",
+                "storage_uri",
+                "storageuri",
+            }
+            plan_fields = (
+                set(plan["selected_fields"])
+                | {folder.get("field") for folder in plan["folders"]}
+                | {membership.get("field") for membership in plan["memberships"]}
+            )
+            plan_paths = json.dumps(
+                [folder["path"] for folder in plan["folders"]]
+                + [membership["folder_path"] for membership in plan["memberships"]],
+                ensure_ascii=False,
+            )
+            plan_memberships = json.dumps(plan["memberships"], ensure_ascii=False)
+
+            self.assertEqual(plan["name"], "Semantic Folder Projection")
+            self.assertEqual(plan["root"], "/semantic")
+            self.assertIn("project", plan["selected_fields"])
+            self.assertFalse(forbidden & plan_fields)
+            self.assertFalse(forbidden & set(plan["policy"]["allowed_extension_fields"]))
+            self.assertTrue(all("file_key" in membership for membership in plan["memberships"]))
+            self.assertTrue(all("dataset_doc_uuid" not in membership for membership in plan["memberships"]))
+            self.assertTrue(all(folder["path"].startswith("/semantic") for folder in plan["folders"]))
+            self.assertNotIn("dataset_doc_uuid", plan_memberships)
+            self.assertNotIn("dsid_projection_", plan_memberships)
+            self.assertNotIn("dsid_forbidden_value", plan_paths)
+            self.assertNotIn("/forbidden/path", plan_paths)
+            self.assertNotIn("example.invalid", plan_paths)
+            filesystem = PageIndexFileSystem(workspace=Path(tmp) / "workspace")
+            file_ref_by_key = {}
+            for row in rows:
+                file_ref = filesystem.register_file(
+                    storage_uri=row["system"]["storage_uri"],
+                    source_path=row["system"]["source_path"],
+                    external_id=row["dataset_doc_uuid"],
+                    title=row["dataset_doc_uuid"],
+                    content="materialized folder plan doc",
+                )
+                file_ref_by_key[semantic_folder_file_key(row["dataset_doc_uuid"])] = file_ref
+            projection = filesystem.apply_semantic_folder_projection(
+                plan,
+                file_ref_by_document_id=file_ref_by_key,
+            )
+            self.assertGreater(projection["memberships_attached"], 0)
 
     def test_stat_returns_all_folder_memberships_with_metadata(self):
         with tempfile.TemporaryDirectory() as tmp:

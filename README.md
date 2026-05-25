@@ -76,6 +76,12 @@ To learn more, please see a detailed introduction to the [PageIndex framework](h
 
 The PageIndex service is available as a ChatGPT-style [chat platform](https://chat.pageindex.ai), or can be integrated via [MCP](https://pageindex.ai/developer) or [API](https://pageindex.ai/developer).
 
+### PageIndex File System Semantics
+
+PageIndex File System keeps explicit registration folders separate from **Semantic Folder Projection**. A document can be registered into a user-supplied folder such as `/docs/github`, then a later projection step can add extra browse memberships under `/semantic/...` without moving or duplicating the document.
+
+Semantic Folder Projection only uses trusted browse fields: `metadata_base.doc_type`, `metadata_base.domain`, `metadata_base.topic`, Extension Fields marked `suitable_for_folder`, and `system.source_type` as the browse root. It must not use summaries, entities, relations, constraints, retrieval cues, `dataset_doc_uuid`, paths, or URIs as folder inputs.
+
 ### 🛠️ Deployment Options
 - Self-host — run locally with this open-source repo (using standard PDF parsing).
 - Cloud Service — production-grade pipeline with enhanced OCR, tree building, and retrieval for best results. Try instantly with our [Chat Platform](https://chat.pageindex.ai/), or integrate via [MCP](https://pageindex.ai/developer) or [API](https://pageindex.ai/developer).

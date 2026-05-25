@@ -5,6 +5,14 @@ from pathlib import Path
 from typing import Any, Optional, Union
 
 from .metadata import MetadataQueryEngine
+from .semantic_folder_policy import (
+    SEMANTIC_FOLDER_BASE_FIELDS,
+    SEMANTIC_FOLDER_ROOT,
+    SEMANTIC_FOLDER_SYSTEM_FIELDS,
+    canonical_semantic_folder_field_name,
+    is_semantic_folder_forbidden_field,
+    semantic_folder_allowed_extension_fields,
+)
 from .store import (
     SQLiteFileSystemStore,
     fingerprint,
@@ -148,6 +156,77 @@ class PageIndexFileSystem:
 
     def attach_files_to_folders(self, items: list[dict[str, Any]]) -> None:
         self.store.attach_files_to_folders(items)
+
+    def apply_semantic_folder_projection(
+        self,
+        projection_plan: dict[str, Any],
+        *,
+        file_ref_by_document_id: Optional[dict[str, str]] = None,
+    ) -> dict[str, Any]:
+        """Attach registered files to a Semantic Folder Projection.
+
+        Registration remains the explicit folder placement step. This method is
+        the separate product API for adding derived `/semantic/...` memberships.
+        """
+        folders = list(projection_plan.get("folders") or [])
+        memberships = list(projection_plan.get("memberships") or [])
+        policy_raw = projection_plan.get("policy")
+        policy = policy_raw if isinstance(policy_raw, dict) else {}
+        allowed_extension_fields = semantic_folder_allowed_extension_fields(
+            policy.get("allowed_extension_fields", [])
+        )
+        for folder in folders:
+            self._validate_semantic_folder_projection_item(folder, allowed_extension_fields)
+        for membership in memberships:
+            self._validate_semantic_folder_projection_item(membership, allowed_extension_fields)
+
+        for folder in folders:
+            folder_metadata = folder.get("metadata")
+            self.create_folder(
+                self._validate_semantic_folder_projection_path(str(folder["path"])),
+                kind=str(folder.get("kind") or "semantic_projection"),
+                description=str(folder.get("description") or ""),
+                metadata=folder_metadata if isinstance(folder_metadata, dict) else {},
+            )
+
+        items: list[dict[str, Any]] = []
+        file_ref_by_document_id = file_ref_by_document_id or {}
+        for membership in memberships:
+            document_id = self._semantic_folder_projection_document_id(membership)
+            file_ref = file_ref_by_document_id.get(document_id)
+            if not file_ref:
+                file_ref = self.store.resolve_file_ref(document_id)
+            metadata = (
+                dict(membership.get("folder_metadata"))
+                if isinstance(membership.get("folder_metadata"), dict)
+                else {}
+            )
+            metadata.update(
+                {
+                    "projection": "Semantic Folder Projection",
+                    "field": membership.get("field", ""),
+                    "value": membership.get("value", ""),
+                    "mount_kind": membership.get(
+                        "mount_kind",
+                        "semantic_folder_projection",
+                    ),
+                }
+            )
+            items.append(
+                {
+                    "file_ref": file_ref,
+                    "folder": self._validate_semantic_folder_projection_path(
+                        str(membership["folder_path"])
+                    ),
+                    "metadata": metadata,
+                }
+            )
+        self.attach_files_to_folders(items)
+        return {
+            "projection": "Semantic Folder Projection",
+            "folders_applied": len(folders),
+            "memberships_attached": len(items),
+        }
 
     def search(
         self,
@@ -801,10 +880,124 @@ class PageIndexFileSystem:
 
     @staticmethod
     def _source_type_filter_from_path(path: str) -> str:
-        first_segment = path.strip("/").split("/", 1)[0]
+        segments = [segment for segment in path.strip("/").split("/") if segment]
+        if not segments:
+            return ""
+        if segments[0] == SEMANTIC_FOLDER_ROOT.strip("/"):
+            segments = segments[1:]
+        if not segments:
+            return ""
+        first_segment = segments[0]
         if first_segment.startswith("source_type="):
             return first_segment.split("=", 1)[1].replace("-", "_")
+        if path.startswith(f"{SEMANTIC_FOLDER_ROOT}/"):
+            return ""
         return first_segment
+
+    @classmethod
+    def _validate_semantic_folder_projection_item(
+        cls,
+        item: dict[str, Any],
+        allowed_extension_fields: set[str],
+    ) -> None:
+        path = item.get("folder_path") or item.get("path")
+        if not path:
+            raise ValueError("Semantic Folder Projection items must include a folder path")
+        cls._validate_semantic_folder_projection_path(str(path))
+        allowed_fields = (
+            SEMANTIC_FOLDER_BASE_FIELDS
+            | SEMANTIC_FOLDER_SYSTEM_FIELDS
+            | allowed_extension_fields
+        )
+        if item.get("dataset_doc_uuid"):
+            raise ValueError(
+                "dataset_doc_uuid is not allowed in Semantic Folder Projection memberships; "
+                "use file_key or file_ref"
+            )
+        fields = []
+        explicit_field = cls._canonical_semantic_folder_field_name(item.get("field"))
+        if explicit_field:
+            fields.append(explicit_field)
+        fields.extend(cls._semantic_folder_projection_fields_from_path(str(path)))
+        for payload_key in ("metadata", "folder_metadata"):
+            cls._validate_semantic_folder_projection_metadata_payload(
+                item.get(payload_key),
+                allowed_fields,
+            )
+        for field in fields:
+            if is_semantic_folder_forbidden_field(field) or field not in allowed_fields:
+                raise ValueError(f"Field is not allowed for Semantic Folder Projection: {field}")
+
+    @staticmethod
+    def _validate_semantic_folder_projection_path(path: str) -> str:
+        normalized = normalize_path(path)
+        if normalized != SEMANTIC_FOLDER_ROOT and not normalized.startswith(
+            f"{SEMANTIC_FOLDER_ROOT}/"
+        ):
+            raise ValueError("Semantic Folder Projection paths must be under /semantic")
+        return normalized
+
+    @classmethod
+    def _semantic_folder_projection_fields_from_path(cls, path: str) -> list[str]:
+        normalized = cls._validate_semantic_folder_projection_path(path)
+        fields: list[str] = []
+        for segment in normalized.strip("/").split("/")[1:]:
+            if "=" not in segment:
+                continue
+            field = cls._canonical_semantic_folder_field_name(
+                segment.split("=", 1)[0]
+            )
+            if field:
+                fields.append(field)
+        return fields
+
+    @classmethod
+    def _validate_semantic_folder_projection_metadata_payload(
+        cls,
+        payload: Any,
+        allowed_fields: set[str],
+    ) -> None:
+        if isinstance(payload, dict):
+            for key, value in payload.items():
+                key_text = str(key)
+                key_field = cls._canonical_semantic_folder_field_name(key)
+                if is_semantic_folder_forbidden_field(key_field):
+                    raise ValueError(
+                        "Forbidden metadata field in Semantic Folder Projection payload: "
+                        f"{key_text}"
+                    )
+                if key_field in {"field", "source_field", "metadata_field"}:
+                    field = cls._canonical_semantic_folder_field_name(value)
+                    if field and (
+                        is_semantic_folder_forbidden_field(field)
+                        or field not in allowed_fields
+                    ):
+                        raise ValueError(
+                            f"Field is not allowed for Semantic Folder Projection: {field}"
+                        )
+                cls._validate_semantic_folder_projection_metadata_payload(value, allowed_fields)
+        elif isinstance(payload, list):
+            for item in payload:
+                cls._validate_semantic_folder_projection_metadata_payload(item, allowed_fields)
+        elif isinstance(payload, str):
+            field = cls._canonical_semantic_folder_field_name(payload)
+            if is_semantic_folder_forbidden_field(field):
+                raise ValueError(
+                    "Forbidden metadata field label in Semantic Folder Projection payload: "
+                    f"{payload}"
+                )
+
+    @staticmethod
+    def _canonical_semantic_folder_field_name(value: Any) -> str:
+        return canonical_semantic_folder_field_name(value)
+
+    @staticmethod
+    def _semantic_folder_projection_document_id(membership: dict[str, Any]) -> str:
+        for key in ("file_key", "file_ref", "document_ref"):
+            value = str(membership.get(key) or "").strip()
+            if value:
+                return value
+        raise ValueError("Semantic Folder Projection membership is missing file_key or file_ref")
 
     @staticmethod
     def _query_text(query: Union[str, list[str], None]) -> str:

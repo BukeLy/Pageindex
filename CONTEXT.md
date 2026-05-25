@@ -53,12 +53,12 @@ A configurable implementation guard that may limit broad `grep -R` execution for
 _Avoid_: grep semantics, semantic grep
 
 **Semantic Folder Projection**:
-An automatic multi-mount folder layout derived from trusted metadata so documents can be browsed through semantic categories without leaving their existing folders.
+An explicit workspace operation that adds automatic multi-mount folder memberships under `/semantic/...` from trusted metadata so documents can be browsed through semantic categories without leaving their existing folders.
 _Avoid_: move to folder, relocation, source bucket
 
 **Semantic Folder Field**:
-A metadata field allowed to participate in Semantic Folder Projection: doc_type, domain, topic, or an LLM-discovered Extension Field intended for browsing.
-_Avoid_: summary, entity, relation, retrieval cue, constraint, provenance field
+A metadata field allowed to participate in Semantic Folder Projection: `metadata_base.doc_type`, `metadata_base.domain`, `metadata_base.topic`, an Extension Field marked `suitable_for_folder`, or `system.source_type` as the browse root.
+_Avoid_: summary, entity, relation, retrieval cue, constraint, dataset_doc_uuid, path, uri, provenance field
 
 **Explicit Folder**:
 A folder placement supplied during Registration, before any Semantic Folder Projection is applied.
@@ -108,8 +108,14 @@ Domain expert: No. It only supplies candidates. The PIFS Workspace remains the c
 Developer: Does Semantic Folder Projection move a document out of its original folder?
 Domain expert: No. It adds browseable folder memberships. The document remains the same registered document.
 
+Developer: Is Semantic Folder Projection part of Registration by default?
+Domain expert: No. Registration may supply an Explicit Folder. Semantic Folder Projection is a later explicit API/CLI operation that can add one or more `/semantic/...` memberships to the same document.
+
 Developer: Can summaries or entities be used directly as semantic folder names?
 Domain expert: No. Semantic Folder Projection uses Semantic Folder Fields, not text-heavy retrieval projections.
+
+Developer: Is `build_folders.py` the product folder API?
+Domain expert: No. It is the EnterpriseRAG benchmark artifact builder for a `folder_plan.json`. Product code should apply that plan through the Semantic Folder Projection API and enforce the allowed-field policy.
 
 Developer: Can extension fields be discovered by counting field coverage and cardinality?
 Domain expert: No. Extension Schema Discovery is a document-understanding concept that requires an LLM/provider. Code may audit forbidden fields and JSON shape, but it must not choose fields with coverage, cardinality, field-name regex, or source-type heuristics.

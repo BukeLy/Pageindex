@@ -8,31 +8,29 @@ from typing import Any
 
 from pipeline_common import (
     FOLDER_BASE_FIELDS,
+    SEMANTIC_FOLDER_FORBIDDEN_FIELDS,
+    SEMANTIC_FOLDER_ROOT,
     TEXT_HEAVY_FIELDS,
     cardinality_expectation,
+    canonical_semantic_folder_field_name,
     field_distribution,
     field_values_for_doc,
+    is_semantic_folder_forbidden_field,
     is_forbidden_extension_field,
     load_ready_extension_schema,
     load_normalized_metadata,
+    semantic_folder_file_key,
     slug,
     update_config,
     value_key,
     write_json,
     write_summary,
+    semantic_folder_allowed_extension_fields,
 )
 
 
-FORBIDDEN_FOLDER_FIELDS = {
-    "summary",
-    "entities",
-    "relations",
-    "constraints",
-    "retrieval_cues",
-    "dataset_doc_uuid",
-    "source_path",
-    "storage_uri",
-}
+SEMANTIC_FOLDER_PROJECTION_NAME = "Semantic Folder Projection"
+FORBIDDEN_FOLDER_FIELDS = SEMANTIC_FOLDER_FORBIDDEN_FIELDS
 
 
 def main() -> int:
@@ -76,7 +74,9 @@ def main() -> int:
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Build folder browse projection from base metadata and extension schema")
+    parser = argparse.ArgumentParser(
+        description="Build a Semantic Folder Projection artifact from trusted metadata"
+    )
     parser.add_argument("--run-dir", required=True)
     parser.add_argument("--metadata", default="")
     parser.add_argument("--extension-schema", default="")
@@ -99,17 +99,23 @@ def build_folder_plan(
     extension_schema: dict[str, Any],
     args: argparse.Namespace,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
-    allowed_extension_fields = {
-        field["name"]
+    suitable_extension_fields = {
+        canonical_semantic_folder_field_name(field.get("name"))
         for field in extension_schema.get("fields", [])
-        if field.get("suitable_for_folder") is True
+        if field.get("suitable_for_folder") is True and canonical_semantic_folder_field_name(field.get("name"))
     }
+    allowed_extension_fields = {
+        field
+        for field in semantic_folder_allowed_extension_fields(suitable_extension_fields)
+        if not is_forbidden_extension_field(field)
+    }
+    rejected_extension_fields = sorted(suitable_extension_fields - allowed_extension_fields)
     candidate_fields = sorted(FOLDER_BASE_FIELDS | allowed_extension_fields)
     field_report = build_field_report(rows, candidate_fields, args)
     selected_fields = [
         field
         for field, report in field_report["fields"].items()
-        if report["selected_for_folder"] and field not in FORBIDDEN_FOLDER_FIELDS
+        if report["selected_for_folder"] and not is_semantic_folder_forbidden_field(field)
     ]
     selected_fields = sorted(selected_fields, key=lambda field: field_sort_key(field, field_report))
 
@@ -123,12 +129,16 @@ def build_folder_plan(
         add_tree_memberships(rows, selected_fields, folders, memberships, args)
 
     plan = {
-        "generated_by": "semantic_metadata_pipeline.build_folders",
+        "name": SEMANTIC_FOLDER_PROJECTION_NAME,
+        "generated_by": "semantic_metadata_pipeline.build_folders.semantic_folder_projection",
+        "artifact_builder": "benchmark",
         "mode": args.mode,
+        "root": SEMANTIC_FOLDER_ROOT,
         "policy": {
             "allowed_base_fields": sorted(FOLDER_BASE_FIELDS),
             "allowed_extension_fields": sorted(allowed_extension_fields),
-            "source_type_root": bool(args.include_source_root),
+            "rejected_extension_fields": rejected_extension_fields,
+            "source_type_browse_root": bool(args.include_source_root),
             "forbidden_fields": sorted(FORBIDDEN_FOLDER_FIELDS),
             "max_depth": args.max_depth,
         },
@@ -155,8 +165,13 @@ def build_field_report(rows: list[dict[str, Any]], fields: list[str], args: argp
         coverage = len(values_by_doc) / doc_count
         cardinality_rate = unique_count / max(1, len(values_by_doc))
         reasons = []
-        if field in FORBIDDEN_FOLDER_FIELDS or field in TEXT_HEAVY_FIELDS or is_forbidden_extension_field(field) and field not in FOLDER_BASE_FIELDS:
-            reasons.append("field is forbidden for folder generation")
+        if (
+            is_semantic_folder_forbidden_field(field)
+            or field in TEXT_HEAVY_FIELDS
+            or is_forbidden_extension_field(field)
+            and field not in FOLDER_BASE_FIELDS
+        ):
+            reasons.append("field is forbidden for Semantic Folder Projection")
         if coverage < args.min_coverage:
             reasons.append("coverage below folder threshold")
         if unique_count < 2:
@@ -189,7 +204,10 @@ def build_field_report(rows: list[dict[str, Any]], fields: list[str], args: argp
         "fields": reports,
         "rejected": rejected,
         "policy": {
-            "folder_inputs": "metadata_base doc_type/domain/topic plus extension fields marked suitable_for_folder=true",
+            "folder_inputs": (
+                "Semantic Folder Projection inputs are metadata_base doc_type/domain/topic, "
+                "extension fields marked suitable_for_folder=true, and system.source_type as the browse root."
+            ),
             "excluded": sorted(FORBIDDEN_FOLDER_FIELDS),
         },
     }
@@ -207,7 +225,7 @@ def add_source_root_memberships(
 ) -> None:
     for row in rows:
         source_type = row.get("system", {}).get("source_type") or "unknown"
-        path = f"/source_type={slug(source_type)}"
+        path = f"{SEMANTIC_FOLDER_ROOT}/source_type={slug(source_type)}"
         folders.setdefault(
             path,
             {
@@ -216,7 +234,11 @@ def add_source_root_memberships(
                 "field": "source_type",
                 "value": source_type,
                 "description": "System source_type browse root; not LLM metadata.",
-                "metadata": {"field": "source_type", "system_field": True},
+                "metadata": {
+                    "projection": SEMANTIC_FOLDER_PROJECTION_NAME,
+                    "field": "source_type",
+                    "system_field": True,
+                },
             },
         )
         memberships.append(
@@ -249,7 +271,12 @@ def add_multimount_memberships(
                         "field": field,
                         "value": value,
                         "description": f"{field}: {value}",
-                        "metadata": {"field": field, "value": value, "mount": "multimount"},
+                        "metadata": {
+                            "projection": SEMANTIC_FOLDER_PROJECTION_NAME,
+                            "field": field,
+                            "value": value,
+                            "mount": "multimount",
+                        },
                     },
                 )
                 memberships.append(membership(row["dataset_doc_uuid"], path, field, value, "multimount"))
@@ -315,7 +342,13 @@ def build_tree_level(
                 "field": field,
                 "value": value,
                 "description": f"{field}: {value}",
-                "metadata": {"field": field, "value": value, "mount": "tree", "depth": depth + 1},
+                "metadata": {
+                    "projection": SEMANTIC_FOLDER_PROJECTION_NAME,
+                    "field": field,
+                    "value": value,
+                    "mount": "tree",
+                    "depth": depth + 1,
+                },
             },
         )
         for row in group_rows:
@@ -376,20 +409,21 @@ def folder_counts(rows: list[dict[str, Any]], fields: list[str]) -> Counter[tupl
 
 def source_root(row: dict[str, Any], args: argparse.Namespace) -> str:
     if not args.include_source_root:
-        return ""
+        return SEMANTIC_FOLDER_ROOT
     source_type = row.get("system", {}).get("source_type") or "unknown"
-    return f"/source_type={slug(source_type)}"
+    return f"{SEMANTIC_FOLDER_ROOT}/source_type={slug(source_type)}"
 
 
 def membership(doc_id: str, path: str, field: str, value: str, mount_kind: str) -> dict[str, Any]:
     normalized_path = path if path.startswith("/") else "/" + path
     return {
-        "dataset_doc_uuid": doc_id,
+        "file_key": semantic_folder_file_key(doc_id),
         "folder_path": normalized_path,
         "field": field,
         "value": value,
         "mount_kind": mount_kind,
         "folder_metadata": {
+            "projection": SEMANTIC_FOLDER_PROJECTION_NAME,
             "field": field,
             "value": value,
             "mount_kind": mount_kind,
@@ -401,7 +435,7 @@ def dedupe_memberships(memberships: list[dict[str, Any]]) -> list[dict[str, Any]
     result = []
     seen = set()
     for item in memberships:
-        key = (item["dataset_doc_uuid"], item["folder_path"], item["mount_kind"])
+        key = (item["file_key"], item["folder_path"], item["mount_kind"])
         if key in seen:
             continue
         seen.add(key)

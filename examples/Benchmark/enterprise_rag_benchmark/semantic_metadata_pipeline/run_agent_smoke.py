@@ -35,6 +35,7 @@ from examples.Benchmark.enterprise_rag_benchmark.semantic_metadata_pipeline.pipe
     load_ready_extension_schema,
     read_json,
     read_jsonl,
+    semantic_folder_file_key,
     slug,
     write_json,
 )
@@ -200,7 +201,6 @@ def materialize_workspace(
     filesystem = PageIndexFileSystem(workspace=workspace)
     schema = metadata_schema(extension_schema)
     filesystem._register_metadata_schema(schema)
-    create_plan_folders(filesystem, folder_plan)
 
     file_specs = []
     ordered_rows = []
@@ -213,17 +213,20 @@ def materialize_workspace(
         file_specs.append(file_spec_for_row(row, doc, extension_schema))
     file_refs = filesystem.register_files(file_specs)
     file_ref_by_doc = {
-        dataset_doc_uuid(row): file_ref
+        semantic_folder_file_key(dataset_doc_uuid(row)): file_ref
         for row, file_ref in zip(ordered_rows, file_refs)
     }
-    memberships = attach_plan_memberships(filesystem, folder_plan, ordered_rows, file_ref_by_doc)
+    projection = filesystem.apply_semantic_folder_projection(
+        folder_plan,
+        file_ref_by_document_id=file_ref_by_doc,
+    )
     return {
         "workspace": str(workspace),
         "run_dir": str(run_dir),
         "dataset": str(dataset_dir),
         "files_registered": len(file_refs),
-        "folders_created": len(folder_plan.get("folders") or []),
-        "folder_memberships_attached": memberships,
+        "folders_created": projection["folders_applied"],
+        "folder_memberships_attached": projection["memberships_attached"],
         "metadata_schema_fields": sorted(schema["fields"]),
         "projection_index_dir": str(run_dir / "projection_indexes"),
         "reset": reset,
@@ -367,8 +370,11 @@ def values_match(actual: Any, expected: Any) -> bool:
 
 
 def folder_path_matches_source(path: str, source_type: str) -> bool:
-    first = str(path).strip("/").split("/", 1)[0]
-    return first == source_root_path(source_type).strip("/")
+    expected = source_root_path(source_type).strip("/")
+    for segment in str(path).strip("/").split("/"):
+        if segment.startswith("source_type="):
+            return segment == expected
+    return False
 
 
 def source_root_path(source_type: Any) -> str:
