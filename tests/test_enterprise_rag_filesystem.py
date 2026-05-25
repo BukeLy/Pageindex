@@ -124,6 +124,22 @@ class EnterpriseRAGFileSystemTest(unittest.TestCase):
             with self.assertRaises(MetadataQueryError):
                 filesystem.search(None, metadata_filter={"repo": "redwood"})
 
+    def test_semantic_scope_parses_source_type_facet_folder(self):
+        from pageindex.filesystem import PageIndexFileSystem
+
+        self.assertEqual(
+            PageIndexFileSystem._semantic_filters_for_scope(
+                {"folder_path": "/source_type=google-drive", "recursive": True}
+            ),
+            {"source_type": "google_drive"},
+        )
+        self.assertEqual(
+            PageIndexFileSystem._semantic_filters_for_scope(
+                {"folder_path": "/source_type=github/facets/doc_type=pull-request", "recursive": True}
+            ),
+            {"source_type": "github"},
+        )
+
     def test_search_filters_by_folder_scope_and_metadata(self):
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
@@ -671,8 +687,12 @@ class EnterpriseRAGFileSystemTest(unittest.TestCase):
             relation = json.loads(
                 executor.execute('search-relation "AuditService emits audit event" /github')
             )
-            grep_alias = json.loads(executor.execute('grep -R "retention evidence" /github'))
-            grep_no_match = json.loads(executor.execute('grep -R "unmentioned exact phrase" /github'))
+            grep_alias = json.loads(executor.execute('grep -R "retention evidence" /github/redwood'))
+            grep_no_match = json.loads(executor.execute('grep -R "unmentioned exact phrase" /github/redwood'))
+            semantic_grep = json.loads(executor.execute('semantic-grep -R "retention evidence" /github'))
+            semantic_grep_no_match = json.loads(
+                executor.execute('semantic-grep -R "unmentioned exact phrase" /github')
+            )
             find_entity_alias = json.loads(executor.execute('find /github --name "AuditService"'))
             find_relation_alias = json.loads(
                 executor.execute('find /github --relation "AuditService emits audit event"')
@@ -684,12 +704,18 @@ class EnterpriseRAGFileSystemTest(unittest.TestCase):
             self.assertEqual(entity["data"]["data"][0]["external_id"], "dsid_entity_semantic")
             self.assertEqual(relation["data"]["retrieval"], "relation_vector")
             self.assertEqual(relation["data"]["data"][0]["external_id"], "dsid_relation_semantic")
-            self.assertEqual(grep_alias["data"]["retrieval"], "hybrid_entity_relation_vector_grep")
-            self.assertEqual(grep_alias["data"]["candidate_limit"], 40)
-            self.assertEqual(grep_alias["data"]["data"][0]["external_id"], "dsid_entity_semantic")
+            self.assertNotIn("retrieval", grep_alias["data"])
+            self.assertTrue(grep_alias["data"]["data"])
             self.assertIn("retention evidence", grep_alias["data"]["data"][0]["text"])
-            self.assertEqual(grep_no_match["data"]["retrieval"], "hybrid_entity_relation_vector_grep")
             self.assertEqual(grep_no_match["data"]["data"], [])
+            self.assertEqual(semantic_grep["data"]["retrieval"], "semantic_grep_entity_then_relation")
+            self.assertEqual(semantic_grep["data"]["candidate_limit_per_channel"], 20)
+            self.assertEqual(semantic_grep["data"]["matched_channel"], "entity")
+            self.assertEqual(semantic_grep["data"]["data"][0]["external_id"], "dsid_entity_semantic")
+            self.assertIn("retention evidence", semantic_grep["data"]["data"][0]["text"])
+            self.assertEqual(semantic_grep_no_match["data"]["retrieval"], "semantic_grep_entity_then_relation")
+            self.assertEqual(semantic_grep_no_match["data"]["data"], [])
+            self.assertIn("candidate_debug", semantic_grep_no_match["data"])
             self.assertEqual(find_entity_alias["data"][0]["external_id"], "dsid_entity_semantic")
             self.assertEqual(find_relation_alias["data"][0]["external_id"], "dsid_relation_semantic")
 
@@ -782,10 +808,10 @@ class EnterpriseRAGFileSystemTest(unittest.TestCase):
             leaf = executor.execute('grep -R "multipart upload" /semantic/topics/api-input/multipart')
             local = executor.execute('grep "max_file_size" ref_1')
 
-            self.assertIn("# folder matches for: multipart upload", broad)
-            self.assertIn("# folder matches for: multipart upload", broad_case)
-            self.assertIn("/semantic/topics/", broad)
-            self.assertIn("matched_files=1", broad)
+            self.assertIn("# grep -R skipped for broad folder: /semantic", broad)
+            self.assertIn("# grep -R skipped for broad folder: /semantic", broad_case)
+            self.assertIn("deeper than 2 levels or has more than 10 files", broad)
+            self.assertIn("semantic-grep -R", broad)
             self.assertNotIn("dsid_multipart_limits", broad)
             self.assertNotIn("ref_1", broad)
             self.assertIn("/semantic", tree)
@@ -800,6 +826,70 @@ class EnterpriseRAGFileSystemTest(unittest.TestCase):
             self.assertIn("max_file_size", local)
             self.assertLessEqual(len(local.splitlines()[0]), 240)
             self.assertNotIn("private full document tail", local)
+
+    def test_recursive_grep_limits_deep_large_folder_scope(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            from pageindex.filesystem import PIFSCommandExecutor, PageIndexFileSystem
+
+            filesystem = PageIndexFileSystem(workspace=Path(tmp) / "workspace")
+            for index in range(10):
+                filesystem.register_file(
+                    storage_uri=f"file:///tmp/pr-{index}.json",
+                    source_path=f"github/pr-{index}.json",
+                    folder_path="/semantic/topics/api-input/multipart",
+                    external_id=f"dsid_multipart_limits_{index}",
+                    title=f"Multipart upload limits {index}",
+                    metadata={"semantic_topics": ["multipart upload"]},
+                    content=(
+                        "title line\n"
+                        f"The multipart upload path sets max_file_size to {10 + index}MiB.\n"
+                    ),
+                )
+            executor = PIFSCommandExecutor(filesystem, json_output=True)
+
+            blocked = json.loads(executor.execute('grep -R "multipart upload" /semantic'))
+            leaf = json.loads(
+                executor.execute('grep -R "multipart upload" /semantic/topics/api-input/multipart')
+            )
+            shell_blocked = PIFSCommandExecutor(filesystem).execute(
+                'grep -R "multipart upload" /semantic'
+            )
+
+            self.assertEqual(blocked["data"]["mode"], "limited")
+            self.assertEqual(blocked["data"]["folder_depth_limit"], 2)
+            self.assertEqual(blocked["data"]["file_count_limit"], 10)
+            self.assertEqual(blocked["data"]["sampled_file_count"], 10)
+            self.assertTrue(blocked["data"]["folder_depth_exceeds_limit"])
+            self.assertFalse(blocked["data"]["file_count_exceeds_limit"])
+            self.assertIn("semantic-grep -R", blocked["data"]["hint"])
+            self.assertIn("search-summary", blocked["data"]["hint"])
+            self.assertEqual(leaf["data"]["mode"], "files")
+            self.assertTrue(leaf["data"]["data"])
+            self.assertIn("# grep -R skipped for broad folder: /semantic", shell_blocked)
+            self.assertIn("semantic-grep -R", shell_blocked)
+
+    def test_recursive_grep_limits_shallow_large_folder_scope(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            from pageindex.filesystem import PIFSCommandExecutor, PageIndexFileSystem
+
+            filesystem = PageIndexFileSystem(workspace=Path(tmp) / "workspace")
+            for index in range(11):
+                filesystem.register_file(
+                    storage_uri=f"file:///tmp/shallow-{index}.json",
+                    source_path=f"github/shallow-{index}.json",
+                    folder_path="/github",
+                    external_id=f"dsid_shallow_limits_{index}",
+                    title=f"Shallow upload limits {index}",
+                    content=f"The shallow folder mentions multipart upload {index}.\n",
+                )
+            executor = PIFSCommandExecutor(filesystem, json_output=True)
+
+            blocked = json.loads(executor.execute('grep -R "multipart upload" /github'))
+
+            self.assertEqual(blocked["data"]["mode"], "limited")
+            self.assertFalse(blocked["data"]["folder_depth_exceeds_limit"])
+            self.assertTrue(blocked["data"]["file_count_exceeds_limit"])
+            self.assertEqual(blocked["data"]["sampled_file_count"], 11)
 
     def test_pifs_command_executor_supports_safe_and_chains(self):
         with tempfile.TemporaryDirectory() as tmp:

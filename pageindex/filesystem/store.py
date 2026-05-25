@@ -1328,6 +1328,56 @@ class SQLiteFileSystemStore:
                 ).fetchone()
         return int(row["count"] or 0)
 
+    def folder_subtree_thresholds(
+        self,
+        path: str,
+        *,
+        depth_limit: int,
+        file_limit: int,
+    ) -> dict[str, Any]:
+        path = normalize_path(path)
+        with self.connect() as conn:
+            folder = self._folder_by_path(conn, path)
+            if folder is None:
+                raise KeyError(f"Unknown folder path: {path}")
+            base_depth = self._folder_depth(path)
+            deep_folder = conn.execute(
+                """
+                SELECT path
+                FROM folders
+                WHERE path != ?
+                  AND path LIKE ?
+                  AND (
+                    CASE
+                      WHEN TRIM(path, '/') = '' THEN 0
+                      ELSE LENGTH(TRIM(path, '/')) - LENGTH(REPLACE(TRIM(path, '/'), '/', '')) + 1
+                    END
+                  ) - ? > ?
+                LIMIT 1
+                """,
+                (path, self._descendant_like(path), base_depth, depth_limit),
+            ).fetchone()
+            file_rows = conn.execute(
+                """
+                SELECT DISTINCT f.file_ref
+                FROM files f
+                JOIN file_folders ff ON ff.file_ref = f.file_ref
+                JOIN folders fo ON fo.folder_id = ff.folder_id
+                WHERE f.deleted_at IS NULL
+                  AND (fo.path = ? OR fo.path LIKE ?)
+                LIMIT ?
+                """,
+                (path, self._descendant_like(path), file_limit + 1),
+            ).fetchall()
+        return {
+            "depth_limit": depth_limit,
+            "file_limit": file_limit,
+            "folder_depth_exceeds_limit": deep_folder is not None,
+            "file_count_exceeds_limit": len(file_rows) > file_limit,
+            "sampled_file_count": len(file_rows),
+            "sample_deep_folder_path": deep_folder["path"] if deep_folder is not None else "",
+        }
+
     def _file_entry_row(self, conn: sqlite3.Connection, file_ref: str) -> sqlite3.Row | None:
         return conn.execute(
             """
@@ -1487,6 +1537,11 @@ class SQLiteFileSystemStore:
     @staticmethod
     def _descendant_like(path: str) -> str:
         return "/%" if path == "/" else f"{path}/%"
+
+    @staticmethod
+    def _folder_depth(path: str) -> int:
+        stripped = normalize_path(path).strip("/")
+        return 0 if not stripped else len(stripped.split("/"))
 
     @classmethod
     def _folder_row_to_dict(cls, row: sqlite3.Row) -> dict[str, Any]:

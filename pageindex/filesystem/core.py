@@ -105,9 +105,10 @@ class PageIndexFileSystem:
         scope: Optional[dict[str, Any]] = None,
         metadata_filter: Optional[dict[str, Any] | str] = None,
         limit: int = 10,
+        semantic: bool = True,
     ) -> list[SearchResult]:
         parsed_filter = self.metadata.parse_filter(metadata_filter)
-        if self._should_use_semantic_retrieval(query, scope):
+        if semantic and self._should_use_semantic_retrieval(query, scope):
             semantic_results = self._semantic_search(
                 query,
                 scope=scope,
@@ -451,8 +452,15 @@ class PageIndexFileSystem:
         path = cls._scope_folder_path(scope)
         if not path or path == "/":
             return {}
-        source_type = path.strip("/").split("/", 1)[0]
+        source_type = cls._source_type_filter_from_path(path)
         return {"source_type": source_type} if source_type else {}
+
+    @staticmethod
+    def _source_type_filter_from_path(path: str) -> str:
+        first_segment = path.strip("/").split("/", 1)[0]
+        if first_segment.startswith("source_type="):
+            return first_segment.split("=", 1)[1].replace("-", "_")
+        return first_segment
 
     @staticmethod
     def _query_text(query: Union[str, list[str], None]) -> str:

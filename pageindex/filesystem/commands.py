@@ -24,6 +24,7 @@ class PIFSCommandExecutor:
         "tree",
         "find",
         "grep",
+        "semantic-grep",
         "cat",
         "stat",
         "mkdir",
@@ -40,12 +41,15 @@ class PIFSCommandExecutor:
         "search-summary": "_cmd_search_summary",
         "search-entity": "_cmd_search_entity",
         "search-relation": "_cmd_search_relation",
+        "semantic-grep": "_cmd_semantic_grep",
     }
     MAX_TREE_DEPTH = 4
     MAX_LS_RENDER_FILES = 25
     MAX_STAT_METADATA_FIELDS = 8
-    SEMANTIC_GREP_VECTOR_CANDIDATE_LIMIT = 40
+    SEMANTIC_GREP_VECTOR_CANDIDATE_LIMIT = 20
     SEMANTIC_GREP_CHANNELS = ("entity", "relation")
+    GREP_RECURSIVE_FOLDER_DEPTH_LIMIT = 2
+    GREP_RECURSIVE_FOLDER_FILE_LIMIT = 10
 
     def __init__(
         self,
@@ -138,8 +142,6 @@ class PIFSCommandExecutor:
             else:
                 path = arg
             i += 1
-        if recursive and self._can_use_semantic_recursive_listing():
-            return self._semantic_recursive_listing(path, limit=limit)
         return self.filesystem.browse(path, recursive=recursive, limit=limit)
 
     def _cmd_tree(self, args: list[str]) -> Any:
@@ -164,10 +166,7 @@ class PIFSCommandExecutor:
             raise PIFSCommandError("tree --depth must be at least 1")
         if depth > self.MAX_TREE_DEPTH:
             depth = self.MAX_TREE_DEPTH
-        if self._can_use_semantic_recursive_listing():
-            listing = self._semantic_recursive_listing(path, limit=limit)
-        else:
-            listing = self.filesystem.browse(path, recursive=True, limit=limit)
+        listing = self.filesystem.browse(path, recursive=True, limit=limit)
         return {"path": path, "depth": depth, "limit": limit, **listing}
 
     def _cmd_find(self, args: list[str]) -> Any:
@@ -229,6 +228,7 @@ class PIFSCommandExecutor:
             scope={"folder_path": path, "recursive": True},
             metadata_filter=where,
             limit=limit,
+            semantic=False,
         )
 
     def _cmd_grep(self, args: list[str]) -> Any:
@@ -263,13 +263,9 @@ class PIFSCommandExecutor:
         if self._is_folder(path):
             normalized = self._normalize_folder_path(path)
             if recursive:
-                if self.filesystem.has_semantic_retrieval_backend:
-                    return self._semantic_recursive_grep(
-                        normalized,
-                        query,
-                        metadata_filter=where,
-                        limit=limit,
-                    )
+                limit_notice = self._recursive_grep_limit_notice(normalized, query)
+                if limit_notice:
+                    return limit_notice
                 children = self.filesystem.browse(normalized, recursive=False, limit=1000)["folders"]
                 if children:
                     direct_results = self.filesystem.search(
@@ -277,6 +273,7 @@ class PIFSCommandExecutor:
                         scope={"folder_path": normalized, "recursive": False},
                         metadata_filter=where,
                         limit=limit,
+                        semantic=False,
                     )
                     if direct_results:
                         return {
@@ -324,6 +321,7 @@ class PIFSCommandExecutor:
                 scope={"folder_path": normalized, "recursive": recursive},
                 metadata_filter=where,
                 limit=limit,
+                semantic=False,
             )
             if not results and where is None:
                 source_hits = self._grep_source_file_hits(normalized, query, limit=limit)
@@ -470,6 +468,48 @@ class PIFSCommandExecutor:
     def _cmd_search_relation(self, args: list[str]) -> Any:
         return self._cmd_semantic_channel("relation", args)
 
+    def _cmd_semantic_grep(self, args: list[str]) -> Any:
+        recursive = False
+        where = None
+        limit = 10
+        positionals = []
+        i = 0
+        while i < len(args):
+            arg = args[i]
+            if arg in {"-R", "-r", "--recursive"}:
+                recursive = True
+            elif self._is_combined_grep_flag(arg):
+                recursive = recursive or "R" in arg or "r" in arg
+            elif arg in {"-n", "--line-number", "-i", "--ignore-case"}:
+                pass
+            elif arg == "--where":
+                i += 1
+                where = args[i]
+            elif arg == "--limit":
+                i += 1
+                limit = int(args[i])
+            elif arg.startswith("-"):
+                raise PIFSCommandError(f"Unsupported semantic-grep option: {arg}")
+            else:
+                positionals.append(arg)
+            i += 1
+        if not recursive:
+            raise PIFSCommandError("semantic-grep requires -R/--recursive")
+        if not self.filesystem.has_semantic_retrieval_backend:
+            raise PIFSCommandError("semantic retrieval backend is not configured")
+        if not positionals:
+            raise PIFSCommandError("semantic-grep requires a query")
+        query = positionals[0]
+        path = positionals[1] if len(positionals) > 1 else "/"
+        if not self._is_folder(path):
+            raise PIFSCommandError("semantic-grep target must be a folder")
+        return self._semantic_recursive_grep(
+            self._normalize_folder_path(path),
+            query,
+            metadata_filter=where,
+            limit=limit,
+        )
+
     def _cmd_semantic_channel(self, channel: str, args: list[str]) -> Any:
         if not self.filesystem.has_semantic_retrieval_backend:
             raise PIFSCommandError("semantic retrieval backend is not configured")
@@ -518,66 +558,51 @@ class PIFSCommandExecutor:
         metadata_filter: str | None,
         limit: int,
     ) -> dict[str, Any]:
-        channel_limit = max(
-            1,
-            self.SEMANTIC_GREP_VECTOR_CANDIDATE_LIMIT // len(self.SEMANTIC_GREP_CHANNELS),
-        )
         vector_query = str(query or "").strip()
-        channel_results = {
-            channel: self.filesystem.search_semantic_channel(
+        candidate_debug: dict[str, Any] = {}
+        for channel in self.SEMANTIC_GREP_CHANNELS:
+            channel_results = self.filesystem.search_semantic_channel(
                 channel,
                 vector_query,
                 scope={"folder_path": folder_path, "recursive": True},
                 metadata_filter=metadata_filter,
-                limit=channel_limit,
+                limit=self.SEMANTIC_GREP_VECTOR_CANDIDATE_LIMIT,
             )
-            for channel in self.SEMANTIC_GREP_CHANNELS
-        }
-        candidates = self._merge_semantic_grep_candidates(
-            channel_results,
-            max_candidates=self.SEMANTIC_GREP_VECTOR_CANDIDATE_LIMIT,
-        )
+            matches = self._grep_file_hits_from_results(
+                channel_results,
+                query,
+                require_match=True,
+                limit=limit,
+            )
+            candidate_debug[channel] = {
+                "candidates": len(channel_results),
+                "line_matches": len(matches),
+                "candidate_doc_ids": [
+                    getattr(result, "external_id", None)
+                    for result in channel_results[:5]
+                ],
+            }
+            if matches:
+                return {
+                    "mode": "files",
+                    "query": query,
+                    "scope": folder_path,
+                    "retrieval": "semantic_grep_entity_then_relation",
+                    "candidate_limit_per_channel": self.SEMANTIC_GREP_VECTOR_CANDIDATE_LIMIT,
+                    "matched_channel": channel,
+                    "candidate_debug": candidate_debug,
+                    "data": matches,
+                }
         return {
             "mode": "files",
             "query": query,
             "scope": folder_path,
-            "retrieval": "hybrid_entity_relation_vector_grep",
-            "candidate_limit": self.SEMANTIC_GREP_VECTOR_CANDIDATE_LIMIT,
-            "channels": {
-                channel: len(results)
-                for channel, results in channel_results.items()
-            },
-            "data": self._grep_file_hits_from_results(
-                candidates,
-                query,
-                require_match=True,
-                limit=limit,
-            ),
+            "retrieval": "semantic_grep_entity_then_relation",
+            "candidate_limit_per_channel": self.SEMANTIC_GREP_VECTOR_CANDIDATE_LIMIT,
+            "matched_channel": "",
+            "candidate_debug": candidate_debug,
+            "data": [],
         }
-
-    def _merge_semantic_grep_candidates(
-        self,
-        channel_results: dict[str, list[Any]],
-        *,
-        max_candidates: int,
-    ) -> list[Any]:
-        merged = []
-        seen = set()
-        max_depth = max((len(results) for results in channel_results.values()), default=0)
-        for rank_index in range(max_depth):
-            for channel in self.SEMANTIC_GREP_CHANNELS:
-                results = channel_results.get(channel, [])
-                if rank_index >= len(results):
-                    continue
-                result = results[rank_index]
-                file_ref = getattr(result, "file_ref", None)
-                if file_ref in seen:
-                    continue
-                seen.add(file_ref)
-                merged.append(result)
-                if len(merged) >= max_candidates:
-                    return merged
-        return merged
 
     def _render(self, data: Any, *, json_output: bool, command_name: str) -> str:
         jsonable = self._jsonable(data)
@@ -592,7 +617,7 @@ class PIFSCommandExecutor:
             return self._render_listing(data)
         if command_name == "tree":
             return self._render_tree(data)
-        if command_name == "grep":
+        if command_name in {"grep", "semantic-grep"}:
             return self._render_grep(data)
         if command_name in {"search-summary", "search-entity", "search-relation"}:
             return self._render_grep(data)
@@ -673,6 +698,22 @@ class PIFSCommandExecutor:
                 )
             lines.append(f"# {data.get('hint', 'narrow into one directory, then run grep -R again')}")
             return "\n".join(lines)
+        if mode == "limited":
+            query = str(data.get("query") or "")
+            scope = str(data.get("scope") or "/")
+            lines = [
+                f"# grep -R skipped for broad folder: {scope}",
+                (
+                    "# reason: recursive lexical grep is limited when a folder is deeper "
+                    f"than {data.get('folder_depth_limit', self.GREP_RECURSIVE_FOLDER_DEPTH_LIMIT)} "
+                    f"levels or has more than {data.get('file_count_limit', self.GREP_RECURSIVE_FOLDER_FILE_LIMIT)} files"
+                ),
+                f"# suggested: semantic-grep -R {shlex.quote(query)} {shlex.quote(scope)}",
+                "# also try: search-summary, search-entity, search-relation, or narrow with ls/tree/find --where",
+            ]
+            if data.get("sample_deep_folder_path"):
+                lines.append(f"# deep descendant example: {data['sample_deep_folder_path']}/")
+            return "\n".join(lines)
         if mode == "files":
             if not data.get("data", []):
                 return f"# no matches for: {data.get('query', '')}"
@@ -752,27 +793,6 @@ class PIFSCommandExecutor:
             f"{self._compact_text(item.get('text') or '', max_chars=180)}"
         )
 
-    def _can_use_semantic_recursive_listing(self) -> bool:
-        return bool(
-            self.query_context
-            and self.filesystem.has_semantic_retrieval_backend
-        )
-
-    def _semantic_recursive_listing(self, path: str, *, limit: int) -> dict[str, Any]:
-        normalized = self._normalize_folder_path(path)
-        results = self.filesystem.search(
-            query=self._semantic_retrieval_query(""),
-            scope={"folder_path": normalized, "recursive": True},
-            limit=limit,
-        )
-        return {
-            "mode": "semantic_recursive_listing",
-            "retrieval": "hybrid_entity_relation_vector",
-            "query": self.query_context,
-            "folders": self._folders_from_results(results, limit=limit),
-            "files": results,
-        }
-
     def _semantic_retrieval_query(self, query: str) -> str:
         query = str(query or "").strip()
         context = str(self.query_context or "").strip()
@@ -780,28 +800,35 @@ class PIFSCommandExecutor:
             return f"{context}\nSearch phrase: {query}"
         return context or query
 
-    def _folders_from_results(self, results: list[Any], *, limit: int) -> list[dict[str, Any]]:
-        counts: dict[str, int] = {}
-        for result in results:
-            for folder_path in result.folder_paths or [result.folder_path]:
-                if not folder_path or folder_path == "/":
-                    continue
-                counts[folder_path] = counts.get(folder_path, 0) + 1
-        folders = []
-        for path, matched_files in sorted(
-            counts.items(),
-            key=lambda item: (-item[1], item[0]),
-        )[:limit]:
-            folders.append(
-                {
-                    "path": path,
-                    "name": path.rstrip("/").rsplit("/", 1)[-1] or "/",
-                    "matched_files": matched_files,
-                    "file_count": self.filesystem.store.count_files_in_folder(path, recursive=True),
-                    "children_count": 0,
-                }
-            )
-        return folders
+    def _recursive_grep_limit_notice(self, folder_path: str, query: str) -> dict[str, Any] | None:
+        stats = self.filesystem.store.folder_subtree_thresholds(
+            folder_path,
+            depth_limit=self.GREP_RECURSIVE_FOLDER_DEPTH_LIMIT,
+            file_limit=self.GREP_RECURSIVE_FOLDER_FILE_LIMIT,
+        )
+        if not (
+            stats["folder_depth_exceeds_limit"]
+            or stats["file_count_exceeds_limit"]
+        ):
+            return None
+        return {
+            "mode": "limited",
+            "query": query,
+            "scope": folder_path,
+            "folder_depth_limit": stats["depth_limit"],
+            "file_count_limit": stats["file_limit"],
+            "folder_depth_exceeds_limit": stats["folder_depth_exceeds_limit"],
+            "file_count_exceeds_limit": stats["file_count_exceeds_limit"],
+            "sampled_file_count": stats["sampled_file_count"],
+            "sample_deep_folder_path": stats["sample_deep_folder_path"],
+            "hint": (
+                "Default grep -R remains lexical and is intentionally limited for broad deep folders "
+                "because the SQLite FTS path cannot guarantee fast recursive search at this scope. "
+                f"Use semantic-grep -R {shlex.quote(query)} {shlex.quote(folder_path)} for semantic "
+                "candidate discovery followed by real line matching, or use search-summary, "
+                "search-entity, search-relation, ls/tree, or find --where to narrow first."
+            ),
+        }
 
     def _rank_child_folders(
         self,
@@ -818,6 +845,7 @@ class PIFSCommandExecutor:
                 scope={"folder_path": child["path"], "recursive": True},
                 metadata_filter=metadata_filter,
                 limit=max(limit, 50),
+                semantic=False,
             )
             if not results:
                 continue
