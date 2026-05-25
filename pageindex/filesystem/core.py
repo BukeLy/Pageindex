@@ -8,6 +8,12 @@ from urllib.parse import unquote, urlparse
 
 from ..client import PageIndexClient
 from .metadata import MetadataQueryEngine
+from .metadata_generation import (
+    MetadataGenerationError,
+    MetadataGenerationInput,
+    MetadataGenerationResult,
+    MetadataGenerator,
+)
 from .semantic_folder_policy import (
     SEMANTIC_FOLDER_BASE_FIELDS,
     SEMANTIC_FOLDER_ROOT,
@@ -82,12 +88,14 @@ class PageIndexFileSystem:
         workspace: Union[str, Path],
         *,
         semantic_retrieval_backend: Any | None = None,
+        metadata_generator: MetadataGenerator | None = None,
     ):
         self.workspace = Path(workspace).expanduser()
         self.store = SQLiteFileSystemStore(self.workspace)
         self.metadata = MetadataQueryEngine(self.store)
         self._references: dict[str, str] = {}
         self.semantic_retrieval_backend = semantic_retrieval_backend
+        self.metadata_generator = metadata_generator
 
     def register_file(
         self,
@@ -126,15 +134,50 @@ class PageIndexFileSystem:
 
     def register_files(self, files: list[dict[str, Any]]) -> list[str]:
         records = [self._prepare_file_record(file) for file in files]
+        for record in records:
+            self._generate_register_metadata(record)
+            self._sync_owned_raw_artifact(record)
         self._register_generation_policy_schema(records)
         self.store.insert_files(records)
         return [record["file_ref"] for record in records]
+
+    def batch_generate(self, *, limit: int | None = None) -> dict[str, Any]:
+        if self.metadata_generator is None:
+            raise MetadataGenerationError(
+                "metadata_generator is required to generate pending PIFS metadata"
+            )
+        rows = self.store.list_pending_metadata_generation(limit=limit)
+        generated = 0
+        failed = 0
+        file_refs: list[str] = []
+        for row in rows:
+            record = self._record_from_file_entry(row)
+            self._generate_register_metadata(record, force=True)
+            self._register_generation_policy_schema([record])
+            self.store.update_file_metadata_generation(
+                record["file_ref"],
+                derived_metadata=record["derived_metadata"],
+                metadata_generation=record["metadata_generation"],
+            )
+            self._sync_owned_raw_artifact(record)
+            file_refs.append(record["file_ref"])
+            if record["metadata_generation"]["status"] == "failed":
+                failed += 1
+            else:
+                generated += 1
+        return {
+            "processed": len(rows),
+            "generated": generated,
+            "failed": failed,
+            "file_refs": file_refs,
+        }
 
     @classmethod
     def default_metadata_generation_policy(cls) -> dict[str, Any]:
         return {
             "fields": dict(DEFAULT_METADATA_GENERATION_FIELDS),
             "projection_indexes": {"summary": True},
+            "batch": False,
         }
 
     def browse(
@@ -757,14 +800,14 @@ class PageIndexFileSystem:
         if raw_artifact_path is None and file.get("write_raw_artifact", True):
             raw_artifact_path = self.store.write_raw_artifact(
                 file_ref,
-                {
-                    "storage_uri": storage_uri,
-                    "source_path": source_path,
-                    "folder_path": folder_path,
-                    "metadata": metadata,
-                    "derived_metadata": derived_metadata,
-                    "metadata_generation": generation_state,
-                },
+                self._raw_artifact_payload(
+                    storage_uri=storage_uri,
+                    source_path=source_path,
+                    folder_path=folder_path,
+                    metadata=metadata,
+                    derived_metadata=derived_metadata,
+                    metadata_generation=generation_state,
+                ),
             )
         descriptor = self._build_descriptor(title, metadata)
         return {
@@ -793,6 +836,206 @@ class PageIndexFileSystem:
             "content": fts_content,
             "skip_fts": bool(file.get("skip_fts", False)),
         }
+
+    @staticmethod
+    def _raw_artifact_payload(
+        *,
+        storage_uri: str,
+        source_path: str,
+        folder_path: str,
+        metadata: dict[str, Any],
+        derived_metadata: dict[str, Any],
+        metadata_generation: dict[str, Any],
+    ) -> dict[str, Any]:
+        return {
+            "storage_uri": storage_uri,
+            "source_path": source_path,
+            "folder_path": folder_path,
+            "metadata": metadata,
+            "derived_metadata": derived_metadata,
+            "metadata_generation": metadata_generation,
+        }
+
+    def _sync_owned_raw_artifact(self, record: dict[str, Any]) -> None:
+        raw_artifact_path = record.get("raw_artifact_path")
+        if not raw_artifact_path:
+            return
+        default_raw_artifact_path = self.store.raw_dir / f"{record['file_ref']}.json"
+        if Path(raw_artifact_path).expanduser().resolve(strict=False) != (
+            default_raw_artifact_path.resolve(strict=False)
+        ):
+            return
+        record["raw_artifact_path"] = str(
+            self.store.write_raw_artifact(
+                record["file_ref"],
+                self._raw_artifact_payload(
+                    storage_uri=record["storage_uri"],
+                    source_path=record["source_path"],
+                    folder_path=record["folder_path"],
+                    metadata=record["metadata"],
+                    derived_metadata=record["derived_metadata"],
+                    metadata_generation=record["metadata_generation"],
+                ),
+            )
+        )
+
+    def _record_from_file_entry(self, entry: Any) -> dict[str, Any]:
+        content = self.store.read_text(entry.file_ref)
+        generation_policy = self._normalize_metadata_generation_policy(
+            entry.metadata_generation.get("policy", {}),
+            derived_metadata=entry.derived_metadata,
+        )
+        generation_state = self._metadata_generation_state(
+            generation_policy,
+            derived_metadata=entry.derived_metadata,
+            status=entry.metadata_generation.get("status"),
+        )
+        return {
+            "file_ref": entry.file_ref,
+            "external_id": entry.external_id,
+            "storage_uri": entry.storage_uri,
+            "source_path": entry.source_path,
+            "title": entry.title,
+            "descriptor": entry.descriptor,
+            "content_type": entry.content_type,
+            "source_type": entry.source_type,
+            "fingerprint": entry.fingerprint,
+            "text_artifact_path": entry.text_artifact_path,
+            "raw_artifact_path": entry.raw_artifact_path,
+            "pageindex_doc_id": entry.pageindex_doc_id,
+            "pageindex_tree_status": entry.pageindex_tree_status,
+            "metadata": dict(entry.metadata),
+            "metadata_json": json.dumps(entry.metadata, ensure_ascii=False),
+            "derived_metadata": dict(entry.derived_metadata),
+            "derived_metadata_json": json.dumps(entry.derived_metadata, ensure_ascii=False),
+            "metadata_generation": generation_state,
+            "metadata_generation_json": json.dumps(generation_state, ensure_ascii=False),
+            "indexed_metadata": SQLiteFileSystemStore.indexed_metadata_values(
+                entry.metadata,
+                entry.derived_metadata,
+                generation_state,
+            ),
+            "metadata_text": metadata_text(self._merge_metadata_values(entry.metadata, entry.derived_metadata)),
+            "folder_path": entry.folder_path,
+            "content": content,
+            "skip_fts": False,
+        }
+
+    def _generate_register_metadata(self, record: dict[str, Any], *, force: bool = False) -> None:
+        generation = record["metadata_generation"]
+        policy = generation.get("policy", {})
+        if self._metadata_generation_is_batch(policy) and not force:
+            self._mark_requested_generation_status(record, "pending_submit")
+            return
+        fields = self._metadata_fields_to_generate(record)
+        if not fields:
+            return
+        if self.metadata_generator is None:
+            if self._metadata_generation_requires_sync(policy):
+                raise MetadataGenerationError(
+                    "metadata_generator is required for synchronous PIFS metadata generation; "
+                    "set metadata_generation_policy batch=true to defer"
+                )
+            return
+        try:
+            result = self.metadata_generator.generate(
+                MetadataGenerationInput(
+                    file_ref=record["file_ref"],
+                    external_id=record.get("external_id"),
+                    title=record["title"],
+                    source_path=record["source_path"],
+                    content_type=record["content_type"],
+                    source_type=record.get("source_type"),
+                    text=Path(record["text_artifact_path"]).read_text(encoding="utf-8"),
+                    metadata=dict(record.get("metadata") or {}),
+                    text_artifact_path=record.get("text_artifact_path"),
+                ),
+                fields=fields,
+            )
+            if isinstance(result, dict):
+                result = MetadataGenerationResult(values=result)
+        except Exception as exc:
+            self._apply_metadata_generation_failures(record, fields, str(exc))
+            return
+        failures = dict(result.failures)
+        for field in fields:
+            if field in result.values:
+                record["derived_metadata"][field] = result.values[field]
+                generation["fields"][field] = {"requested": True, "status": "generated"}
+            else:
+                failures.setdefault(field, "metadata generator did not return field")
+        for field, reason in failures.items():
+            generation["fields"][field] = {
+                "requested": True,
+                "status": "failed",
+                "error": str(reason),
+            }
+        self._refresh_record_metadata_generation(record)
+
+    @staticmethod
+    def _metadata_generation_is_batch(policy: dict[str, Any]) -> bool:
+        return bool(policy.get("batch")) or policy.get("mode") == "batch"
+
+    @staticmethod
+    def _metadata_generation_requires_sync(policy: dict[str, Any]) -> bool:
+        return policy.get("batch") is False or policy.get("mode") == "sync"
+
+    def _metadata_fields_to_generate(self, record: dict[str, Any]) -> list[str]:
+        fields: list[str] = []
+        for name, state in record["metadata_generation"].get("fields", {}).items():
+            if not state.get("requested"):
+                continue
+            if state.get("status") == "generated" and name in record["derived_metadata"]:
+                continue
+            fields.append(name)
+        return fields
+
+    def _mark_requested_generation_status(self, record: dict[str, Any], status: str) -> None:
+        for name, field in record["metadata_generation"].get("fields", {}).items():
+            if field.get("requested") and field.get("status") != "generated":
+                record["metadata_generation"]["fields"][name] = {
+                    "requested": True,
+                    "status": status,
+                }
+        self._refresh_record_metadata_generation(record, explicit_status=status)
+
+    def _apply_metadata_generation_failures(
+        self,
+        record: dict[str, Any],
+        fields: list[str],
+        reason: str,
+    ) -> None:
+        for field in fields:
+            record["metadata_generation"]["fields"][field] = {
+                "requested": True,
+                "status": "failed",
+                "error": reason,
+            }
+        self._refresh_record_metadata_generation(record, explicit_status="failed")
+
+    def _refresh_record_metadata_generation(
+        self,
+        record: dict[str, Any],
+        *,
+        explicit_status: str | None = None,
+    ) -> None:
+        generation = record["metadata_generation"]
+        statuses = [
+            field.get("status")
+            for field in generation.get("fields", {}).values()
+            if field.get("requested") and field.get("status")
+        ]
+        generation["status"] = explicit_status or self._aggregate_generation_status(statuses)
+        record["derived_metadata_json"] = json.dumps(record["derived_metadata"], ensure_ascii=False)
+        record["metadata_generation_json"] = json.dumps(generation, ensure_ascii=False)
+        record["indexed_metadata"] = SQLiteFileSystemStore.indexed_metadata_values(
+            record["metadata"],
+            record["derived_metadata"],
+            generation,
+        )
+        record["metadata_text"] = metadata_text(
+            self._merge_metadata_values(record["metadata"], record["derived_metadata"])
+        )
 
     def _open_lines(self, reference_id: str, file_ref: str, start: int, end: int) -> OpenResult:
         entry = self.store.get_file(file_ref)
@@ -989,6 +1232,7 @@ class PageIndexFileSystem:
         projection_indexes: dict[str, bool] | None = None
         projection_index_statuses: dict[str, str] = {}
         mode = None
+        batch = None
         top_level_status = None
         if policy is not None:
             if not isinstance(policy, dict):
@@ -998,7 +1242,7 @@ class PageIndexFileSystem:
                 raw_fields = {
                     name: declaration
                     for name, declaration in policy.items()
-                    if name not in {"mode", "status", "projection_indexes"}
+                    if name not in {"batch", "mode", "status", "projection_indexes"}
                 }
             if not isinstance(raw_fields, dict):
                 raise ValueError("metadata_generation_policy fields must be a JSON object")
@@ -1018,6 +1262,10 @@ class PageIndexFileSystem:
                     continue
                 raise ValueError(f"Invalid metadata generation policy for field: {name}")
             mode = policy.get("mode")
+            if "batch" in policy:
+                batch = bool(policy["batch"])
+            elif mode == "batch":
+                batch = True
             top_level_status = policy.get("status")
             if top_level_status is not None:
                 cls._validate_metadata_generation_status(str(top_level_status))
@@ -1041,6 +1289,8 @@ class PageIndexFileSystem:
             normalized["projection_index_statuses"] = projection_index_statuses
         if mode:
             normalized["mode"] = str(mode)
+        if batch is not None:
+            normalized["batch"] = batch
         if top_level_status:
             normalized["status"] = str(top_level_status)
         return normalized
@@ -1082,6 +1332,8 @@ class PageIndexFileSystem:
         }
         if "mode" in policy:
             policy_summary["mode"] = policy["mode"]
+        if "batch" in policy:
+            policy_summary["batch"] = policy["batch"]
         state = {
             "status": aggregate_status,
             "policy": policy_summary,
