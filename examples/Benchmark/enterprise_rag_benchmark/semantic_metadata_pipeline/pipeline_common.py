@@ -552,6 +552,11 @@ def value_key(value: Any) -> str:
     return slug(value, max_len=120)
 
 
+def semantic_folder_file_key(doc_id: str) -> str:
+    digest = hashlib.sha1(str(doc_id).encode("utf-8")).hexdigest()[:16]
+    return f"file_{digest}"
+
+
 def text_hash(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 

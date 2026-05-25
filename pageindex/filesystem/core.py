@@ -575,16 +575,29 @@ class PageIndexFileSystem:
         if not path:
             raise ValueError("Semantic Folder Projection items must include a folder path")
         cls._validate_semantic_folder_projection_path(str(path))
-        field = str(item.get("field") or "")
-        if not field:
-            return
         allowed_fields = (
             SEMANTIC_FOLDER_BASE_FIELDS
             | SEMANTIC_FOLDER_SYSTEM_FIELDS
             | allowed_extension_fields
         )
-        if field in SEMANTIC_FOLDER_FORBIDDEN_FIELDS or field not in allowed_fields:
-            raise ValueError(f"Field is not allowed for Semantic Folder Projection: {field}")
+        if item.get("dataset_doc_uuid"):
+            raise ValueError(
+                "dataset_doc_uuid is not allowed in Semantic Folder Projection memberships; "
+                "use file_key or file_ref"
+            )
+        fields = []
+        explicit_field = str(item.get("field") or "")
+        if explicit_field:
+            fields.append(explicit_field)
+        fields.extend(cls._semantic_folder_projection_fields_from_path(str(path)))
+        for payload_key in ("metadata", "folder_metadata"):
+            cls._validate_semantic_folder_projection_metadata_payload(
+                item.get(payload_key),
+                allowed_fields,
+            )
+        for field in fields:
+            if field in SEMANTIC_FOLDER_FORBIDDEN_FIELDS or field not in allowed_fields:
+                raise ValueError(f"Field is not allowed for Semantic Folder Projection: {field}")
 
     @staticmethod
     def _validate_semantic_folder_projection_path(path: str) -> str:
@@ -595,13 +608,53 @@ class PageIndexFileSystem:
             raise ValueError("Semantic Folder Projection paths must be under /semantic")
         return normalized
 
+    @classmethod
+    def _semantic_folder_projection_fields_from_path(cls, path: str) -> list[str]:
+        normalized = cls._validate_semantic_folder_projection_path(path)
+        fields: list[str] = []
+        for segment in normalized.strip("/").split("/")[1:]:
+            if "=" not in segment:
+                continue
+            field = segment.split("=", 1)[0].strip()
+            if field:
+                fields.append(field)
+        return fields
+
+    @classmethod
+    def _validate_semantic_folder_projection_metadata_payload(
+        cls,
+        payload: Any,
+        allowed_fields: set[str],
+    ) -> None:
+        if isinstance(payload, dict):
+            for key, value in payload.items():
+                key_text = str(key)
+                if key_text in SEMANTIC_FOLDER_FORBIDDEN_FIELDS:
+                    raise ValueError(
+                        "Forbidden metadata field in Semantic Folder Projection payload: "
+                        f"{key_text}"
+                    )
+                if key_text in {"field", "source_field", "metadata_field"}:
+                    field = str(value or "")
+                    if field and (
+                        field in SEMANTIC_FOLDER_FORBIDDEN_FIELDS
+                        or field not in allowed_fields
+                    ):
+                        raise ValueError(
+                            f"Field is not allowed for Semantic Folder Projection: {field}"
+                        )
+                cls._validate_semantic_folder_projection_metadata_payload(value, allowed_fields)
+        elif isinstance(payload, list):
+            for item in payload:
+                cls._validate_semantic_folder_projection_metadata_payload(item, allowed_fields)
+
     @staticmethod
     def _semantic_folder_projection_document_id(membership: dict[str, Any]) -> str:
-        for key in ("dataset_doc_uuid", "document_id", "external_id", "file_ref"):
+        for key in ("file_key", "file_ref", "document_ref"):
             value = str(membership.get(key) or "").strip()
             if value:
                 return value
-        raise ValueError("Semantic Folder Projection membership is missing a document id")
+        raise ValueError("Semantic Folder Projection membership is missing file_key or file_ref")
 
     @staticmethod
     def _query_text(query: Union[str, list[str], None]) -> str:

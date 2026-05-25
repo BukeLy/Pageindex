@@ -17,6 +17,8 @@ FORBIDDEN_FOLDER_FIELDS = {
     "constraints",
     "retrieval_cues",
     "dataset_doc_uuid",
+    "path",
+    "uri",
     "source_path",
     "storage_uri",
 }
@@ -126,6 +128,7 @@ def prove_dataset_doc_uuid_scope(
                 {
                     "folder_path": item.get("folder_path"),
                     "field": item.get("field"),
+                    "file_key": item.get("file_key"),
                     "value": item.get("value"),
                     "folder_metadata": item.get("folder_metadata"),
                 }

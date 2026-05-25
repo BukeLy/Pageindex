@@ -34,6 +34,7 @@ from examples.Benchmark.enterprise_rag_benchmark.semantic_metadata_pipeline.pipe
     load_dataset_documents,
     read_json,
     read_jsonl,
+    semantic_folder_file_key,
     slug,
     write_json,
 )
@@ -209,7 +210,7 @@ def materialize_workspace(
         file_specs.append(file_spec_for_row(row, doc, extension_schema))
     file_refs = filesystem.register_files(file_specs)
     file_ref_by_doc = {
-        dataset_doc_uuid(row): file_ref
+        semantic_folder_file_key(dataset_doc_uuid(row)): file_ref
         for row, file_ref in zip(ordered_rows, file_refs)
     }
     projection = filesystem.apply_semantic_folder_projection(

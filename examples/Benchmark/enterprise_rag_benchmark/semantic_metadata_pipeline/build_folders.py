@@ -15,6 +15,7 @@ from pipeline_common import (
     is_forbidden_extension_field,
     load_normalized_metadata,
     read_json,
+    semantic_folder_file_key,
     slug,
     update_config,
     value_key,
@@ -423,7 +424,7 @@ def source_root(row: dict[str, Any], args: argparse.Namespace) -> str:
 def membership(doc_id: str, path: str, field: str, value: str, mount_kind: str) -> dict[str, Any]:
     normalized_path = path if path.startswith("/") else "/" + path
     return {
-        "dataset_doc_uuid": doc_id,
+        "file_key": semantic_folder_file_key(doc_id),
         "folder_path": normalized_path,
         "field": field,
         "value": value,
@@ -441,7 +442,7 @@ def dedupe_memberships(memberships: list[dict[str, Any]]) -> list[dict[str, Any]
     result = []
     seen = set()
     for item in memberships:
-        key = (item["dataset_doc_uuid"], item["folder_path"], item["mount_kind"])
+        key = (item["file_key"], item["folder_path"], item["mount_kind"])
         if key in seen:
             continue
         seen.add(key)

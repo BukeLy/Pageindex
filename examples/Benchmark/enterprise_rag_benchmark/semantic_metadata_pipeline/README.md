@@ -88,6 +88,8 @@ plan to an already registered workspace. Its allowed inputs are
 Extension Fields marked `suitable_for_folder`, and `system.source_type` as the
 browse root. Summaries, entities, relations, constraints, retrieval cues,
 `dataset_doc_uuid`, paths, and URIs are excluded from folder inputs.
+Memberships use an internal `file_key` for materialization; the semantic folder
+artifact does not expose `dataset_doc_uuid` as a membership field.
 
 4. Build semantic projection indexes:
 
