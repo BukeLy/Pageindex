@@ -318,6 +318,91 @@ class EnterpriseRAGFileSystemTest(unittest.TestCase):
         self.assertIn("Retrieval mode: hybrid", hybrid_prompt)
         self.assertIn("find <path> -type d --where", hybrid_prompt)
 
+    def test_enterprise_rag_agent_prompts_do_not_hardcode_semantic_tools(self):
+        prompt_dir = (
+            Path(__file__).resolve().parents[1]
+            / "examples"
+            / "Benchmark"
+            / "enterprise_rag_benchmark"
+            / "prompts"
+        )
+        prompt_files = [
+            prompt_dir / "pifs_agent_system.md",
+            prompt_dir / "pifs_question_hybrid.md",
+            prompt_dir / "pifs_question_semantic_channels.md",
+            prompt_dir / "pifs_question_semantic_channels_adaptive.md",
+            prompt_dir / "pifs_question_semantic_channels_crosscheck.md",
+            prompt_dir / "pifs_question_semantic_channels_ranked_crosscheck.md",
+        ]
+        forbidden_snippets = [
+            "Allowed commands:",
+            "search-summary",
+            "search-entity",
+            "search-relation",
+            "find --relation",
+            "hybrid grep",
+            "entity/relation vector retrieval",
+            "grep query itself",
+            "50/50 candidate split",
+        ]
+
+        for prompt_file in prompt_files:
+            text = prompt_file.read_text(encoding="utf-8")
+            with self.subTest(prompt=prompt_file.name):
+                for snippet in forbidden_snippets:
+                    self.assertNotIn(snippet, text)
+                self.assertNotIn("semantic vector preselection", text.lower())
+
+    def test_legacy_enterprise_agent_entrypoint_uses_summary_only_capabilities(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            from examples.Benchmark.enterprise_rag_benchmark.enterprise_rag import (
+                EnterpriseRAGQuestion,
+            )
+            from examples.Benchmark.enterprise_rag_benchmark.run_enterprise_rag_pifs_agent import (
+                PROMPTS_DIR,
+                agent_prompt,
+                read_prompt_file,
+            )
+            from pageindex.filesystem import PageIndexFileSystem
+            from pageindex.filesystem.agent import build_pifs_agent_instructions
+
+            filesystem = PageIndexFileSystem(workspace=Path(tmp) / "workspace")
+            filesystem.register_file(
+                storage_uri="file:///tmp/summary-only.json",
+                source_path="github/redwood/summary-only.json",
+                folder_path="/github/redwood",
+                external_id="dsid_summary_only_prompt",
+                title="Summary only prompt doc",
+                metadata={"source_type": "github"},
+                content="The prompt fixture contains lexical-only evidence.",
+            )
+            filesystem.semantic_retrieval_backend = SummaryOnlyBackend("dsid_summary_only_prompt")
+            system_prompt = read_prompt_file(PROMPTS_DIR / "pifs_agent_system.md")
+            question = EnterpriseRAGQuestion(
+                question_id="qst_test",
+                question_type="basic",
+                source_types=["github"],
+                question="Which doc mentions lexical-only evidence?",
+                expected_doc_ids=["dsid_summary_only_prompt"],
+            )
+
+            instructions = build_pifs_agent_instructions(
+                filesystem,
+                root="/",
+                system_prompt=system_prompt,
+            )
+            old_entrypoint_prompt = agent_prompt(question, retrieval_mode="hybrid")
+            combined_prompt = instructions + "\n\n" + old_entrypoint_prompt
+
+            self.assertIn("Workspace retrieval capabilities:", instructions)
+            self.assertIn("search-summary", combined_prompt)
+            self.assertNotIn("search-entity", combined_prompt)
+            self.assertNotIn("search-relation", combined_prompt)
+            self.assertNotIn("find --relation", combined_prompt)
+            self.assertIn("recursive lexical/FTS", combined_prompt)
+            self.assertNotIn("hybrid grep", combined_prompt)
+            self.assertNotIn("vector retrieval", combined_prompt)
+
     def test_search_handles_punctuation_heavy_enterprise_identifiers(self):
         with tempfile.TemporaryDirectory() as tmp:
             from pageindex.filesystem import PageIndexFileSystem

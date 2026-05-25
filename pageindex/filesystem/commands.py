@@ -93,6 +93,10 @@ class PIFSCommandExecutor:
             "- find --where: exact/canonical metadata DSL filtering",
             "- grep -R: recursive lexical/FTS search only; semantic vector prefilter is disabled",
         ]
+        if "entity" in semantic_channels:
+            lines.append("- find --name: entity semantic candidate discovery alias")
+        if "relation" in semantic_channels:
+            lines.append("- find --relation: relation semantic candidate discovery alias")
         for channel in SEMANTIC_RETRIEVAL_CHANNELS:
             if channel not in semantic_channels:
                 continue
