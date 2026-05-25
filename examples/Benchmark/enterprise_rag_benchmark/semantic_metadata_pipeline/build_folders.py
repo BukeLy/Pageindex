@@ -41,7 +41,7 @@ def main() -> int:
     metadata_path = Path(args.metadata) if args.metadata else run_dir / "metadata.normalized.jsonl"
     schema_path = Path(args.extension_schema) if args.extension_schema else run_dir / "extension_schema.json"
     rows = load_normalized_metadata(metadata_path)
-    extension_schema = read_json(schema_path)
+    extension_schema = load_ready_extension_schema(run_dir, schema_path)
 
     folder_plan, field_report = build_folder_plan(rows, extension_schema, args)
     plan_path = run_dir / "folder_plan.json"
@@ -92,6 +92,52 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-depth", type=int, default=3)
     parser.add_argument("--max-values-per-field", type=int, default=2)
     return parser.parse_args()
+
+
+def load_ready_extension_schema(run_dir: Path, schema_path: Path) -> dict[str, Any]:
+    config_path = run_dir / "config.json"
+    if config_path.exists():
+        config = read_json(config_path)
+        extension_config = config.get("extension_schema") if isinstance(config, dict) else {}
+        if isinstance(extension_config, dict):
+            status = str(extension_config.get("status") or "")
+            if status and status != "ready":
+                reason = extension_config.get("reason") or status
+                pending_path = extension_config.get("pending_path") or ""
+                stale_path = extension_config.get("stale_schema_path") or ""
+                detail = f" reason={reason}"
+                if pending_path:
+                    detail += f" pending_path={pending_path}"
+                if stale_path:
+                    detail += f" stale_schema_path={stale_path}"
+                raise SystemExit(
+                    "Extension schema is not ready; refusing to build folders from stale or pending schema."
+                    + detail
+                )
+
+    if not schema_path.exists():
+        pending_path = run_dir / "extension_schema.pending.json"
+        if pending_path.exists():
+            pending = read_json(pending_path)
+            reason = pending.get("reason") if isinstance(pending, dict) else "pending"
+            raise SystemExit(
+                f"Extension schema is pending ({reason}); rerun discover_extensions.py with a provider before build_folders.py."
+            )
+        raise SystemExit(f"Ready extension schema not found: {schema_path}")
+
+    extension_schema = read_json(schema_path)
+    status = str(extension_schema.get("status") or "") if isinstance(extension_schema, dict) else ""
+    if status and status != "ready":
+        raise SystemExit(f"Extension schema artifact is not ready (status={status}): {schema_path}")
+
+    audit_path = run_dir / "extension_schema_audit.json"
+    if audit_path.exists():
+        audit = read_json(audit_path)
+        audit_status = str(audit.get("status") or "") if isinstance(audit, dict) else ""
+        if audit_status and audit_status != "ready":
+            raise SystemExit(f"Extension schema audit is not ready (status={audit_status}): {audit_path}")
+
+    return extension_schema
 
 
 def build_folder_plan(

@@ -4,6 +4,7 @@ import argparse
 import json
 import os
 import re
+import time
 from pathlib import Path
 from typing import Any
 
@@ -11,7 +12,6 @@ from pipeline_common import (
     DEFAULT_DATASET_DIR,
     DatasetDocument,
     dedupe_strings,
-    ensure_list,
     is_forbidden_extension_field,
     load_dataset_documents,
     load_normalized_metadata,
@@ -115,6 +115,46 @@ def main() -> int:
     schema, audit = audit_extension_schema(provider_schema, rows, sample_rows, args)
     schema_path = run_dir / "extension_schema.json"
     audit_path = run_dir / "extension_schema_audit.json"
+    if audit["status"] != "ready":
+        rejected_schema_path = run_dir / "extension_schema.rejected.json"
+        stale_schema_path = neutralize_schema_artifact(run_dir, reason=audit["status"])
+        write_json(rejected_schema_path, schema)
+        write_json(audit_path, audit)
+        update_config(
+            run_dir,
+            "extension_schema",
+            {
+                "metadata_path": str(metadata_path),
+                "schema_path": "",
+                "rejected_schema_path": str(rejected_schema_path),
+                "audit_path": str(audit_path),
+                "stale_schema_path": stale_schema_path,
+                "sample_prompt_path": str(sample_prompt_path),
+                "schema_provider": args.schema_provider,
+                "schema_model": args.schema_model,
+                "sample_size": len(sample_rows),
+                "max_doc_chars": args.max_doc_chars,
+                "status": audit["status"],
+            },
+        )
+        write_summary(
+            run_dir,
+            {
+                "extension_schema": {
+                    "documents": len(rows),
+                    "sampled_documents": len(sample_rows),
+                    "schema_provider": args.schema_provider,
+                    "schema_model": args.schema_model,
+                    "status": audit["status"],
+                    "accepted_fields": len(schema["fields"]),
+                    "rejected_fields": len(audit["rejected_fields"]),
+                    "rejected_schema_path": str(rejected_schema_path),
+                }
+            },
+        )
+        print(json.dumps({"schema": schema, "audit": audit}, ensure_ascii=False, indent=2))
+        return 2
+
     write_json(schema_path, schema)
     write_json(audit_path, audit)
     update_config(
@@ -380,7 +420,7 @@ def audit_extension_schema(
         accepted_fields.append(field)
         seen_names.add(name)
 
-    status = "ready" if not rejected_fields else "ready_with_audit_rejections"
+    status = "ready" if not rejected_fields else "rejected"
     audit = {
         "status": status,
         "documents": len(rows),
@@ -407,6 +447,7 @@ def audit_extension_schema(
     }
     schema = {
         "generated_by": "llm_extension_schema_discovery",
+        "status": status,
         "schema_provider": args.schema_provider,
         "schema_model": args.schema_model,
         "fields": accepted_fields,
@@ -429,11 +470,11 @@ def normalize_provider_field(raw_field: Any) -> tuple[dict[str, Any], list[str]]
     elif is_forbidden_extension_field(name):
         reasons.append("field name is forbidden for extension schema")
     coverage_estimate = raw_field.get("coverage_estimate")
-    try:
-        coverage_number = float(coverage_estimate)
-    except (TypeError, ValueError):
+    if isinstance(coverage_estimate, bool) or not isinstance(coverage_estimate, (int, float)):
         coverage_number = 0.0
-        reasons.append("coverage_estimate must be a number")
+        reasons.append("coverage_estimate must be a JSON number")
+    else:
+        coverage_number = float(coverage_estimate)
     if coverage_number < 0.0 or coverage_number > 1.0:
         reasons.append("coverage_estimate must be between 0 and 1")
     suitable_for_dsl = raw_field.get("suitable_for_dsl")
@@ -452,25 +493,34 @@ def normalize_provider_field(raw_field: Any) -> tuple[dict[str, Any], list[str]]
         cardinality = "unknown"
     synonyms, synonym_reasons = normalize_synonyms(raw_field.get("synonyms"))
     reasons.extend(synonym_reasons)
+    canonical_values, canonical_reasons = normalize_string_list_field(
+        raw_field.get("canonical_values"),
+        "canonical_values",
+        require_non_empty=True,
+    )
+    reasons.extend(canonical_reasons)
+    example_values, example_reasons = normalize_string_list_field(
+        raw_field.get("example_values"),
+        "example_values",
+    )
+    reasons.extend(example_reasons)
     field = {
         "name": name,
         "description": text_value(raw_field.get("description")),
         "why_queryable": text_value(raw_field.get("why_queryable")),
         "coverage_estimate": round(max(0.0, min(1.0, coverage_number)), 4),
-        "canonical_values": dedupe_strings(ensure_list(raw_field.get("canonical_values"))),
+        "canonical_values": canonical_values,
         "synonyms": synonyms,
         "suitable_for_dsl": bool(suitable_for_dsl),
         "suitable_for_folder": bool(suitable_for_folder),
         "cardinality_expectation": cardinality,
         "empty_policy": text_value(raw_field.get("empty_policy")),
-        "example_values": dedupe_strings(ensure_list(raw_field.get("example_values"))),
+        "example_values": example_values,
         "source_evidence": text_value(raw_field.get("source_evidence")),
     }
     for string_key in ["description", "why_queryable", "empty_policy", "source_evidence"]:
         if not field[string_key]:
             reasons.append(f"{string_key} must be a non-empty string")
-    if not field["canonical_values"]:
-        reasons.append("canonical_values must contain at least one string")
     return field, reasons
 
 
@@ -480,13 +530,48 @@ def normalize_synonyms(value: Any) -> tuple[dict[str, list[str]], list[str]]:
     synonyms: dict[str, list[str]] = {}
     reasons: list[str] = []
     for key, raw_values in value.items():
-        canonical = text_value(key)
+        canonical = key if isinstance(key, str) else ""
+        canonical = canonical.strip()
         if not canonical:
             reasons.append("synonym keys must be non-empty strings")
             continue
-        values = dedupe_strings(ensure_list(raw_values))
+        values, value_reasons = normalize_string_list_field(raw_values, f"synonyms.{canonical}")
+        reasons.extend(value_reasons)
         synonyms[canonical] = values
     return synonyms, reasons
+
+
+def normalize_string_list_field(
+    value: Any,
+    field_name: str,
+    *,
+    require_non_empty: bool = False,
+) -> tuple[list[str], list[str]]:
+    if not isinstance(value, list):
+        return [], [f"{field_name} must be a list of strings"]
+    reasons: list[str] = []
+    strings: list[str] = []
+    for index, item in enumerate(value):
+        if not isinstance(item, str):
+            reasons.append(f"{field_name}[{index}] must be a string")
+            continue
+        strings.append(item)
+    values = dedupe_strings(strings)
+    if require_non_empty and not values:
+        reasons.append(f"{field_name} must contain at least one string")
+    return values, reasons
+
+
+def neutralize_schema_artifact(run_dir: Path, *, reason: str) -> str:
+    schema_path = run_dir / "extension_schema.json"
+    if not schema_path.exists():
+        return ""
+    safe_reason = re.sub(r"[^a-z0-9_-]+", "-", reason.lower()).strip("-") or "not-ready"
+    stale_path = run_dir / "extension_schema.stale.json"
+    if stale_path.exists():
+        stale_path = run_dir / f"extension_schema.stale.{safe_reason}.{int(time.time())}.json"
+    schema_path.replace(stale_path)
+    return str(stale_path)
 
 
 def write_pending_artifact(
@@ -500,6 +585,7 @@ def write_pending_artifact(
     details: dict[str, Any] | None = None,
 ) -> int:
     pending_path = run_dir / "extension_schema.pending.json"
+    stale_schema_path = neutralize_schema_artifact(run_dir, reason=reason)
     pending = {
         "status": "pending",
         "reason": reason,
@@ -508,6 +594,7 @@ def write_pending_artifact(
         "sample_prompt_path": str(sample_prompt_path),
         "schema_provider": args.schema_provider,
         "schema_model": args.schema_model,
+        "stale_schema_path": stale_schema_path,
         "next_step": "Configure --schema-provider openai or --schema-provider genai and rerun discovery.",
     }
     if details:
@@ -521,6 +608,7 @@ def write_pending_artifact(
             "reason": reason,
             "metadata_path": str(metadata_path),
             "pending_path": str(pending_path),
+            "stale_schema_path": stale_schema_path,
             "sample_prompt_path": str(sample_prompt_path),
             "schema_provider": args.schema_provider,
             "schema_model": args.schema_model,
