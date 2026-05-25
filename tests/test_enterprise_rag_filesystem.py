@@ -266,6 +266,55 @@ class EnterpriseRAGFileSystemTest(unittest.TestCase):
                 ["dsid_derived_metadata"],
             )
 
+    def test_disabled_generated_field_does_not_index_raw_value_after_schema_exists(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            from pageindex.filesystem import PIFSCommandExecutor, PageIndexFileSystem
+
+            filesystem = PageIndexFileSystem(workspace=Path(tmp) / "workspace")
+            filesystem.register_file(
+                storage_uri="file:///tmp/generated-doc.json",
+                source_path="github/redwood/generated-doc.json",
+                folder_path="/github/redwood",
+                external_id="dsid_generated_domain",
+                title="Generated domain",
+                metadata={"repo": "redwood"},
+                derived_metadata={
+                    "summary": "Generated document summary.",
+                    "doc_type": "pull_request",
+                    "domain": "generated_security",
+                    "topic": "audit logging",
+                },
+                content="generated domain document",
+            )
+            filesystem.register_file(
+                storage_uri="file:///tmp/disabled-domain.json",
+                source_path="github/redwood/disabled-domain.json",
+                folder_path="/github/redwood",
+                external_id="dsid_disabled_domain",
+                title="Disabled domain",
+                metadata={"domain": "source_domain"},
+                metadata_generation_policy={"fields": {"domain": False}},
+                content="disabled generated domain document",
+            )
+
+            executor = PIFSCommandExecutor(filesystem, json_output=True)
+            schema = json.loads(executor.execute("stat --schema /"))["data"]
+            stat = json.loads(executor.execute("stat dsid_disabled_domain"))["data"]
+            raw_results = filesystem.search(None, metadata_filter={"domain": "source_domain"})
+            generated_results = filesystem.search(
+                None,
+                metadata_filter={"domain": "generated_security"},
+            )
+
+            self.assertIn("domain", schema["fields"])
+            self.assertEqual(stat["metadata"]["domain"], "source_domain")
+            self.assertFalse(stat["metadata_generation"]["fields"]["domain"]["requested"])
+            self.assertEqual(raw_results, [])
+            self.assertEqual(
+                [result.external_id for result in generated_results],
+                ["dsid_generated_domain"],
+            )
+
     def test_summary_text_does_not_make_projection_index_ready(self):
         with tempfile.TemporaryDirectory() as tmp:
             from pageindex.filesystem import PIFSCommandExecutor, PageIndexFileSystem

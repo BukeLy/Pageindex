@@ -1859,8 +1859,7 @@ class SQLiteFileSystemStore:
                 if isinstance(fields, dict):
                     generated_fields.update(
                         str(name)
-                        for name, requested in fields.items()
-                        if bool(requested)
+                        for name in fields
                     )
 
         indexed = {
