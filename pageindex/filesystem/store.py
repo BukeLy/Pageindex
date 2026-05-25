@@ -1102,6 +1102,88 @@ class SQLiteFileSystemStore:
             raise KeyError(f"Unknown file_ref: {file_ref}")
         return self._file_entry(row)
 
+    def list_pending_metadata_generation(self, *, limit: int | None = None) -> list[FileEntry]:
+        sql = """
+            SELECT
+                f.file_ref,
+                f.external_id,
+                f.storage_uri,
+                f.source_path,
+                f.title,
+                f.descriptor,
+                f.content_type,
+                f.source_type,
+                f.fingerprint,
+                f.text_artifact_path,
+                f.raw_artifact_path,
+                f.pageindex_doc_id,
+                f.pageindex_tree_status,
+                f.metadata_json,
+                f.derived_metadata_json,
+                f.metadata_generation_json,
+                COALESCE(primary_folder.path, '/') AS folder_path
+            FROM files f
+            LEFT JOIN file_folders ff ON ff.file_ref = f.file_ref
+            LEFT JOIN folders primary_folder ON primary_folder.folder_id = ff.folder_id
+            WHERE f.deleted_at IS NULL
+              AND (
+                f.metadata_generation_json LIKE '%pending_generate%'
+                OR f.metadata_generation_json LIKE '%pending_submit%'
+              )
+            GROUP BY f.file_ref
+            ORDER BY f.created_at, f.file_ref
+        """
+        params: list[Any] = []
+        if limit is not None:
+            sql += " LIMIT ?"
+            params.append(int(limit))
+        with self.connect() as conn:
+            rows = conn.execute(sql, params).fetchall()
+        return [self._file_entry(row) for row in rows]
+
+    def update_file_metadata_generation(
+        self,
+        file_ref: str,
+        *,
+        derived_metadata: dict[str, Any],
+        metadata_generation: dict[str, Any],
+    ) -> None:
+        with self.connect() as conn:
+            row = self._file_entry_row(conn, file_ref)
+            if row is None:
+                raise KeyError(f"Unknown file_ref: {file_ref}")
+            metadata = json.loads(row["metadata_json"] or "{}")
+            metadata_text_value = metadata_text(
+                self._merge_metadata_values(metadata, derived_metadata)
+            )
+            conn.execute(
+                """
+                UPDATE files
+                SET derived_metadata_json = ?,
+                    metadata_generation_json = ?,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE file_ref = ? AND deleted_at IS NULL
+                """,
+                (
+                    json.dumps(derived_metadata, ensure_ascii=False),
+                    json.dumps(metadata_generation, ensure_ascii=False),
+                    file_ref,
+                ),
+            )
+            self.replace_metadata_values(
+                conn,
+                file_ref,
+                self.indexed_metadata_values(metadata, derived_metadata, metadata_generation),
+            )
+            conn.execute(
+                """
+                UPDATE file_fts
+                SET metadata_text = ?
+                WHERE file_ref = ?
+                """,
+                (metadata_text_value, file_ref),
+            )
+
     def resolve_file_ref(self, target: str) -> str:
         with self.connect() as conn:
             return self._resolve_file_ref(conn, target)

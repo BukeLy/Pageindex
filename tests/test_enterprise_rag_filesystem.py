@@ -41,6 +41,26 @@ class SummaryOnlyBackend:
         ]
 
 
+class FakeMetadataGenerator:
+    def __init__(self, values=None, failures=None):
+        self.values = values or {
+            "summary": "LLM retrieval summary about audit logging.",
+            "doc_type": "pull_request",
+            "domain": "security",
+            "topic": "audit logging",
+        }
+        self.failures = failures or {}
+        self.calls = []
+
+    def generate(self, request, *, fields):
+        self.calls.append((request, list(fields)))
+        return {
+            field: self.values[field]
+            for field in fields
+            if field in self.values and field not in self.failures
+        }
+
+
 class EnterpriseRAGFileSystemTest(unittest.TestCase):
     def test_filesystem_import_does_not_require_core_dependencies(self):
         repo_root = Path(__file__).resolve().parents[1]
@@ -161,6 +181,51 @@ class EnterpriseRAGFileSystemTest(unittest.TestCase):
                 set(schema["fields"]),
                 {"doc_type", "domain", "summary", "topic"},
             )
+
+    def test_default_register_generates_requested_metadata_with_generator(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            from pageindex.filesystem import PIFSCommandExecutor, PageIndexFileSystem
+
+            generator = FakeMetadataGenerator()
+            filesystem = PageIndexFileSystem(
+                workspace=Path(tmp) / "workspace",
+                metadata_generator=generator,
+            )
+            filesystem.register_file(
+                storage_uri="file:///tmp/doc.md",
+                source_path="docs/audit.md",
+                folder_path="/docs",
+                external_id="dsid_generated_by_default",
+                title="Audit logging notes",
+                metadata={"summary": "raw source summary", "domain": "raw domain"},
+                content="The audit logging rollout adds bundle verification events.",
+            )
+
+            stat = json.loads(
+                PIFSCommandExecutor(filesystem, json_output=True).execute(
+                    "stat dsid_generated_by_default"
+                )
+            )["data"]
+
+            self.assertEqual(generator.calls[0][1], ["summary", "doc_type", "domain", "topic"])
+            self.assertEqual(stat["metadata"]["summary"], "raw source summary")
+            self.assertEqual(
+                stat["derived_metadata"]["summary"],
+                "LLM retrieval summary about audit logging.",
+            )
+            self.assertEqual(stat["derived_metadata"]["doc_type"], "pull_request")
+            self.assertEqual(stat["derived_metadata"]["domain"], "security")
+            self.assertEqual(stat["derived_metadata"]["topic"], "audit logging")
+            self.assertEqual(stat["metadata_generation"]["status"], "generated")
+            self.assertEqual(
+                stat["metadata_generation"]["fields"]["summary"]["status"],
+                "generated",
+            )
+            self.assertFalse(stat["metadata_generation"]["fields"]["entity"]["requested"])
+            self.assertFalse(stat["metadata_generation"]["fields"]["relation"]["requested"])
+            raw_artifact = json.loads(Path(stat["raw_artifact_path"]).read_text(encoding="utf-8"))
+            self.assertEqual(raw_artifact["derived_metadata"], stat["derived_metadata"])
+            self.assertEqual(raw_artifact["metadata_generation"]["status"], "generated")
 
     def test_register_file_does_not_infer_raw_metadata_schema(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -295,6 +360,71 @@ class EnterpriseRAGFileSystemTest(unittest.TestCase):
                 [result.external_id for result in derived_results],
                 ["dsid_derived_metadata"],
             )
+
+    def test_batch_register_defers_and_batch_generate_fills_metadata(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            from pageindex.filesystem import PIFSCommandExecutor, PageIndexFileSystem
+
+            generator = FakeMetadataGenerator()
+            filesystem = PageIndexFileSystem(
+                workspace=Path(tmp) / "workspace",
+                metadata_generator=generator,
+            )
+            filesystem.register_file(
+                storage_uri="file:///tmp/doc.md",
+                source_path="docs/batch.md",
+                folder_path="/docs",
+                external_id="dsid_batch_generate",
+                title="Batch metadata",
+                metadata={"repo": "redwood"},
+                metadata_generation_policy={"batch": True},
+                content="Audit logging batch generation source text.",
+            )
+
+            executor = PIFSCommandExecutor(filesystem, json_output=True)
+            before = json.loads(executor.execute("stat dsid_batch_generate"))["data"]
+            before_raw_artifact = json.loads(
+                Path(before["raw_artifact_path"]).read_text(encoding="utf-8")
+            )
+            result = filesystem.batch_generate()
+            after = json.loads(executor.execute("stat dsid_batch_generate"))["data"]
+
+            self.assertEqual(before["derived_metadata"], {})
+            self.assertEqual(before["metadata_generation"]["status"], "pending_submit")
+            self.assertEqual(before_raw_artifact["metadata_generation"]["status"], "pending_submit")
+            self.assertEqual(result["processed"], 1)
+            self.assertEqual(after["metadata_generation"]["status"], "generated")
+            self.assertEqual(after["derived_metadata"]["summary"], generator.values["summary"])
+            after_raw_artifact = json.loads(
+                Path(after["raw_artifact_path"]).read_text(encoding="utf-8")
+            )
+            self.assertEqual(after_raw_artifact["derived_metadata"], after["derived_metadata"])
+            self.assertEqual(after_raw_artifact["metadata_generation"]["status"], "generated")
+
+    def test_default_openai_metadata_generator_rejects_unsupported_fields_before_schema(self):
+        from pageindex.filesystem.metadata_generation import (
+            MetadataGenerationError,
+            OpenAIMetadataGenerator,
+        )
+
+        with self.assertRaisesRegex(MetadataGenerationError, "does not support"):
+            OpenAIMetadataGenerator._response_format(["summary", "custom_field"])
+
+    def test_sync_generation_without_generator_has_no_heuristic_fallback(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            from pageindex.filesystem import MetadataGenerationError, PageIndexFileSystem
+
+            filesystem = PageIndexFileSystem(workspace=Path(tmp) / "workspace")
+            with self.assertRaisesRegex(MetadataGenerationError, "metadata_generator is required"):
+                filesystem.register_file(
+                    storage_uri="file:///tmp/doc.md",
+                    source_path="docs/no-generator.md",
+                    folder_path="/docs",
+                    external_id="dsid_no_generator",
+                    title="No generator",
+                    metadata_generation_policy={"batch": False},
+                    content="This text must not be converted into heuristic metadata.",
+                )
 
     def test_disabled_generated_field_does_not_index_raw_value_after_schema_exists(self):
         with tempfile.TemporaryDirectory() as tmp:
