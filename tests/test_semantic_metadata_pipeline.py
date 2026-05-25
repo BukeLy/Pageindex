@@ -89,6 +89,36 @@ class SemanticMetadataPipelineTest(unittest.TestCase):
             self.assertIn("Extension schema is not ready", str(raised.exception))
             self.assertFalse((run_dir / "folder_plan.json").exists())
 
+    def test_folder_build_rejects_legacy_extension_schema_without_status(self):
+        import build_folders
+
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp)
+            metadata_path = run_dir / "metadata.normalized.jsonl"
+            write_jsonl(metadata_path, [normalized_row("doc_1"), normalized_row("doc_2")])
+            schema_path = run_dir / "extension_schema.json"
+            schema_path.write_text(
+                json.dumps(
+                    {
+                        "generated_by": "heuristic_extension_discovery",
+                        "fields": [
+                            {
+                                "name": "business_unit",
+                                "suitable_for_folder": True,
+                            }
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            with patch.object(sys, "argv", ["build_folders.py", "--run-dir", str(run_dir)]):
+                with self.assertRaises(SystemExit) as raised:
+                    build_folders.main()
+
+            self.assertIn("status=missing", str(raised.exception))
+            self.assertFalse((run_dir / "folder_plan.json").exists())
+
     def test_extension_audit_rejects_malformed_lists_objects_and_non_numeric_coverage(self):
         import discover_extensions
 
@@ -142,6 +172,60 @@ class SemanticMetadataPipelineTest(unittest.TestCase):
         self.assertIn("synonyms.enterprise must be a list of strings", rejected["business_unit"])
         self.assertIn("example_values[0] must be a string", rejected["business_unit"])
         self.assertIn("synonyms must be an object", rejected["risk_level"])
+
+    def test_extension_audit_rejects_nan_coverage_and_object_list_string_fields(self):
+        import discover_extensions
+
+        valid_field = {
+            "name": "deployment_stage",
+            "description": "Deployment stage discussed in the document.",
+            "why_queryable": "Allows queries by rollout stage.",
+            "coverage_estimate": 0.7,
+            "canonical_values": ["planning", "rollout"],
+            "synonyms": {"planning": ["design"], "rollout": ["release"]},
+            "suitable_for_dsl": True,
+            "suitable_for_folder": True,
+            "cardinality_expectation": "low",
+            "empty_policy": "Empty when no deployment stage appears.",
+            "example_values": ["planning"],
+            "source_evidence": "Sample documents mention planning and rollout.",
+        }
+        provider_schema = {
+            "fields": [
+                {
+                    **valid_field,
+                    "name": "nan_coverage",
+                    "coverage_estimate": float("nan"),
+                },
+                {
+                    **valid_field,
+                    "name": "bad_string_values",
+                    "description": {"text": "object should not be coerced"},
+                    "why_queryable": ["list should not be coerced"],
+                    "empty_policy": {"text": "object should not be coerced"},
+                    "source_evidence": ["list should not be coerced"],
+                },
+                valid_field,
+            ]
+        }
+
+        schema, audit = discover_extensions.audit_extension_schema(
+            provider_schema,
+            rows=[normalized_row("doc_1")],
+            sample_rows=[normalized_row("doc_1")],
+            args=argparse.Namespace(schema_provider="openai", schema_model="test-model"),
+        )
+
+        self.assertEqual(audit["status"], "rejected")
+        self.assertEqual(schema["status"], "rejected")
+        self.assertEqual(audit["accepted_fields"], ["deployment_stage"])
+        self.assertEqual([field["name"] for field in schema["fields"]], ["deployment_stage"])
+        rejected = {item["name"]: item["reasons"] for item in audit["rejected_fields"]}
+        self.assertIn("coverage_estimate must be a finite JSON number", rejected["nan_coverage"])
+        self.assertIn("description must be a string", rejected["bad_string_values"])
+        self.assertIn("why_queryable must be a string", rejected["bad_string_values"])
+        self.assertIn("empty_policy must be a string", rejected["bad_string_values"])
+        self.assertIn("source_evidence must be a string", rejected["bad_string_values"])
 
 
 if __name__ == "__main__":

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import re
 import time
@@ -462,7 +463,8 @@ def normalize_provider_field(raw_field: Any) -> tuple[dict[str, Any], list[str]]
     missing = [key for key in FIELD_REQUIRED_KEYS if key not in raw_field]
     if missing:
         reasons.append(f"missing required keys: {', '.join(missing)}")
-    name = text_value(raw_field.get("name"))
+    name, name_reasons = normalize_string_field(raw_field, "name")
+    reasons.extend(name_reasons)
     if not name:
         reasons.append("field name is required")
     elif not SNAKE_CASE_RE.match(name):
@@ -475,6 +477,9 @@ def normalize_provider_field(raw_field: Any) -> tuple[dict[str, Any], list[str]]
         reasons.append("coverage_estimate must be a JSON number")
     else:
         coverage_number = float(coverage_estimate)
+        if not math.isfinite(coverage_number):
+            coverage_number = 0.0
+            reasons.append("coverage_estimate must be a finite JSON number")
     if coverage_number < 0.0 or coverage_number > 1.0:
         reasons.append("coverage_estimate must be between 0 and 1")
     suitable_for_dsl = raw_field.get("suitable_for_dsl")
@@ -487,7 +492,9 @@ def normalize_provider_field(raw_field: Any) -> tuple[dict[str, Any], list[str]]
         suitable_for_folder = False
     if suitable_for_dsl is False and suitable_for_folder is False:
         reasons.append("field must support suitable_for_dsl or suitable_for_folder")
-    cardinality = text_value(raw_field.get("cardinality_expectation")).lower() or "unknown"
+    cardinality_text, cardinality_reasons = normalize_string_field(raw_field, "cardinality_expectation")
+    reasons.extend(cardinality_reasons)
+    cardinality = cardinality_text.lower() or "unknown"
     if cardinality not in CARDINALITY_EXPECTATIONS:
         reasons.append("cardinality_expectation must be low, medium, high, or unknown")
         cardinality = "unknown"
@@ -504,24 +511,41 @@ def normalize_provider_field(raw_field: Any) -> tuple[dict[str, Any], list[str]]
         "example_values",
     )
     reasons.extend(example_reasons)
+    description, description_reasons = normalize_string_field(raw_field, "description")
+    why_queryable, why_queryable_reasons = normalize_string_field(raw_field, "why_queryable")
+    empty_policy, empty_policy_reasons = normalize_string_field(raw_field, "empty_policy")
+    source_evidence, source_evidence_reasons = normalize_string_field(raw_field, "source_evidence")
+    reasons.extend(description_reasons)
+    reasons.extend(why_queryable_reasons)
+    reasons.extend(empty_policy_reasons)
+    reasons.extend(source_evidence_reasons)
     field = {
         "name": name,
-        "description": text_value(raw_field.get("description")),
-        "why_queryable": text_value(raw_field.get("why_queryable")),
+        "description": description,
+        "why_queryable": why_queryable,
         "coverage_estimate": round(max(0.0, min(1.0, coverage_number)), 4),
         "canonical_values": canonical_values,
         "synonyms": synonyms,
         "suitable_for_dsl": bool(suitable_for_dsl),
         "suitable_for_folder": bool(suitable_for_folder),
         "cardinality_expectation": cardinality,
-        "empty_policy": text_value(raw_field.get("empty_policy")),
+        "empty_policy": empty_policy,
         "example_values": example_values,
-        "source_evidence": text_value(raw_field.get("source_evidence")),
+        "source_evidence": source_evidence,
     }
     for string_key in ["description", "why_queryable", "empty_policy", "source_evidence"]:
         if not field[string_key]:
             reasons.append(f"{string_key} must be a non-empty string")
     return field, reasons
+
+
+def normalize_string_field(raw_field: dict[str, Any], field_name: str) -> tuple[str, list[str]]:
+    if field_name not in raw_field:
+        return "", []
+    value = raw_field.get(field_name)
+    if not isinstance(value, str):
+        return "", [f"{field_name} must be a string"]
+    return value.strip(), []
 
 
 def normalize_synonyms(value: Any) -> tuple[dict[str, list[str]], list[str]]:

@@ -126,9 +126,12 @@ def load_ready_extension_schema(run_dir: Path, schema_path: Path) -> dict[str, A
         raise SystemExit(f"Ready extension schema not found: {schema_path}")
 
     extension_schema = read_json(schema_path)
-    status = str(extension_schema.get("status") or "") if isinstance(extension_schema, dict) else ""
-    if status and status != "ready":
-        raise SystemExit(f"Extension schema artifact is not ready (status={status}): {schema_path}")
+    if not isinstance(extension_schema, dict):
+        raise SystemExit(f"Extension schema artifact must be a JSON object with status=ready: {schema_path}")
+    status = str(extension_schema.get("status") or "")
+    if status != "ready":
+        status_detail = status or "missing"
+        raise SystemExit(f"Extension schema artifact is not ready (status={status_detail}): {schema_path}")
 
     audit_path = run_dir / "extension_schema_audit.json"
     if audit_path.exists():
