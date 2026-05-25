@@ -19,8 +19,8 @@ class SQLiteFileSystemStore:
         self.db_path = self.workspace / "filesystem.sqlite"
         self.text_dir = self.workspace / "artifacts" / "text"
         self.raw_dir = self.workspace / "artifacts" / "raw"
-        self.pageindex_tree_dir = self.workspace / "artifacts" / "pageindex_trees"
-        for path in (self.text_dir, self.raw_dir, self.pageindex_tree_dir):
+        self.pageindex_client_dir = self.workspace / "artifacts" / "pageindex_client"
+        for path in (self.text_dir, self.raw_dir, self.pageindex_client_dir):
             path.mkdir(parents=True, exist_ok=True)
         self.migrate()
 
@@ -1270,6 +1270,26 @@ class SQLiteFileSystemStore:
         path = self.text_dir / f"{file_ref}.txt"
         path.write_text(content, encoding="utf-8")
         return path
+
+    def update_pageindex_pointer(
+        self,
+        file_ref: str,
+        *,
+        pageindex_doc_id: str | None,
+        pageindex_tree_status: str,
+    ) -> None:
+        with self.connect() as conn:
+            resolved = self._resolve_file_ref(conn, file_ref)
+            conn.execute(
+                """
+                UPDATE files
+                SET pageindex_doc_id = ?,
+                    pageindex_tree_status = ?,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE file_ref = ? AND deleted_at IS NULL
+                """,
+                (pageindex_doc_id, pageindex_tree_status, resolved),
+            )
 
     def write_raw_artifact(self, file_ref: str, metadata: dict[str, Any]) -> Path:
         path = self.raw_dir / f"{file_ref}.json"

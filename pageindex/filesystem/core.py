@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import Any, Optional, Union
+from urllib.parse import unquote, urlparse
 
+from ..client import PageIndexClient
 from .metadata import MetadataQueryEngine
 from .semantic_folder_policy import (
     SEMANTIC_FOLDER_BASE_FIELDS,
@@ -19,6 +22,11 @@ from .store import (
     make_file_ref,
     metadata_text,
     normalize_path,
+)
+from .structural_read import (
+    first_node_location,
+    find_pageindex_node,
+    strip_pageindex_text_fields,
 )
 from .types import OpenResult, SearchResult
 
@@ -57,10 +65,24 @@ PROJECTION_INDEX_STATUSES = {
 
 SEMANTIC_RETRIEVAL_CHANNELS = ("summary", "entity", "relation")
 SEMANTIC_GREP_CHANNELS = ("entity", "relation")
+PAGEINDEX_DOCUMENT_SUFFIXES = {".pdf", ".md", ".markdown"}
+PAGEINDEX_DOCUMENT_CONTENT_TYPES = {
+    "application/pdf",
+    "text/markdown",
+    "text/x-markdown",
+    "application/markdown",
+}
+TEXT_ARTIFACT_SUFFIXES = {".txt", ".text"}
+TEXT_ARTIFACT_CONTENT_TYPES = {"text/plain"}
 
 
 class PageIndexFileSystem:
-    def __init__(self, workspace: Union[str, Path], *, semantic_retrieval_backend: Any | None = None):
+    def __init__(
+        self,
+        workspace: Union[str, Path],
+        *,
+        semantic_retrieval_backend: Any | None = None,
+    ):
         self.workspace = Path(workspace).expanduser()
         self.store = SQLiteFileSystemStore(self.workspace)
         self.metadata = MetadataQueryEngine(self.store)
@@ -401,14 +423,284 @@ class PageIndexFileSystem:
 
     def open(self, reference_id: str, location: str = "all") -> OpenResult:
         file_ref = self._resolve_reference(reference_id)
+        entry = self.store.get_file(file_ref)
+        if self._file_format(entry) in {"pdf", "markdown", "pageindex"}:
+            raise ValueError(
+                "open() text artifact reads are not supported for PDF/Markdown PageIndex files; "
+                "use pageindex_structure(), pageindex_pages(), or pageindex_node()."
+            )
         if str(location).strip().lower() in {"all", "full", "*"}:
             return self._open_all(reference_id, file_ref)
         start, end = self._parse_line_range(location)
         return self._open_lines(reference_id, file_ref, start, end)
 
+    def cat_text_artifact(self, reference_id: str, location: str = "all") -> OpenResult:
+        file_ref = self._resolve_reference(reference_id)
+        entry = self.store.get_file(file_ref)
+        self._require_text_artifact_file(entry, "cat --all")
+        if str(location).strip().lower() in {"all", "full", "*"}:
+            return self._open_all(reference_id, file_ref)
+        start, end = self._parse_line_range(location)
+        return self._open_lines(reference_id, file_ref, start, end)
+
+    def pageindex_structure(self, reference_id: str) -> dict[str, Any]:
+        file_ref = self._resolve_reference(reference_id)
+        entry = self.store.get_file(file_ref)
+        self._require_pageindex_document_file(entry, "cat --structure")
+        client, doc_id = self._pageindex_client_doc_for_entry(entry)
+        if doc_id is None:
+            return self._structural_unavailable(
+                "structure",
+                entry,
+                message=(
+                    "PageIndex structure is not cached for this file in the "
+                    "PageIndexClient workspace."
+                ),
+            )
+        structure = self._client_json(client.get_document_structure(doc_id))
+        if isinstance(structure, dict) and structure.get("error"):
+            return self._structural_unavailable(
+                "structure",
+                entry,
+                message=str(structure["error"]),
+            )
+        return {
+            "mode": "structure",
+            "file_ref": file_ref,
+            "external_id": entry.external_id,
+            "source_path": entry.source_path,
+            "status": entry.pageindex_tree_status,
+            "available": True,
+            "pageindex_doc_id": doc_id,
+            "structure": strip_pageindex_text_fields(structure),
+        }
+
+    def pageindex_node(self, reference_id: str, node_id: str) -> dict[str, Any]:
+        file_ref = self._resolve_reference(reference_id)
+        entry = self.store.get_file(file_ref)
+        self._require_pageindex_document_file(entry, "cat --node")
+        client, doc_id = self._pageindex_client_doc_for_entry(entry)
+        if doc_id is None:
+            return self._structural_unavailable(
+                "node",
+                entry,
+                node_id=node_id,
+                message=(
+                    "PageIndex structure is not cached for this file in the "
+                    "PageIndexClient workspace."
+                ),
+            )
+        client._ensure_doc_loaded(doc_id)
+        doc = client.documents.get(doc_id, {})
+        node = find_pageindex_node(doc.get("structure", []), node_id)
+        if node is None:
+            return self._structural_unavailable(
+                "node",
+                entry,
+                node_id=node_id,
+                message="PageIndex node was not found in the cached structure.",
+            )
+        text = str(node.get("text") or "")
+        if not text:
+            location = first_node_location(node)
+            if location:
+                content = self._client_json(client.get_page_content(doc_id, location))
+                if isinstance(content, list):
+                    text = "\n\n".join(str(page.get("content") or "") for page in content)
+        if not text:
+            return self._structural_unavailable(
+                "node",
+                entry,
+                node_id=node_id,
+                message="Cached PageIndex node has no text content.",
+            )
+        return {
+            "mode": "node",
+            "file_ref": file_ref,
+            "external_id": entry.external_id,
+            "source_path": entry.source_path,
+            "status": entry.pageindex_tree_status,
+            "available": True,
+            "pageindex_doc_id": doc_id,
+            "node_id": node_id,
+            "node": strip_pageindex_text_fields(node),
+            "text": text,
+        }
+
+    def pageindex_pages(self, reference_id: str, pages: str) -> dict[str, Any]:
+        file_ref = self._resolve_reference(reference_id)
+        entry = self.store.get_file(file_ref)
+        self._require_pageindex_document_file(entry, "cat --page")
+        client, doc_id = self._pageindex_client_doc_for_entry(entry)
+        if doc_id is None:
+            return self._structural_unavailable(
+                "page",
+                entry,
+                pages=pages,
+                message=(
+                    "PageIndex page content is not cached for this file in the "
+                    "PageIndexClient workspace."
+                ),
+            )
+        page_entries = self._client_json(client.get_page_content(doc_id, pages))
+        if isinstance(page_entries, dict) and page_entries.get("error"):
+            return self._structural_unavailable(
+                "page",
+                entry,
+                pages=pages,
+                message=str(page_entries["error"]),
+            )
+        if not isinstance(page_entries, list) or not page_entries:
+            return self._structural_unavailable(
+                "page",
+                entry,
+                pages=pages,
+                message="Requested PageIndex page content is not cached for this file.",
+            )
+        text = "\n\n".join(str(page.get("content") or "") for page in page_entries)
+        return {
+            "mode": "page",
+            "file_ref": file_ref,
+            "external_id": entry.external_id,
+            "source_path": entry.source_path,
+            "status": entry.pageindex_tree_status,
+            "available": True,
+            "pageindex_doc_id": doc_id,
+            "pages": pages,
+            "data": page_entries,
+            "text": text,
+        }
+
     def _stat(self, target: str) -> dict[str, Any]:
         file_ref = self._resolve_reference(target)
         return self.store.file_info(file_ref)
+
+    def _require_text_artifact_file(self, entry: Any, command: str) -> None:
+        if self._file_format(entry) == "text":
+            return
+        raise ValueError(
+            f"{command} is only supported for txt/text files; "
+            f"got source_path={entry.source_path!r}, content_type={entry.content_type!r}. "
+            "Use cat --structure, cat --page, or cat --node for PDF/Markdown PageIndex files."
+        )
+
+    def _require_pageindex_document_file(self, entry: Any, command: str) -> None:
+        if self._file_format(entry) in {"pdf", "markdown", "pageindex"}:
+            return
+        raise ValueError(
+            f"{command} is only supported for PDF/Markdown PageIndex files; "
+            f"got source_path={entry.source_path!r}, content_type={entry.content_type!r}. "
+            "Use cat --all for txt/text files."
+        )
+
+    @classmethod
+    def _file_format(cls, entry: Any) -> str:
+        suffix = Path(str(entry.source_path or "")).suffix.lower()
+        content_type = cls._normalized_content_type(entry.content_type)
+        if suffix == ".pdf" or content_type == "application/pdf":
+            return "pdf"
+        if suffix in PAGEINDEX_DOCUMENT_SUFFIXES or content_type in PAGEINDEX_DOCUMENT_CONTENT_TYPES:
+            return "markdown"
+        if suffix in TEXT_ARTIFACT_SUFFIXES:
+            return "text"
+        if entry.pageindex_doc_id or entry.pageindex_tree_status != "not_built":
+            return "pageindex"
+        if content_type in TEXT_ARTIFACT_CONTENT_TYPES:
+            return "text"
+        return "unsupported"
+
+    @classmethod
+    def _source_format(cls, source_path: Any, content_type: str | None) -> str:
+        suffix = Path(str(source_path or "")).suffix.lower()
+        normalized_content_type = cls._normalized_content_type(content_type)
+        if suffix == ".pdf" or normalized_content_type == "application/pdf":
+            return "pdf"
+        if (
+            suffix in PAGEINDEX_DOCUMENT_SUFFIXES
+            or normalized_content_type in PAGEINDEX_DOCUMENT_CONTENT_TYPES
+        ):
+            return "markdown"
+        if suffix in TEXT_ARTIFACT_SUFFIXES:
+            return "text"
+        if normalized_content_type in TEXT_ARTIFACT_CONTENT_TYPES:
+            return "text"
+        return "unsupported"
+
+    @staticmethod
+    def _normalized_content_type(content_type: str | None) -> str:
+        return str(content_type or "").split(";", 1)[0].strip().lower()
+
+    @property
+    def pageindex_client_workspace(self) -> Path:
+        return self.workspace / "artifacts" / "pageindex_client"
+
+    def _pageindex_client(self) -> PageIndexClient:
+        return PageIndexClient(workspace=str(self.pageindex_client_workspace))
+
+    def _pageindex_client_doc_for_entry(self, entry: Any) -> tuple[PageIndexClient, str | None]:
+        client = self._pageindex_client()
+        if not entry.pageindex_doc_id:
+            return client, None
+        if entry.pageindex_doc_id not in client.documents:
+            return client, None
+        return client, entry.pageindex_doc_id
+
+    def _registration_pageindex_pointer(
+        self,
+        *,
+        storage_uri: str,
+        source_path: str,
+        content_type: str,
+    ) -> tuple[str | None, str]:
+        if self._source_format(source_path, content_type) not in {"pdf", "markdown"}:
+            return None, "not_built"
+        client = self._pageindex_client()
+        source = self._canonical_source_path(storage_uri=storage_uri, source_path=source_path)
+        cached_doc_id = self._find_cached_pageindex_doc_id(client, source)
+        if cached_doc_id:
+            return cached_doc_id, "built"
+        if source is None:
+            return None, "failed"
+        try:
+            doc_id = client.index(source)
+            return doc_id, "built"
+        except Exception:
+            return None, "failed"
+
+    def _find_cached_pageindex_doc_id(
+        self,
+        client: PageIndexClient,
+        source_path: str | None,
+    ) -> str | None:
+        if source_path is None:
+            return None
+        for doc_id, doc in client.documents.items():
+            if self._canonical_path(doc.get("path")) == source_path:
+                return doc_id
+        return None
+
+    def _canonical_source_path(self, *, storage_uri: str, source_path: str) -> str | None:
+        parsed = urlparse(storage_uri)
+        if parsed.scheme == "file":
+            return self._canonical_path(unquote(parsed.path))
+        if storage_uri and not parsed.scheme:
+            return self._canonical_path(storage_uri)
+        if Path(source_path).expanduser().is_absolute():
+            return self._canonical_path(source_path)
+        return None
+
+    @staticmethod
+    def _canonical_path(path: Any) -> str | None:
+        if not path:
+            return None
+        return str(Path(os.path.expanduser(str(path))).resolve(strict=False))
+
+    @staticmethod
+    def _client_json(payload: str) -> Any:
+        try:
+            return json.loads(payload)
+        except json.JSONDecodeError:
+            return {"error": f"Invalid PageIndexClient JSON response: {payload}"}
 
     def _metadata_schema(self) -> dict[str, Any]:
         return self.metadata.export_schema()
@@ -421,13 +713,24 @@ class PageIndexFileSystem:
 
     def _prepare_file_record(self, file: dict[str, Any]) -> dict[str, Any]:
         storage_uri = file["storage_uri"]
-        source_path = str(file["source_path"]).strip("/")
+        raw_source_path = str(file["source_path"])
+        source_path = raw_source_path.strip("/")
         metadata = file.get("metadata") or {}
         derived_metadata = file.get("derived_metadata") or {}
         if not isinstance(metadata, dict):
             raise ValueError("metadata must be a JSON object")
         if not isinstance(derived_metadata, dict):
             raise ValueError("derived_metadata must be a JSON object")
+        external_id = file.get("external_id")
+        content = file.get("content") or ""
+        content_type = file.get("content_type") or "text/plain"
+        pageindex_doc_id, pageindex_tree_status = self._registration_pageindex_pointer(
+            storage_uri=storage_uri,
+            source_path=raw_source_path,
+            content_type=content_type,
+        )
+        fts_content = file.get("fts_content", content)
+        source_type = file.get("source_type") or self._infer_source_type(source_path)
         generation_policy = self._normalize_metadata_generation_policy(
             file.get("metadata_generation_policy"),
             derived_metadata=derived_metadata,
@@ -443,11 +746,6 @@ class PageIndexFileSystem:
             generation_state,
         )
         searchable_metadata = self._merge_metadata_values(metadata, derived_metadata)
-        external_id = file.get("external_id")
-        content = file.get("content") or ""
-        content_type = file.get("content_type") or "text/plain"
-        fts_content = file.get("fts_content", content)
-        source_type = file.get("source_type") or self._infer_source_type(source_path)
         folder_path = normalize_path(file.get("folder_path") or "/")
         title = file.get("title") or metadata.get("title") or Path(source_path).stem
         file_ref = make_file_ref(external_id or source_path)
@@ -481,8 +779,8 @@ class PageIndexFileSystem:
             "fingerprint": fingerprint(content),
             "text_artifact_path": str(text_artifact_path),
             "raw_artifact_path": str(raw_artifact_path) if raw_artifact_path is not None else None,
-            "pageindex_doc_id": None,
-            "pageindex_tree_status": "not_built",
+            "pageindex_doc_id": pageindex_doc_id,
+            "pageindex_tree_status": pageindex_tree_status,
             "metadata": metadata,
             "metadata_json": json.dumps(metadata, ensure_ascii=False),
             "derived_metadata": derived_metadata,
@@ -527,6 +825,30 @@ class PageIndexFileSystem:
             folder_path=entry.folder_path,
             source_path=entry.source_path,
         )
+
+    @staticmethod
+    def _structural_unavailable(
+        mode: str,
+        entry: Any,
+        *,
+        message: str,
+        node_id: str | None = None,
+        pages: str | None = None,
+    ) -> dict[str, Any]:
+        result = {
+            "mode": mode,
+            "file_ref": entry.file_ref,
+            "external_id": entry.external_id,
+            "source_path": entry.source_path,
+            "status": entry.pageindex_tree_status,
+            "available": False,
+            "message": message,
+        }
+        if node_id is not None:
+            result["node_id"] = node_id
+        if pages is not None:
+            result["pages"] = pages
+        return result
 
     def _resolve_reference(self, reference_id: str) -> str:
         if reference_id in self._references:

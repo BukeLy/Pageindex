@@ -90,6 +90,8 @@ class PIFSCommandExecutor:
             "- ls/tree: folder browsing",
             "- find --where: exact/canonical metadata DSL filtering",
             "- grep -R: recursive lexical/FTS search only; semantic vector prefilter is disabled",
+            "- cat --structure/--node/--page: cached PageIndex reads for PDF/Markdown files",
+            "- cat --all: full text artifact reads for txt/text files",
         ]
         if "entity" in semantic_channels:
             lines.append("- find --name: entity semantic candidate discovery alias")
@@ -405,14 +407,33 @@ class PIFSCommandExecutor:
             raise PIFSCommandError("cat requires a file target")
         target = None
         location = "all"
+        structural_mode: str | None = None
+        node_id: str | None = None
+        page_range: str | None = None
         i = 0
         while i < len(args):
             arg = args[i]
             if arg == "--range":
                 i += 1
+                if i >= len(args):
+                    raise PIFSCommandError("cat --range requires a range")
                 location = args[i]
             elif arg == "--all":
                 location = "all"
+            elif arg == "--structure":
+                structural_mode = "structure"
+            elif arg == "--node":
+                i += 1
+                if i >= len(args):
+                    raise PIFSCommandError("cat --node requires a node id")
+                structural_mode = "node"
+                node_id = args[i]
+            elif arg == "--page":
+                i += 1
+                if i >= len(args):
+                    raise PIFSCommandError("cat --page requires a page range")
+                structural_mode = "page"
+                page_range = args[i]
             elif arg.startswith("-"):
                 raise PIFSCommandError(f"Unsupported cat option: {arg}")
             else:
@@ -420,7 +441,13 @@ class PIFSCommandExecutor:
             i += 1
         if not target:
             raise PIFSCommandError("cat requires a file target")
-        return self.filesystem.open(target, location)
+        if structural_mode == "structure":
+            return self.filesystem.pageindex_structure(target)
+        if structural_mode == "node":
+            return self.filesystem.pageindex_node(target, str(node_id))
+        if structural_mode == "page":
+            return self.filesystem.pageindex_pages(target, str(page_range))
+        return self.filesystem.cat_text_artifact(target, location)
 
     def _cmd_stat(self, args: list[str]) -> Any:
         if args and args[0] == "--schema":
@@ -431,14 +458,14 @@ class PIFSCommandExecutor:
 
     def _cmd_head(self, args: list[str]) -> Any:
         count, target = self._parse_standalone_head_tail(args, default_count=10)
-        opened = self.filesystem.open(target, "all")
+        opened = self.filesystem.cat_text_artifact(target, "all")
         lines = opened.text.splitlines()
         text = "\n".join(lines[:count])
         return {**self._jsonable(opened), "text": text, "end_line": min(count, len(lines))}
 
     def _cmd_tail(self, args: list[str]) -> Any:
         count, target = self._parse_standalone_head_tail(args, default_count=10)
-        opened = self.filesystem.open(target, "all")
+        opened = self.filesystem.cat_text_artifact(target, "all")
         lines = opened.text.splitlines()
         selected = lines[-count:] if count else []
         start_line = max(1, len(lines) - len(selected) + 1)
@@ -455,7 +482,10 @@ class PIFSCommandExecutor:
         match = re.fullmatch(r"(\d+),(\d+)p", args[1])
         if not match:
             raise PIFSCommandError("sed supports only: sed -n '<start>,<end>p' <target>")
-        return self.filesystem.open(args[2], f"{match.group(1)}-{match.group(2)}")
+        return self.filesystem.cat_text_artifact(
+            args[2],
+            f"{match.group(1)}-{match.group(2)}",
+        )
 
     def _cmd_search_summary(self, args: list[str]) -> Any:
         return self._cmd_semantic_channel("summary", args)
@@ -621,7 +651,7 @@ class PIFSCommandExecutor:
 
     def _render_shell(self, command_name: str, data: Any) -> str:
         if command_name == "cat":
-            return str(data.get("text", "")) if isinstance(data, dict) else str(data)
+            return self._render_cat(data)
         if command_name == "ls":
             return self._render_listing(data)
         if command_name == "tree":
@@ -641,6 +671,15 @@ class PIFSCommandExecutor:
         if isinstance(data, list):
             return "\n".join(str(item) for item in data)
         return str(data)
+
+    def _render_cat(self, data: Any) -> str:
+        if not isinstance(data, dict):
+            return str(data)
+        if data.get("available") is False:
+            return f"# {data.get('message', 'PageIndex structural content is unavailable')}"
+        if data.get("mode") == "structure":
+            return json.dumps(data.get("structure", {}), ensure_ascii=False, indent=2)
+        return str(data.get("text", ""))
 
     def _render_listing(self, data: Any) -> str:
         if not isinstance(data, dict):
