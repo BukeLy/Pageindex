@@ -55,11 +55,13 @@ This writes:
 - `summary.md`
 - `metadata_batch_manifest.json` and `metadata_batches/*.jsonl` when `--metadata-batch-mode` is used
 
-2. Discover extension fields:
+2. Discover extension fields with an LLM provider:
 
 ```bash
 uv run python examples/Benchmark/enterprise_rag_benchmark/semantic_metadata_pipeline/discover_extensions.py \
-  --run-dir examples/Benchmark/enterprise_rag_benchmark/semantic_metadata_pipeline/results/my-run
+  --run-dir examples/Benchmark/enterprise_rag_benchmark/semantic_metadata_pipeline/results/my-run \
+  --schema-provider openai \
+  --schema-model gpt-5-nano
 ```
 
 This writes:
@@ -67,6 +69,8 @@ This writes:
 - `extension_schema.json`
 - `extension_schema_audit.json`
 - `extension_schema_prompt.sample.md`
+
+Extension Schema Discovery is not available as an offline heuristic. If no provider is configured, or `--offline` is passed, the script writes `extension_schema.pending.json` and exits non-zero. Do not run folder generation until `extension_schema.json` has been produced by an LLM provider.
 
 3. Build folder projections:
 
@@ -212,7 +216,9 @@ Every normalized field records provenance:
 
 ## Extension Discovery Policy
 
-Extension fields are not hardcoded as base schema. Fields such as repo, channel, project, customer, status, or source bucket must be discovered from candidate metadata and pass audit checks.
+Extension fields are not hardcoded as base schema. Fields such as repo, channel, project, customer, or status must be discovered by the Extension Schema Discovery LLM capability from sample documents plus normalized metadata.
+
+The benchmark script is only the execution harness. It samples documents, constructs a strict JSON prompt, calls the configured provider, and audits the returned schema for forbidden fields and response format. It must not select fields with coverage thresholds, cardinality thresholds, field-name regexes, or `source_type` special cases.
 
 An extension field records:
 
@@ -228,13 +234,13 @@ An extension field records:
 - `empty_policy`
 - `source_evidence`
 
-Discovery rejects:
+The provider prompt asks the LLM to avoid:
 
 - unique ids, benchmark ids, paths, URLs, filenames, storage URIs
 - `summary`, `entities`, `relations`, `constraints`, `retrieval_cues`
-- high-cardinality fields
-- low-coverage fields
 - text-heavy fields that do not canonicalize cleanly
+
+The local audit rejects only schema/format violations, forbidden field names, base metadata fields, and unusable field entries. It does not compute corpus statistics to decide which fields should exist.
 
 ## Folder Field Policy
 
