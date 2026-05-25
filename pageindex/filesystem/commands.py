@@ -7,7 +7,6 @@ import subprocess
 from dataclasses import asdict, is_dataclass
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlparse
 
 from .core import SEMANTIC_GREP_CHANNELS, SEMANTIC_RETRIEVAL_CHANNELS, PageIndexFileSystem
 
@@ -26,13 +25,10 @@ class PIFSCommandExecutor:
         "grep",
         "cat",
         "stat",
-        "mkdir",
-        "cp",
         "head",
         "tail",
         "sed",
     }
-    MUTATION_COMMANDS = {"mkdir", "cp"}
     SEMANTIC_CHANNEL_COMMANDS = {
         "summary": "search-summary",
         "entity": "search-entity",
@@ -63,17 +59,13 @@ class PIFSCommandExecutor:
         *,
         json_output: bool = False,
         query_context: str | None = None,
-        allow_mutations: bool = True,
     ):
         self.filesystem = filesystem
         self.json_output = json_output
         self.query_context = query_context
-        self.allow_mutations = allow_mutations
 
     def allowed_commands(self) -> set[str]:
         commands = set(self.BASE_ALLOWED_COMMANDS)
-        if not self.allow_mutations:
-            commands -= self.MUTATION_COMMANDS
         semantic_channels = set(self.filesystem.semantic_retrieval_channels())
         for channel in SEMANTIC_RETRIEVAL_CHANNELS:
             if channel in semantic_channels:
@@ -94,13 +86,11 @@ class PIFSCommandExecutor:
         semantic_channels = set(semantic["channels"])
         lines = [
             "Available command surfaces for this workspace:",
-            "- mode: read-only inspection" if not self.allow_mutations else "- mode: read/write workspace management",
+            "- mode: read-only inspection",
             "- ls/tree: folder browsing",
             "- find --where: exact/canonical metadata DSL filtering",
             "- grep -R: recursive lexical/FTS search only; semantic vector prefilter is disabled",
         ]
-        if self.allow_mutations:
-            lines.append("- mkdir/cp: workspace folder creation and file import")
         if "entity" in semantic_channels:
             lines.append("- find --name: entity semantic candidate discovery alias")
         if "relation" in semantic_channels:
@@ -439,79 +429,6 @@ class PIFSCommandExecutor:
             raise PIFSCommandError("stat requires a file target or --schema")
         return {"target": args[0], **self.filesystem._stat(args[0])}
 
-    def _cmd_mkdir(self, args: list[str]) -> Any:
-        if len(args) != 1:
-            raise PIFSCommandError("mkdir requires exactly one path")
-        folder_id = self.filesystem._create_folder(args[0])
-        return {"folder_id": folder_id, "path": args[0]}
-
-    def _cmd_cp(self, args: list[str]) -> Any:
-        metadata: dict[str, Any] = {}
-        derived_metadata: dict[str, Any] = {}
-        metadata_generation_policy = None
-        metadata_generation_status = None
-        title = None
-        external_id = None
-        source_path = None
-        content = None
-        positionals = []
-        i = 0
-        while i < len(args):
-            arg = args[i]
-            if arg == "--metadata-json":
-                i += 1
-                metadata = json.loads(args[i])
-            elif arg == "--derived-metadata-json":
-                i += 1
-                derived_metadata = json.loads(args[i])
-            elif arg == "--metadata-policy-json":
-                i += 1
-                metadata_generation_policy = json.loads(args[i])
-            elif arg == "--metadata-generation-status":
-                i += 1
-                metadata_generation_status = args[i]
-            elif arg == "--title":
-                i += 1
-                title = args[i]
-            elif arg == "--external-id":
-                i += 1
-                external_id = args[i]
-            elif arg == "--source-path":
-                i += 1
-                source_path = args[i]
-            elif arg == "--content":
-                i += 1
-                content = args[i]
-            elif arg == "--content-path":
-                i += 1
-                content = Path(args[i]).read_text(encoding="utf-8")
-            elif arg == "--metadata-auto":
-                # Reserved for future LLM-assisted metadata extraction.
-                pass
-            elif arg.startswith("-"):
-                raise PIFSCommandError(f"Unsupported cp option: {arg}")
-            else:
-                positionals.append(arg)
-            i += 1
-        if len(positionals) != 2:
-            raise PIFSCommandError("cp requires <source_uri> <folder_path>")
-        source_uri, folder_path = positionals
-        content = self._read_source_content(source_uri) if content is None else content
-        source_path = source_path or self._source_path_from_uri(source_uri)
-        file_ref = self.filesystem.register_file(
-            storage_uri=source_uri,
-            source_path=source_path,
-            folder_path=folder_path,
-            metadata=metadata,
-            external_id=external_id,
-            title=title,
-            content=content,
-            derived_metadata=derived_metadata,
-            metadata_generation_policy=metadata_generation_policy,
-            metadata_generation_status=metadata_generation_status,
-        )
-        return {"folder_path": folder_path, "file": self.filesystem._stat(file_ref)}
-
     def _cmd_head(self, args: list[str]) -> Any:
         count, target = self._parse_standalone_head_tail(args, default_count=10)
         opened = self.filesystem.open(target, "all")
@@ -719,12 +636,6 @@ class PIFSCommandExecutor:
             return self._render_stat(data)
         if command_name in {"head", "tail", "sed"}:
             return str(data.get("text", "")) if isinstance(data, dict) else str(data)
-        if command_name == "mkdir":
-            return f"created folder: {self._normalize_folder_path(data['path'])}"
-        if command_name == "cp":
-            file_info = data["file"]
-            doc_id = file_info.get("external_id") or "-"
-            return f"copied file: {file_info['file_ref']} {doc_id} -> {self._normalize_folder_path(data['folder_path'])}"
         if isinstance(data, dict):
             return "\n".join(f"{key}: {value}" for key, value in data.items())
         if isinstance(data, list):
@@ -1687,22 +1598,3 @@ class PIFSCommandExecutor:
             copied_data["end_line"] = min(end, len(lines))
             sliced["data"] = copied_data
         return sliced
-
-    @staticmethod
-    def _read_source_content(source_uri: str) -> str:
-        parsed = urlparse(source_uri)
-        if parsed.scheme == "file":
-            return Path(parsed.path).read_text(encoding="utf-8")
-        path = Path(source_uri)
-        if parsed.scheme == "" and path.exists() and path.is_file():
-            return path.read_text(encoding="utf-8")
-        return ""
-
-    @staticmethod
-    def _source_path_from_uri(source_uri: str) -> str:
-        parsed = urlparse(source_uri)
-        if parsed.scheme == "file":
-            return Path(parsed.path).name
-        if parsed.scheme:
-            return parsed.path.strip("/") or parsed.netloc
-        return Path(source_uri).name

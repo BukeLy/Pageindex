@@ -154,7 +154,7 @@ register_file(..., folder_path=None)
   -> place in root/default import folder
 
 register_file(..., folder_path="/slack/eng")
-  -> mkdir -p logical folder path
+  -> ensure the logical folder path exists through the programmatic API
 
 folder_id = create_folder("/slack/eng")
 register_file(..., folder_id=folder_id)
@@ -683,4 +683,3 @@ PageIndex Core provides deep single-document reasoning.
 
 This is the architecture that best matches the PageIndex FileSystem blog while
 staying compatible with the current PageIndex repository.
-
