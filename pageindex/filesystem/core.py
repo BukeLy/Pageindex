@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Any, Optional, Union
 
@@ -136,9 +137,9 @@ class PageIndexFileSystem:
         policy_raw = projection_plan.get("policy")
         policy = policy_raw if isinstance(policy_raw, dict) else {}
         allowed_extension_fields = {
-            str(field)
+            self._canonical_semantic_folder_field_name(field)
             for field in policy.get("allowed_extension_fields", [])
-            if str(field)
+            if self._canonical_semantic_folder_field_name(field)
         }
         for folder in folders:
             self._validate_semantic_folder_projection_item(folder, allowed_extension_fields)
@@ -586,7 +587,7 @@ class PageIndexFileSystem:
                 "use file_key or file_ref"
             )
         fields = []
-        explicit_field = str(item.get("field") or "")
+        explicit_field = cls._canonical_semantic_folder_field_name(item.get("field"))
         if explicit_field:
             fields.append(explicit_field)
         fields.extend(cls._semantic_folder_projection_fields_from_path(str(path)))
@@ -615,7 +616,9 @@ class PageIndexFileSystem:
         for segment in normalized.strip("/").split("/")[1:]:
             if "=" not in segment:
                 continue
-            field = segment.split("=", 1)[0].strip()
+            field = cls._canonical_semantic_folder_field_name(
+                segment.split("=", 1)[0]
+            )
             if field:
                 fields.append(field)
         return fields
@@ -629,13 +632,14 @@ class PageIndexFileSystem:
         if isinstance(payload, dict):
             for key, value in payload.items():
                 key_text = str(key)
-                if key_text in SEMANTIC_FOLDER_FORBIDDEN_FIELDS:
+                key_field = cls._canonical_semantic_folder_field_name(key)
+                if key_field in SEMANTIC_FOLDER_FORBIDDEN_FIELDS:
                     raise ValueError(
                         "Forbidden metadata field in Semantic Folder Projection payload: "
                         f"{key_text}"
                     )
-                if key_text in {"field", "source_field", "metadata_field"}:
-                    field = str(value or "")
+                if key_field in {"field", "source_field", "metadata_field"}:
+                    field = cls._canonical_semantic_folder_field_name(value)
                     if field and (
                         field in SEMANTIC_FOLDER_FORBIDDEN_FIELDS
                         or field not in allowed_fields
@@ -647,6 +651,22 @@ class PageIndexFileSystem:
         elif isinstance(payload, list):
             for item in payload:
                 cls._validate_semantic_folder_projection_metadata_payload(item, allowed_fields)
+        elif isinstance(payload, str):
+            field = cls._canonical_semantic_folder_field_name(payload)
+            if field in SEMANTIC_FOLDER_FORBIDDEN_FIELDS:
+                raise ValueError(
+                    "Forbidden metadata field label in Semantic Folder Projection payload: "
+                    f"{payload}"
+                )
+
+    @staticmethod
+    def _canonical_semantic_folder_field_name(value: Any) -> str:
+        text = str(value or "").strip()
+        if not text:
+            return ""
+        text = re.sub(r"(.)([A-Z][a-z]+)", r"\1_\2", text)
+        text = re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", text)
+        return re.sub(r"[^A-Za-z0-9]+", "_", text).strip("_").casefold()
 
     @staticmethod
     def _semantic_folder_projection_document_id(membership: dict[str, Any]) -> str:

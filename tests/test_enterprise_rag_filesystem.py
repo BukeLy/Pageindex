@@ -530,8 +530,7 @@ class EnterpriseRAGFileSystemTest(unittest.TestCase):
                 content="forbidden fields should not project",
             )
 
-            with self.assertRaisesRegex(ValueError, "Semantic Folder Projection"):
-                filesystem.apply_semantic_folder_projection(
+            plans = [
                 {
                     "policy": {"allowed_extension_fields": []},
                     "folders": [
@@ -548,8 +547,46 @@ class EnterpriseRAGFileSystemTest(unittest.TestCase):
                             "value": "memory pressure",
                         }
                     ],
-                }
-            )
+                },
+                {
+                    "policy": {"allowed_extension_fields": ["Summary"]},
+                    "folders": [
+                        {
+                            "path": "/semantic/Summary=leak",
+                            "kind": "facet",
+                            "value": "leak",
+                        }
+                    ],
+                    "memberships": [],
+                },
+                {
+                    "policy": {"allowed_extension_fields": ["SOURCE_PATH"]},
+                    "folders": [
+                        {
+                            "path": "/semantic/source_type=github/facets/SOURCE_PATH=foo",
+                            "kind": "facet",
+                            "value": "foo",
+                        }
+                    ],
+                    "memberships": [],
+                },
+                {
+                    "policy": {"allowed_extension_fields": ["Path"]},
+                    "folders": [
+                        {
+                            "path": "/semantic/source_type=github",
+                            "kind": "source_root",
+                            "field": "Path",
+                            "value": "github",
+                        }
+                    ],
+                    "memberships": [],
+                },
+            ]
+            for plan in plans:
+                with self.subTest(plan=plan):
+                    with self.assertRaisesRegex(ValueError, "Semantic Folder Projection"):
+                        filesystem.apply_semantic_folder_projection(plan)
 
     def test_semantic_folder_projection_rejects_forbidden_payload_metadata(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -564,7 +601,7 @@ class EnterpriseRAGFileSystemTest(unittest.TestCase):
                 content="forbidden metadata payload should not persist",
             )
 
-            plans = [
+            key_plans = [
                 {
                     "folders": [
                         {
@@ -572,7 +609,7 @@ class EnterpriseRAGFileSystemTest(unittest.TestCase):
                             "kind": "source_root",
                             "field": "source_type",
                             "value": "github",
-                            "metadata": {"summary": "leaked summary"},
+                            "metadata": {"Summary": "leaked summary"},
                         }
                     ],
                     "memberships": [],
@@ -592,12 +629,78 @@ class EnterpriseRAGFileSystemTest(unittest.TestCase):
                             "folder_path": "/semantic/source_type=github",
                             "field": "source_type",
                             "value": "github",
-                            "folder_metadata": {"source_path": "github/redwood/pr.json"},
+                            "folder_metadata": {"SOURCE_PATH": "github/redwood/pr.json"},
+                        }
+                    ],
+                },
+                {
+                    "folders": [
+                        {
+                            "path": "/semantic/source_type=github",
+                            "kind": "source_root",
+                            "field": "source_type",
+                            "value": "github",
+                            "metadata": {"Path": "/leaked/path"},
+                        }
+                    ],
+                    "memberships": [],
+                },
+            ]
+            value_plans = [
+                {
+                    "folders": [
+                        {
+                            "path": "/semantic/source_type=github",
+                            "kind": "source_root",
+                            "field": "source_type",
+                            "value": "github",
+                        }
+                    ],
+                    "memberships": [
+                        {
+                            "file_key": file_ref,
+                            "folder_path": "/semantic/source_type=github",
+                            "field": "source_type",
+                            "value": "github",
+                            "folder_metadata": {"note": "summary"},
+                        }
+                    ],
+                },
+                {
+                    "folders": [
+                        {
+                            "path": "/semantic/source_type=github",
+                            "kind": "source_root",
+                            "field": "source_type",
+                            "value": "github",
+                            "metadata": {"nested": {"label": "source_path"}},
+                        }
+                    ],
+                    "memberships": [],
+                },
+                {
+                    "folders": [
+                        {
+                            "path": "/semantic/source_type=github",
+                            "kind": "source_root",
+                            "field": "source_type",
+                            "value": "github",
+                        }
+                    ],
+                    "memberships": [
+                        {
+                            "file_key": file_ref,
+                            "folder_path": "/semantic/source_type=github",
+                            "field": "source_type",
+                            "value": "github",
+                            "folder_metadata": {
+                                "labels": [{"label": "storage_uri"}],
+                            },
                         }
                     ],
                 },
             ]
-            for plan in plans:
+            for plan in key_plans + value_plans:
                 with self.subTest(plan=plan):
                     with self.assertRaisesRegex(ValueError, "Semantic Folder Projection"):
                         filesystem.apply_semantic_folder_projection(plan)
