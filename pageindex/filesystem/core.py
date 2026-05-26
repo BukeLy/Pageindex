@@ -1080,15 +1080,24 @@ class PageIndexFileSystem:
 
     def _record_from_file_entry(self, entry: Any) -> dict[str, Any]:
         content = self.store.read_text(entry.file_ref)
+        stored_metadata_status = (
+            entry.metadata_status if isinstance(entry.metadata_status, dict) else {}
+        )
+        stored_aggregate_status = (
+            None
+            if self._has_stored_metadata_field_statuses(stored_metadata_status)
+            else stored_metadata_status.get("status")
+        )
         metadata_policy = self._normalize_metadata_policy(
-            entry.metadata_status.get("policy", {}),
+            self._metadata_policy_from_status_state(stored_metadata_status),
             metadata=entry.metadata,
         )
         metadata_status = self._metadata_status_state(
             metadata_policy,
             metadata=entry.metadata,
-            status=entry.metadata_status.get("status"),
+            status=stored_aggregate_status,
         )
+        self._preserve_stored_metadata_status_details(metadata_status, stored_metadata_status)
         return {
             "file_ref": entry.file_ref,
             "external_id": entry.external_id,
@@ -1113,6 +1122,97 @@ class PageIndexFileSystem:
             "content": content,
             "skip_fts": False,
         }
+
+    @classmethod
+    def _metadata_policy_from_status_state(
+        cls,
+        metadata_status: dict[str, Any],
+    ) -> dict[str, Any]:
+        policy = dict(metadata_status.get("policy") or {})
+        fields = dict(policy.get("fields") or {})
+        stored_fields = metadata_status.get("fields")
+        if isinstance(stored_fields, dict):
+            for name, state in stored_fields.items():
+                if not isinstance(state, dict):
+                    continue
+                field_name = str(name)
+                declaration: dict[str, Any] = {
+                    "requested": bool(
+                        state.get(
+                            "requested",
+                            cls._metadata_policy_requested(fields.get(field_name), True),
+                        )
+                    )
+                }
+                if state.get("status") is not None:
+                    declaration["status"] = state["status"]
+                fields[field_name] = declaration
+        if fields:
+            policy["fields"] = fields
+
+        projection_indexes = dict(policy.get("projection_indexes") or {})
+        stored_indexes = metadata_status.get("projection_indexes")
+        if isinstance(stored_indexes, dict):
+            for name, state in stored_indexes.items():
+                if not isinstance(state, dict):
+                    continue
+                index_name = str(name)
+                declaration = {
+                    "requested": bool(
+                        state.get(
+                            "requested",
+                            cls._metadata_policy_requested(
+                                projection_indexes.get(index_name),
+                                True,
+                            ),
+                        )
+                    )
+                }
+                if state.get("status") is not None:
+                    declaration["status"] = state["status"]
+                projection_indexes[index_name] = declaration
+        if projection_indexes:
+            policy["projection_indexes"] = projection_indexes
+        return policy
+
+    @staticmethod
+    def _metadata_policy_requested(declaration: Any, default: bool) -> bool:
+        if isinstance(declaration, dict):
+            return bool(declaration.get("enabled", declaration.get("requested", default)))
+        if declaration is None:
+            return default
+        return bool(declaration)
+
+    @staticmethod
+    def _has_stored_metadata_field_statuses(metadata_status: dict[str, Any]) -> bool:
+        fields = metadata_status.get("fields")
+        if not isinstance(fields, dict):
+            return False
+        return any(
+            isinstance(field, dict)
+            and field.get("requested", True)
+            and field.get("status")
+            for field in fields.values()
+        )
+
+    @staticmethod
+    def _preserve_stored_metadata_status_details(
+        metadata_status: dict[str, Any],
+        stored_metadata_status: dict[str, Any],
+    ) -> None:
+        stored_fields = stored_metadata_status.get("fields")
+        if isinstance(stored_fields, dict):
+            for name, state in stored_fields.items():
+                if isinstance(state, dict) and str(name) in metadata_status.get("fields", {}):
+                    metadata_status["fields"][str(name)].update(state)
+        stored_indexes = stored_metadata_status.get("projection_indexes")
+        if isinstance(stored_indexes, dict):
+            for name, state in stored_indexes.items():
+                if (
+                    isinstance(state, dict)
+                    and str(name) in metadata_status.get("projection_indexes", {})
+                ):
+                    metadata_status["projection_indexes"][str(name)].update(state)
 
     def _generate_register_metadata(self, record: dict[str, Any], *, force: bool = False) -> None:
         status = record["metadata_status"]

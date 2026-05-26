@@ -208,6 +208,105 @@ def test_batch_metadata_status_generates_into_unified_metadata(tmp_path):
     assert after.metadata_status["fields"]["summary"]["status"] == "generated"
 
 
+def test_batch_metadata_reload_preserves_mixed_field_and_projection_statuses(tmp_path):
+    from pageindex.filesystem import PageIndexFileSystem
+    from pageindex.filesystem.metadata_generation import MetadataGenerationResult
+
+    source = tmp_path / "source.txt"
+    source.write_text("fixture text", encoding="utf-8")
+
+    class MixedGenerator:
+        def __init__(self):
+            self.calls = []
+
+        def generate(self, document, *, fields):
+            self.calls.append(tuple(fields))
+            return MetadataGenerationResult(
+                values={field: f"Generated {field}." for field in fields}
+            )
+
+    generator = MixedGenerator()
+    filesystem = PageIndexFileSystem(
+        workspace=tmp_path / "workspace",
+        metadata_generator=generator,
+    )
+    file_ref = filesystem.register_file(
+        storage_uri=source.as_uri(),
+        source_path="docs/source.txt",
+        folder_path="/documents",
+        external_id="doc_mixed_status",
+        title="Mixed status document",
+        content=source.read_text(encoding="utf-8"),
+        metadata={"department": "ops"},
+        metadata_policy={
+            "batch": True,
+            "fields": {
+                "summary": True,
+                "doc_type": False,
+                "domain": True,
+                "topic": True,
+            },
+        },
+    )
+    entry = filesystem.store.get_file(file_ref)
+    metadata = dict(entry.metadata)
+    metadata["summary"] = "Stable generated summary."
+    metadata_status = dict(entry.metadata_status)
+    metadata_status["status"] = "failed"
+    metadata_status["fields"] = dict(entry.metadata_status["fields"])
+    metadata_status["fields"]["summary"] = {
+        "requested": True,
+        "status": "generated",
+        "owner": "pifs",
+        "source": "llm",
+    }
+    metadata_status["fields"]["domain"] = {
+        "requested": True,
+        "status": "failed",
+        "owner": "pifs",
+        "source": "llm",
+        "error": "previous generation failed",
+    }
+    metadata_status["fields"]["topic"] = {
+        "requested": True,
+        "status": "pending_generate",
+        "owner": "pifs",
+        "source": "llm",
+    }
+    metadata_status["projection_indexes"] = {
+        "summary": {
+            "requested": True,
+            "status": "ready",
+            "owner": "pifs",
+            "source": "index",
+            "index_path": "summary_only_vector.sqlite",
+        }
+    }
+    filesystem.store.update_file_metadata_status(
+        file_ref,
+        metadata=metadata,
+        metadata_status=metadata_status,
+    )
+
+    result = filesystem.batch_generate()
+    after = filesystem.store.get_file(file_ref)
+
+    assert result["processed"] == 1
+    assert len(generator.calls) == 1
+    assert set(generator.calls[0]) == {"domain", "topic"}
+    assert after.metadata["summary"] == "Stable generated summary."
+    assert after.metadata["domain"] == "Generated domain."
+    assert after.metadata["topic"] == "Generated topic."
+    assert after.metadata_status["fields"]["summary"]["status"] == "generated"
+    assert after.metadata_status["fields"]["domain"]["status"] == "generated"
+    assert after.metadata_status["fields"]["topic"]["status"] == "generated"
+    assert after.metadata_status["projection_indexes"]["summary"]["status"] == "ready"
+    assert (
+        after.metadata_status["projection_indexes"]["summary"]["index_path"]
+        == "summary_only_vector.sqlite"
+    )
+
+
 def test_find_maxdepth_zero_type_directory_returns_start_folder(tmp_path):
     executor = _register_find_fixture(tmp_path)
 
