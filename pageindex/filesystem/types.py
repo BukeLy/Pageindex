@@ -24,6 +24,10 @@ class SearchResult:
     folderId: Optional[str] = None
     metadata_status: dict[str, Any] = field(default_factory=dict)
 
+    @property
+    def reference_id(self) -> str:
+        return self.external_id or self.file_ref
+
 
 @dataclass(frozen=True)
 class OpenResult:
@@ -34,6 +38,10 @@ class OpenResult:
     external_id: Optional[str] = None
     folder_path: str = ""
     source_path: str = ""
+
+    @property
+    def reference_id(self) -> str:
+        return self.external_id or self.file_ref
 
 
 @dataclass(frozen=True)

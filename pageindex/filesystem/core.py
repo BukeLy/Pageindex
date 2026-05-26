@@ -577,10 +577,15 @@ class PageIndexFileSystem:
 
     def find(
         self,
-        target: str,
-        patterns: Union[str, list[str]],
+        target: str | None = None,
+        patterns: Union[str, list[str], None] = None,
         limit: int = 20,
+        *,
+        reference_id: str | None = None,
     ) -> list[OpenResult]:
+        target = self._target_from_reference_alias("find", target, reference_id)
+        if patterns is None:
+            raise TypeError("find() missing required patterns")
         file_ref = self._resolve_target(target)
         patterns = [patterns] if isinstance(patterns, str) else list(patterns)
         lowered_patterns = [pattern.lower() for pattern in patterns if pattern]
@@ -599,7 +604,14 @@ class PageIndexFileSystem:
                     break
         return matches
 
-    def open(self, target: str, location: str = "all") -> OpenResult:
+    def open(
+        self,
+        target: str | None = None,
+        location: str = "all",
+        *,
+        reference_id: str | None = None,
+    ) -> OpenResult:
+        target = self._target_from_reference_alias("open", target, reference_id)
         file_ref = self._resolve_target(target)
         entry = self.store.get_file(file_ref)
         if self._file_format(entry) in {"pdf", "markdown", "pageindex"}:
@@ -612,7 +624,14 @@ class PageIndexFileSystem:
         start, end = self._parse_line_range(location)
         return self._open_lines(file_ref, start, end)
 
-    def cat_text_artifact(self, target: str, location: str = "all") -> OpenResult:
+    def cat_text_artifact(
+        self,
+        target: str | None = None,
+        location: str = "all",
+        *,
+        reference_id: str | None = None,
+    ) -> OpenResult:
+        target = self._target_from_reference_alias("cat_text_artifact", target, reference_id)
         file_ref = self._resolve_target(target)
         entry = self.store.get_file(file_ref)
         self._require_text_artifact_file(entry, "cat --all")
@@ -621,7 +640,13 @@ class PageIndexFileSystem:
         start, end = self._parse_line_range(location)
         return self._open_lines(file_ref, start, end)
 
-    def pageindex_structure(self, target: str) -> dict[str, Any]:
+    def pageindex_structure(
+        self,
+        target: str | None = None,
+        *,
+        reference_id: str | None = None,
+    ) -> dict[str, Any]:
+        target = self._target_from_reference_alias("pageindex_structure", target, reference_id)
         file_ref = self._resolve_target(target)
         entry = self.store.get_file(file_ref)
         self._require_pageindex_document_file(entry, "cat --structure")
@@ -653,7 +678,16 @@ class PageIndexFileSystem:
             "structure": strip_pageindex_text_fields(structure),
         }
 
-    def pageindex_node(self, target: str, node_id: str) -> dict[str, Any]:
+    def pageindex_node(
+        self,
+        target: str | None = None,
+        node_id: str | None = None,
+        *,
+        reference_id: str | None = None,
+    ) -> dict[str, Any]:
+        target = self._target_from_reference_alias("pageindex_node", target, reference_id)
+        if node_id is None:
+            raise TypeError("pageindex_node() missing required node_id")
         file_ref = self._resolve_target(target)
         entry = self.store.get_file(file_ref)
         self._require_pageindex_document_file(entry, "cat --node")
@@ -705,7 +739,16 @@ class PageIndexFileSystem:
             "text": text,
         }
 
-    def pageindex_pages(self, target: str, pages: str) -> dict[str, Any]:
+    def pageindex_pages(
+        self,
+        target: str | None = None,
+        pages: str | None = None,
+        *,
+        reference_id: str | None = None,
+    ) -> dict[str, Any]:
+        target = self._target_from_reference_alias("pageindex_pages", target, reference_id)
+        if pages is None:
+            raise TypeError("pageindex_pages() missing required pages")
         file_ref = self._resolve_target(target)
         entry = self.store.get_file(file_ref)
         self._require_pageindex_document_file(entry, "cat --page")
@@ -1316,6 +1359,20 @@ class PageIndexFileSystem:
 
     def _resolve_target(self, target: str) -> str:
         return self.store.resolve_file_ref(target)
+
+    @staticmethod
+    def _target_from_reference_alias(
+        method_name: str,
+        target: str | None,
+        reference_id: str | None,
+    ) -> str:
+        if reference_id is not None:
+            if target is not None:
+                raise TypeError(f"{method_name}() accepts either target or reference_id, not both")
+            return reference_id
+        if target is None:
+            raise TypeError(f"{method_name}() missing required target")
+        return target
 
     def _should_use_semantic_retrieval(
         self,
