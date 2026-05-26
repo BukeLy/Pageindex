@@ -162,6 +162,7 @@ class SQLiteFileSystemStore:
         with self.connect() as conn:
             conn.execute("PRAGMA synchronous = OFF")
             conn.execute("PRAGMA temp_store = MEMORY")
+            replaced_file_refs = self._file_refs_replaced_by(conn, records)
             folder_cache: dict[tuple[str, str], str] = {}
             file_rows = []
             membership_rows = []
@@ -211,6 +212,7 @@ class SQLiteFileSystemStore:
                         metadata_field_ids,
                     )
                 )
+            self._mark_file_refs_deleted(conn, replaced_file_refs)
             conn.executemany(self._file_insert_sql(), file_rows)
             conn.executemany(
                 """
@@ -238,6 +240,59 @@ class SQLiteFileSystemStore:
                     """,
                     fts_rows,
                 )
+
+    def file_refs_replaced_by(self, records: list[dict[str, Any]]) -> list[str]:
+        if not records:
+            return []
+        with self.connect() as conn:
+            return self._file_refs_replaced_by(conn, records)
+
+    @staticmethod
+    def _file_refs_replaced_by(
+        conn: sqlite3.Connection,
+        records: list[dict[str, Any]],
+    ) -> list[str]:
+        replaced: set[str] = set()
+        for record in records:
+            if record.get("external_id"):
+                continue
+            storage_uri = str(record.get("storage_uri") or "")
+            file_ref = str(record.get("file_ref") or "")
+            if not storage_uri or not file_ref:
+                continue
+            rows = conn.execute(
+                """
+                SELECT file_ref
+                FROM files
+                WHERE storage_uri = ?
+                  AND external_id IS NULL
+                  AND file_ref <> ?
+                  AND deleted_at IS NULL
+                """,
+                (storage_uri, file_ref),
+            ).fetchall()
+            replaced.update(str(row["file_ref"]) for row in rows)
+        return sorted(replaced)
+
+    @staticmethod
+    def _mark_file_refs_deleted(
+        conn: sqlite3.Connection,
+        file_refs: list[str],
+    ) -> None:
+        refs = [(file_ref,) for file_ref in file_refs]
+        if not refs:
+            return
+        conn.executemany(
+            """
+            UPDATE files
+            SET deleted_at = CURRENT_TIMESTAMP,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE file_ref = ? AND deleted_at IS NULL
+            """,
+            refs,
+        )
+        conn.executemany("DELETE FROM file_fts WHERE file_ref = ?", refs)
+        conn.executemany("DELETE FROM metadata_values WHERE file_ref = ?", refs)
 
     @staticmethod
     def _file_insert_sql() -> str:

@@ -45,6 +45,9 @@ class RebuildableSemanticIndex(Protocol):
     def upsert_many(self, records: list[SemanticIndexRecord]) -> int:
         ...
 
+    def delete_many(self, file_refs: list[str]) -> int:
+        ...
+
     def search(
         self,
         vector: list[float],
@@ -145,6 +148,26 @@ class SQLiteVecSemanticIndex:
                 inserted += 1
             conn.commit()
             return inserted
+
+    def delete_many(self, file_refs: list[str]) -> int:
+        refs = [str(file_ref) for file_ref in dict.fromkeys(file_refs) if file_ref]
+        if not refs:
+            return 0
+        with self.connect() as conn:
+            deleted = 0
+            for file_ref in refs:
+                row = conn.execute(
+                    "SELECT rowid FROM semantic_index_docs WHERE file_ref = ?",
+                    (file_ref,),
+                ).fetchone()
+                if row is None:
+                    continue
+                rowid = int(row["rowid"])
+                conn.execute("DELETE FROM semantic_index_vec WHERE rowid = ?", (rowid,))
+                conn.execute("DELETE FROM semantic_index_docs WHERE rowid = ?", (rowid,))
+                deleted += 1
+            conn.commit()
+            return deleted
 
     def search(
         self,

@@ -165,6 +165,8 @@ class PageIndexFileSystem:
 
     def register_files(self, files: list[dict[str, Any]]) -> list[str]:
         records = [self._prepare_file_record(file) for file in files]
+        replaced_file_refs = self.store.file_refs_replaced_by(records)
+        self._delete_summary_projection_records(replaced_file_refs)
         for record in records:
             self._generate_register_metadata(record)
             self._complete_summary_projection_index(record)
@@ -1195,6 +1197,11 @@ class PageIndexFileSystem:
         if summary_index.get("status") != "ready":
             summary_index["status"] = "ready"
         self._refresh_record_metadata_status(record)
+
+    def _delete_summary_projection_records(self, file_refs: list[str]) -> None:
+        if not file_refs or self.summary_projection_indexer is None:
+            return
+        self.summary_projection_indexer.delete_many(file_refs)
 
     @staticmethod
     def _metadata_policy_is_batch(policy: dict[str, Any]) -> bool:
