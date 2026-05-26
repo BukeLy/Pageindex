@@ -159,12 +159,12 @@ class PageIndexFileSystem:
         )[0]
 
     def register(self, **kwargs: Any) -> str:
-        if not self._register_uses_deferred_metadata(kwargs.get("metadata_policy")):
-            self._ensure_register_completion_defaults()
         return self.register_file(**kwargs)
 
     def register_files(self, files: list[dict[str, Any]]) -> list[str]:
         records = [self._prepare_file_record(file) for file in files]
+        if self._register_records_use_sync_metadata(records):
+            self._ensure_register_completion_defaults()
         for record in records:
             self._generate_register_metadata(record)
             self._complete_summary_projection_index(record)
@@ -293,6 +293,13 @@ class PageIndexFileSystem:
         if not isinstance(policy, dict):
             return False
         return bool(policy.get("batch")) or policy.get("mode") == "batch"
+
+    @classmethod
+    def _register_records_use_sync_metadata(cls, records: list[dict[str, Any]]) -> bool:
+        return any(
+            not cls._metadata_policy_is_batch(record["metadata_status"].get("policy", {}))
+            for record in records
+        )
 
     @classmethod
     def default_metadata_policy(cls) -> dict[str, Any]:

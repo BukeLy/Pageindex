@@ -9,7 +9,10 @@ def _register_find_fixture(tmp_path: Path):
 
     source_dir = tmp_path / "source"
     source_dir.mkdir()
-    filesystem = PageIndexFileSystem(workspace=tmp_path / "workspace")
+    filesystem = PageIndexFileSystem(
+        workspace=tmp_path / "workspace",
+        summary_projection_index=False,
+    )
     filesystem.metadata.register_schema({"fields": {"department": "string"}})
 
     def add_file(
@@ -114,6 +117,7 @@ def test_stat_shell_output_includes_unified_metadata_status(tmp_path):
     filesystem = PageIndexFileSystem(
         workspace=tmp_path / "workspace",
         metadata_generator=SummaryGenerator(),
+        summary_projection_index=False,
     )
     filesystem.register_file(
         storage_uri=source.as_uri(),

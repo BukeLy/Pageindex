@@ -23,7 +23,10 @@ class SummaryBackend:
 def test_semantic_search_scope_keeps_ordinary_folders_out_of_source_type_filters(tmp_path):
     from pageindex.filesystem import PIFSCommandExecutor, PageIndexFileSystem
 
-    filesystem = PageIndexFileSystem(workspace=tmp_path / "workspace")
+    filesystem = PageIndexFileSystem(
+        workspace=tmp_path / "workspace",
+        summary_projection_index=False,
+    )
     filesystem.register_file(
         storage_uri="file:///tmp/report.pdf",
         source_path="examples/documents/report.pdf",

@@ -52,7 +52,10 @@ def test_pageindex_structure_options_report_failed_register_build(monkeypatch):
     with tempfile.TemporaryDirectory() as tmp:
         source = Path(tmp) / "report.md"
         source.write_text("# Report\n\nCached structure is not built yet.", encoding="utf-8")
-        filesystem = PageIndexFileSystem(workspace=Path(tmp) / "workspace")
+        filesystem = PageIndexFileSystem(
+            workspace=Path(tmp) / "workspace",
+            summary_projection_index=False,
+        )
 
         def fail_index(*args, **kwargs):
             raise RuntimeError("index failed")
@@ -143,6 +146,7 @@ def test_register_pdf_markdown_uses_pageindex_extracted_text_for_metadata_and_ft
         filesystem = PageIndexFileSystem(
             workspace=Path(tmp) / "workspace",
             metadata_generator=generator,
+            summary_projection_index=False,
         )
 
         filesystem.register_file(
@@ -198,6 +202,7 @@ def test_register_text_metadata_generation_keeps_caller_content_without_pageinde
         filesystem = PageIndexFileSystem(
             workspace=Path(tmp) / "workspace",
             metadata_generator=generator,
+            summary_projection_index=False,
         )
 
         filesystem.register_file(
@@ -252,7 +257,10 @@ def test_register_pdf_markdown_cache_miss_invokes_pageindex_client_index(monkeyp
         source_md = Path(tmp) / "notes.md"
         source_pdf.write_bytes(b"%PDF-1.4\n% test fixture\n")
         source_md.write_text("# Notes", encoding="utf-8")
-        filesystem = PageIndexFileSystem(workspace=Path(tmp) / "workspace")
+        filesystem = PageIndexFileSystem(
+            workspace=Path(tmp) / "workspace",
+            summary_projection_index=False,
+        )
 
         filesystem.register_file(
             storage_uri=str(source_pdf),
@@ -288,7 +296,10 @@ def test_cat_structure_page_reuses_pageindex_client_cache_without_indexing(monke
         source = Path(tmp) / "report.pdf"
         source.write_bytes(b"%PDF-1.4\n% test fixture\n")
         workspace = Path(tmp) / "workspace"
-        filesystem = PageIndexFileSystem(workspace=workspace)
+        filesystem = PageIndexFileSystem(
+            workspace=workspace,
+            summary_projection_index=False,
+        )
         write_pageindex_client_doc(
             filesystem.pageindex_client_workspace,
             "doc_cached_pdf",
@@ -361,7 +372,10 @@ def test_cat_node_reads_pageindex_client_structure_without_custom_pifs_artifact(
     with tempfile.TemporaryDirectory() as tmp:
         source = Path(tmp) / "notes.md"
         source.write_text("# Notes\n\nBody", encoding="utf-8")
-        filesystem = PageIndexFileSystem(workspace=Path(tmp) / "workspace")
+        filesystem = PageIndexFileSystem(
+            workspace=Path(tmp) / "workspace",
+            summary_projection_index=False,
+        )
         write_pageindex_client_doc(
             filesystem.pageindex_client_workspace,
             "doc_cached_md",
@@ -405,7 +419,10 @@ def test_tree_folder_behavior_is_preserved():
     from pageindex.filesystem import PIFSCommandExecutor, PageIndexFileSystem
 
     with tempfile.TemporaryDirectory() as tmp:
-        filesystem = PageIndexFileSystem(workspace=Path(tmp) / "workspace")
+        filesystem = PageIndexFileSystem(
+            workspace=Path(tmp) / "workspace",
+            summary_projection_index=False,
+        )
         filesystem.register_file(
             storage_uri="file:///tmp/report.txt",
             source_path="docs/report.txt",
@@ -429,7 +446,10 @@ def test_tree_does_not_read_file_internal_pageindex_structure():
     with tempfile.TemporaryDirectory() as tmp:
         source = Path(tmp) / "report.pdf"
         source.write_bytes(b"%PDF-1.4\n% test fixture\n")
-        filesystem = PageIndexFileSystem(workspace=Path(tmp) / "workspace")
+        filesystem = PageIndexFileSystem(
+            workspace=Path(tmp) / "workspace",
+            summary_projection_index=False,
+        )
         write_pageindex_client_doc(
             filesystem.pageindex_client_workspace,
             "doc_tree_is_folder_only",
@@ -467,7 +487,10 @@ def test_cat_all_is_limited_to_text_files():
     from pageindex.filesystem.commands import PIFSCommandError
 
     with tempfile.TemporaryDirectory() as tmp:
-        filesystem = PageIndexFileSystem(workspace=Path(tmp) / "workspace")
+        filesystem = PageIndexFileSystem(
+            workspace=Path(tmp) / "workspace",
+            summary_projection_index=False,
+        )
         filesystem.register_file(
             storage_uri="file:///tmp/readme.txt",
             source_path="docs/readme.txt",
@@ -530,7 +553,10 @@ def test_pageindex_structure_commands_are_limited_to_pdf_and_markdown():
     from pageindex.filesystem.commands import PIFSCommandError
 
     with tempfile.TemporaryDirectory() as tmp:
-        filesystem = PageIndexFileSystem(workspace=Path(tmp) / "workspace")
+        filesystem = PageIndexFileSystem(
+            workspace=Path(tmp) / "workspace",
+            summary_projection_index=False,
+        )
         filesystem.register_file(
             storage_uri="file:///tmp/readme.txt",
             source_path="docs/readme.txt",
@@ -556,7 +582,10 @@ def test_existing_pageindex_status_allows_legacy_record_without_format_suffix():
     with tempfile.TemporaryDirectory() as tmp:
         source = Path(tmp) / "uploaded"
         source.write_text("# Uploaded\n\nBody", encoding="utf-8")
-        filesystem = PageIndexFileSystem(workspace=Path(tmp) / "workspace")
+        filesystem = PageIndexFileSystem(
+            workspace=Path(tmp) / "workspace",
+            summary_projection_index=False,
+        )
         file_ref = filesystem.register_file(
             storage_uri=source.as_uri(),
             source_path="uploads/uploaded",
@@ -599,7 +628,10 @@ def test_read_commands_do_not_link_pageindex_cache_when_pointer_is_missing(monke
     with tempfile.TemporaryDirectory() as tmp:
         source = Path(tmp) / "late.md"
         source.write_text("# Late\n\nBody", encoding="utf-8")
-        filesystem = PageIndexFileSystem(workspace=Path(tmp) / "workspace")
+        filesystem = PageIndexFileSystem(
+            workspace=Path(tmp) / "workspace",
+            summary_projection_index=False,
+        )
 
         def fail_index(*args, **kwargs):
             raise RuntimeError("index failed")
