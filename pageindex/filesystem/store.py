@@ -1829,7 +1829,13 @@ def normalize_path(path: str | Path | None) -> str:
         return "/"
     if str(path).strip().lower() == "root":
         return "/"
-    parts = [part for part in str(path).replace("\\", "/").split("/") if part and part != "."]
+    parts: list[str] = []
+    for part in str(path).replace("\\", "/").split("/"):
+        if not part or part == ".":
+            continue
+        if part == "..":
+            raise ValueError("PIFS virtual paths do not allow '..' segments")
+        parts.append(part)
     return "/" + "/".join(parts) if parts else "/"
 
 
