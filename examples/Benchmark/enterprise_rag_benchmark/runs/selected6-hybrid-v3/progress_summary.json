@@ -1,0 +1,12 @@
+{
+  "completed_questions": 6,
+  "total_questions": 6,
+  "last_question_id": "qst_0481",
+  "doc_hit_rate_so_far": 0.6666666666666666,
+  "expected_doc_hits_so_far": 4,
+  "expected_doc_total_so_far": 8,
+  "timeout_count_so_far": 0,
+  "avg_seconds_so_far": 17.755,
+  "answers_path": "/Users/chengjie/.codex/worktrees/4944/PageIndex/examples/Benchmark/enterprise_rag_benchmark/runs/selected6-hybrid-v3/answers.jsonl",
+  "results_path": "/Users/chengjie/.codex/worktrees/4944/PageIndex/examples/Benchmark/enterprise_rag_benchmark/runs/selected6-hybrid-v3/results.jsonl"
+}

@@ -1,0 +1,43 @@
+{
+  "questions": 6,
+  "question_ids": [
+    "qst_0001",
+    "qst_0176",
+    "qst_0341",
+    "qst_0411",
+    "qst_0431",
+    "qst_0481"
+  ],
+  "source_types": [
+    "confluence",
+    "github",
+    "google_drive",
+    "jira",
+    "slack"
+  ],
+  "workspace": "/Users/chengjie/Projects/PageIndex/examples/Benchmark/enterpriseragbenchmark_workspace",
+  "dataset_root": "/Users/chengjie/Projects/pifs-data/enterprise-rag-benchmark/dataset",
+  "model": "gpt-5.4-mini",
+  "base_url": "https://api.openai.com/v1",
+  "stream_mode": "off",
+  "retrieval_mode": "hybrid",
+  "system_prompt_file": "/Users/chengjie/.codex/worktrees/4944/PageIndex/examples/Benchmark/enterprise_rag_benchmark/prompts/pifs_agent_system.md",
+  "question_prompt_file": "/Users/chengjie/.codex/worktrees/4944/PageIndex/examples/Benchmark/enterprise_rag_benchmark/prompts/pifs_question_hybrid.md",
+  "reasoning_effort": null,
+  "reasoning_summary": null,
+  "max_seconds": 90.0,
+  "max_turns_safety_cap": 40,
+  "agent_retries": 0,
+  "agent_retry_delay": 5.0,
+  "timeout_count": 0,
+  "avg_seconds": 17.755,
+  "doc_hit_rate": 0.6666666666666666,
+  "expected_doc_hits": 4,
+  "expected_doc_total": 8,
+  "expected_doc_recall": 0.5,
+  "negative_control_passes": 1,
+  "negative_control_total": 1,
+  "skip_agent": false,
+  "answers_path": "/Users/chengjie/.codex/worktrees/4944/PageIndex/examples/Benchmark/enterprise_rag_benchmark/runs/selected6-hybrid-v3/answers.jsonl",
+  "results_path": "/Users/chengjie/.codex/worktrees/4944/PageIndex/examples/Benchmark/enterprise_rag_benchmark/runs/selected6-hybrid-v3/results.jsonl"
+}
