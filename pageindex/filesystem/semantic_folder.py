@@ -55,6 +55,7 @@ class OpenAISemanticFolderPlanner:
         *,
         model: str | None = None,
         base_url: str | None = None,
+        request_timeout: float | None = None,
     ):
         self.model = (
             model
@@ -67,6 +68,12 @@ class OpenAISemanticFolderPlanner:
             if base_url is not None
             else os.environ.get("PIFS_METADATA_BASE_URL") or os.environ.get("OPENAI_BASE_URL")
         )
+        timeout_value = (
+            request_timeout
+            if request_timeout is not None
+            else os.environ.get("PIFS_SEMANTIC_FOLDER_TIMEOUT")
+        )
+        self.request_timeout = float(timeout_value) if timeout_value is not None else 240.0
 
     def plan(self, payload: dict[str, Any]) -> dict[str, Any]:
         api_key = (
@@ -82,7 +89,11 @@ class OpenAISemanticFolderPlanner:
 
         from openai import OpenAI
 
-        client = OpenAI(api_key=api_key, base_url=self.base_url or None)
+        client = OpenAI(
+            api_key=api_key,
+            base_url=self.base_url or None,
+            timeout=self.request_timeout,
+        )
         response = client.chat.completions.create(
             model=self.model,
             messages=[
@@ -92,16 +103,24 @@ class OpenAISemanticFolderPlanner:
                         "Plan a PIFS Semantic Folder from document-level metadata. "
                         "Use only the provided transient item ids, title, summary, domain, and topic. "
                         "Do not infer from storage paths or original folders. "
-                        "Choose a useful navigation template using domain and topic cardinality. "
-                        "If topic values are mostly unique, paper-specific, or too verbose, choose "
-                        "a domain-only template instead of creating one topic folder per document. "
+                        "Choose a useful navigation template using domain and topic metadata. "
+                        "Treat observed cardinality as a navigation signal, not as a rejection rule. "
+                        "If raw topic values are mostly unique, first try to canonicalize them into "
+                        "short broad topic categories that would help users navigate the corpus. "
+                        "Choose a domain-only template only if no useful, stable topic categories emerge. "
                         "All membership paths must be relative field/value segments with no leading "
-                        "slash. If template is ['domain', 'topic'], every full path must look like "
-                        "domain/<domain-slug>/topic/<topic-slug>; never emit a standalone topic/... "
-                        "root. Slugs must be path-safe and at most 127 characters. Canonicalize broad "
+                        "slash. Paths must match the selected template order: ['topic'] paths look like "
+                        "topic/<topic-slug>, ['topic', 'domain'] paths look like "
+                        "topic/<topic-slug>/domain/<domain-slug>, and ['domain', 'topic'] paths look "
+                        "like domain/<domain-slug>/topic/<topic-slug>. Never emit a standalone "
+                        "topic/... root when the selected template starts with domain. "
+                        "Slugs must be path-safe and at most 127 characters. Canonicalize broad "
                         "display values and short slugs; do not use unknown/misc placeholders. Reduce "
-                        "each document to at most three semantic memberships. If retry feedback is "
-                        "present, regenerate a fully valid plan instead of explaining the error. "
+                        "each document to at most three semantic memberships. Every input item must "
+                        "appear in memberships or skipped; prefer at least one useful membership for "
+                        "each item unless its selected first field is missing or no useful semantic "
+                        "placement exists. If retry feedback is present, regenerate a fully valid "
+                        "plan instead of explaining the error. "
                         "Return strict JSON only."
                     ),
                 },
@@ -235,6 +254,26 @@ def validate_semantic_folder_plan(
                 )
             )
     skipped = _validate_skipped(plan.get("skipped"), item_file_refs)
+    planned_item_ids = {membership.item_id for membership in memberships}
+    skipped_item_ids = {item["item_id"] for item in skipped}
+    overlap_item_ids = sorted(planned_item_ids & skipped_item_ids)
+    if overlap_item_ids:
+        preview = ", ".join(overlap_item_ids[:10])
+        if len(overlap_item_ids) > 10:
+            preview += f", ... {len(overlap_item_ids) - 10} more"
+        raise SemanticFolderPlanError(
+            f"Semantic Folder plan cannot both place and skip item(s): {preview}"
+        )
+    planned_or_skipped = planned_item_ids | skipped_item_ids
+    missing_item_ids = sorted(set(item_file_refs) - planned_or_skipped)
+    if missing_item_ids:
+        preview = ", ".join(missing_item_ids[:10])
+        if len(missing_item_ids) > 10:
+            preview += f", ... {len(missing_item_ids) - 10} more"
+        raise SemanticFolderPlanError(
+            "Semantic Folder plan omitted build item(s); each item must be placed "
+            f"or explicitly skipped: {preview}"
+        )
     if not memberships:
         raise SemanticFolderPlanError("No useful Semantic Folder hierarchy was planned")
     return SemanticFolderValidatedPlan(

@@ -49,7 +49,7 @@ class TitlePlanner:
         }
 
 
-class BadThenDomainPlanner:
+class BadThenTopicPlanner:
     def __init__(self):
         self.payloads: list[dict[str, Any]] = []
 
@@ -92,18 +92,64 @@ class BadThenDomainPlanner:
         assert payload["retry"]["invalid_plan"]["memberships"][0]["paths"][0].startswith("/")
         assert payload["aggregate"]["fields"]["topic"]["high_cardinality"] is True
         assert "file_ref" not in json.dumps(payload)
+        topics = ["earnings-results", "corporate-governance", "strategic-transactions"]
         return {
-            "template": ["domain"],
+            "template": ["topic"],
             "canonical_values": [
-                {"field": "domain", "display": "Machine Learning", "slug": "machine-learning"},
+                {"field": "topic", "display": "Earnings Results", "slug": "earnings-results"},
+                {"field": "topic", "display": "Corporate Governance", "slug": "corporate-governance"},
+                {"field": "topic", "display": "Strategic Transactions", "slug": "strategic-transactions"},
             ],
             "memberships": [
                 {
                     "item_id": item["item_id"],
-                    "paths": ["domain/machine-learning"],
+                    "paths": [f"topic/{topics[index % len(topics)]}"],
                     "confidence": 0.85,
                 }
-                for item in payload["items"]
+                for index, item in enumerate(payload["items"])
+            ],
+            "skipped": [],
+        }
+
+
+class OmittingThenCompletePlanner:
+    def __init__(self):
+        self.payloads: list[dict[str, Any]] = []
+
+    def plan(self, payload):
+        self.payloads.append(payload)
+        first_item = payload["items"][0]
+        topics = ["earnings-results", "corporate-governance"]
+        if len(self.payloads) == 1:
+            return {
+                "template": ["topic"],
+                "canonical_values": [
+                    {"field": "topic", "display": "Earnings Results", "slug": "earnings-results"},
+                ],
+                "memberships": [
+                    {
+                        "item_id": first_item["item_id"],
+                        "paths": ["topic/earnings-results"],
+                        "confidence": 0.82,
+                    }
+                ],
+                "skipped": [],
+            }
+
+        assert "omitted build item" in payload["retry"]["validation_error"]
+        return {
+            "template": ["topic"],
+            "canonical_values": [
+                {"field": "topic", "display": "Earnings Results", "slug": "earnings-results"},
+                {"field": "topic", "display": "Corporate Governance", "slug": "corporate-governance"},
+            ],
+            "memberships": [
+                {
+                    "item_id": item["item_id"],
+                    "paths": [f"topic/{topics[index % len(topics)]}"],
+                    "confidence": 0.86,
+                }
+                for index, item in enumerate(payload["items"])
             ],
             "skipped": [],
         }
@@ -576,9 +622,19 @@ def test_semantic_folder_validation_rejects_taxonomy_repairs_and_limits():
             },
             item_file_refs={"item_0001": "file_a"},
         )
+    with pytest.raises(ValueError, match="omitted build item"):
+        validate_semantic_folder_plan(
+            base,
+            item_file_refs={"item_0001": "file_a", "item_0002": "file_b"},
+        )
+    with pytest.raises(ValueError, match="both place and skip"):
+        validate_semantic_folder_plan(
+            {**base, "skipped": [{"item_id": "item_0001", "reason": "duplicate"}]},
+            item_file_refs={"item_0001": "file_a"},
+        )
 
 
-def test_semantic_folder_planner_retries_invalid_real_corpus_patterns_and_degrades_topic(tmp_path):
+def test_semantic_folder_planner_retries_invalid_patterns_and_can_canonicalize_high_cardinality_topic(tmp_path):
     filesystem = _filesystem(
         tmp_path,
         {
@@ -597,18 +653,65 @@ def test_semantic_folder_planner_retries_invalid_real_corpus_patterns_and_degrad
             folder="/documents",
             external_id=f"doc_{index}",
         )
-    planner = BadThenDomainPlanner()
+    planner = BadThenTopicPlanner()
 
     result = filesystem.build_semantic_folder("/documents", planner=planner)
 
-    assert result["template"] == "domain"
+    assert result["template"] == "topic"
     assert len(planner.payloads) == 2
     assert planner.payloads[0]["aggregate"]["fields"]["topic"]["high_cardinality"] is True
     assert planner.payloads[1]["retry"]["validation_error"]
-    listing = filesystem.browse("/documents/semantic/domain/machine-learning")
-    assert len(listing["files"]) == 6
-    for file in listing["files"]:
-        assert file["folder_path"] == "/documents/semantic/domain/machine-learning"
+    listing = filesystem.browse("/documents/semantic/topic")
+    assert [folder["name"] for folder in listing["folders"]] == [
+        "corporate-governance",
+        "earnings-results",
+        "strategic-transactions",
+    ]
+    for path in (
+        "/documents/semantic/topic/earnings-results",
+        "/documents/semantic/topic/corporate-governance",
+        "/documents/semantic/topic/strategic-transactions",
+    ):
+        for file in filesystem.browse(path)["files"]:
+            assert file["folder_path"] == path
+
+
+def test_semantic_folder_planner_retries_omitted_items_instead_of_silently_skipping(tmp_path):
+    filesystem = _filesystem(
+        tmp_path,
+        {
+            "Q1 Results": {
+                "summary": "Quarterly earnings release",
+                "domain": "Finance",
+                "topic": "Detailed Q1 earnings results",
+            },
+            "Proxy Vote": {
+                "summary": "Shareholder governance vote",
+                "domain": "Finance",
+                "topic": "Board and shareholder governance proposals",
+            },
+            "Annual Results": {
+                "summary": "Annual earnings release",
+                "domain": "Finance",
+                "topic": "Detailed annual earnings results",
+            },
+        },
+    )
+    for title in ("Q1 Results", "Proxy Vote", "Annual Results"):
+        _register_generated_file(filesystem, title, folder="/documents")
+    planner = OmittingThenCompletePlanner()
+
+    result = filesystem.build_semantic_folder("/documents", planner=planner)
+
+    assert result["template"] == "topic"
+    assert result["skipped"] == 0
+    assert len(planner.payloads) == 2
+    assert "omitted build item" in planner.payloads[1]["retry"]["validation_error"]
+    listing = filesystem.browse("/documents/semantic/topic")
+    assert [folder["name"] for folder in listing["folders"]] == [
+        "corporate-governance",
+        "earnings-results",
+    ]
 
 
 def test_cli_semantic_folder_build_is_user_surface_not_agent_surface(monkeypatch, capsys, tmp_path):

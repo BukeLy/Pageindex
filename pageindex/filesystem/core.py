@@ -76,6 +76,8 @@ PROJECTION_INDEX_STATUSES = {
 
 DEFAULT_EMBEDDING_DIMENSIONS = 1024
 SEMANTIC_RETRIEVAL_CHANNELS = ("summary", "entity", "relation")
+SEMANTIC_FOLDER_PLANNING_SUMMARY_MAX_CHARS = 500
+SEMANTIC_FOLDER_PLANNING_VALUE_MAX_CHARS = 180
 SEMANTIC_PROJECTION_INDEX_NAMES = {
     "summary": "summary_only_vector",
     "entity": "entity_vectors",
@@ -391,11 +393,6 @@ class PageIndexFileSystem:
         ]
         build_id = f"semantic_folder_{uuid.uuid4().hex}"
         skipped = list(validated.skipped)
-        planned_item_ids = {membership.item_id for membership in validated.memberships}
-        explicitly_skipped = {item["item_id"] for item in skipped}
-        for item in items:
-            if item.item_id not in planned_item_ids and item.item_id not in explicitly_skipped:
-                skipped.append({"item_id": item.item_id, "reason": "not included in plan"})
         manifest = {
             "build_id": build_id,
             "source_scope": source_scope,
@@ -410,8 +407,8 @@ class PageIndexFileSystem:
                     "item_id": item.item_id,
                     "file_ref": item_file_refs[item.item_id],
                     "title": item.title,
-                    "domain": item.domain,
-                    "topic": item.topic,
+                    "domain": self._semantic_planning_metadata_value(item.domain),
+                    "topic": self._semantic_planning_metadata_value(item.topic),
                 }
                 for item in items
             ],
@@ -470,10 +467,13 @@ class PageIndexFileSystem:
                         "invalid_plan": raw_plan,
                         "instructions": (
                             "Regenerate the entire plan. Do not explain. Do not patch only the "
-                            "invalid path. Choose a useful template from observed cardinality; "
-                            "degrade to ['domain'] when topic is too specific or mostly unique. "
-                            "Paths must be relative field/value segments matching the selected "
-                            "template prefix and slugs must satisfy the provided constraints."
+                            "invalid path. Use observed cardinality as a navigation signal, not a "
+                            "hard veto. If raw topic values are mostly unique, first try to "
+                            "canonicalize them into short broad topic categories. Choose ['domain'] "
+                            "only if no useful, stable topic categories emerge. Paths must be "
+                            "relative field/value segments matching the selected template prefix "
+                            "and slugs must satisfy the provided constraints. Every input item "
+                            "must appear in memberships or skipped; do not omit remaining items."
                         ),
                     },
                 }
@@ -493,30 +493,38 @@ class PageIndexFileSystem:
                 "no_leading_slash": True,
                 "max_slug_chars": SEMANTIC_FOLDER_SEGMENT_MAX_CHARS,
                 "forbidden_slug_values": ["unknown", "misc", "uncategorized"],
+                "coverage": (
+                    "Every item_id in items must appear in memberships or skipped. Prefer at "
+                    "least one membership for each item unless the first selected field is missing "
+                    "or no useful semantic placement exists."
+                ),
                 "template_examples": {
+                    "topic": "topic/earnings-results",
+                    "topic_domain": "topic/earnings-results/domain/finance",
                     "domain": "domain/technology",
                     "domain_topic": "domain/technology/topic/machine-learning",
                 },
                 "invalid_examples": [
                     "/domain/technology",
-                    "topic/machine-learning",
+                    "topic/machine-learning under template ['domain', 'topic']",
                     "domain",
                     "domain=technology",
                     "domain-technology",
                 ],
             },
             "template_selection_guidance": (
-                "Pick the shortest useful navigation hierarchy. Use ['domain'] when topic "
-                "values are high-cardinality, document-specific, or too long for human navigation. "
-                "Use ['domain', 'topic'] only when topics can be canonicalized into a small set of "
-                "short broad categories under each domain."
+                "Pick a useful navigation hierarchy, not necessarily the shortest one. Raw high "
+                "cardinality means topic labels need canonicalization into broad categories before "
+                "use; it does not disqualify topic navigation. Use ['topic'], ['topic', 'domain'], "
+                "or ['domain', 'topic'] when canonical topic labels are meaningful and short. "
+                "Use ['domain'] only when no useful, stable topic categories emerge."
             ),
             "aggregate": self._semantic_folder_aggregate(items),
             "items": [
                 {
                     "item_id": item.item_id,
                     "title": item.title,
-                    "summary": item.summary,
+                    "summary": self._semantic_planning_summary(item.summary),
                     "domain": item.domain,
                     "topic": item.topic,
                 }
@@ -542,7 +550,13 @@ class PageIndexFileSystem:
                 "item_count": total,
                 "high_cardinality": high_cardinality,
                 "values": [
-                    {"value": value, "count": count}
+                    {
+                        "value": self._semantic_planning_summary(
+                            value,
+                            max_chars=SEMANTIC_FOLDER_PLANNING_VALUE_MAX_CHARS,
+                        ),
+                        "count": count,
+                    }
                     for value, count in sorted(
                         counts.items(),
                         key=lambda entry: (-entry[1], entry[0].lower()),
@@ -562,6 +576,36 @@ class PageIndexFileSystem:
             return values
         text = str(value).strip()
         return [text] if text else []
+
+    @staticmethod
+    def _semantic_planning_metadata_value(value: Any) -> Any:
+        if isinstance(value, list):
+            return [
+                PageIndexFileSystem._semantic_planning_metadata_value(item)
+                for item in value[:5]
+            ]
+        if isinstance(value, dict):
+            return PageIndexFileSystem._semantic_planning_summary(
+                json.dumps(value, ensure_ascii=False, sort_keys=True),
+                max_chars=SEMANTIC_FOLDER_PLANNING_VALUE_MAX_CHARS,
+            )
+        if value is None:
+            return None
+        return PageIndexFileSystem._semantic_planning_summary(
+            value,
+            max_chars=SEMANTIC_FOLDER_PLANNING_VALUE_MAX_CHARS,
+        )
+
+    @staticmethod
+    def _semantic_planning_summary(
+        summary: Any,
+        *,
+        max_chars: int = SEMANTIC_FOLDER_PLANNING_SUMMARY_MAX_CHARS,
+    ) -> str:
+        text = " ".join(str(summary or "").split())
+        if len(text) <= max_chars:
+            return text
+        return text[: max_chars - 3].rstrip() + "..."
 
     def _ensure_semantic_folder_candidate_metadata(
         self,
