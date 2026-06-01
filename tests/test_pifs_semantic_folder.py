@@ -49,6 +49,66 @@ class TitlePlanner:
         }
 
 
+class BadThenDomainPlanner:
+    def __init__(self):
+        self.payloads: list[dict[str, Any]] = []
+
+    def plan(self, payload):
+        self.payloads.append(payload)
+        first_item = payload["items"][0]
+        if len(self.payloads) == 1:
+            return {
+                "template": ["domain", "topic"],
+                "canonical_values": [
+                    {"field": "domain", "display": "Machine Learning", "slug": "machine-learning"},
+                    {
+                        "field": "topic",
+                        "display": "Attention Residuals",
+                        "slug": "attention-residuals-attnres-block-attnres-deep-transformer-residuals-memory-communication-cross-stage-caching",
+                    },
+                    {
+                        "field": "topic",
+                        "display": "Earth Movers Distance Similarity Search",
+                        "slug": (
+                            "earth-movers-distance-similarity-search-min-cost-flow-scalable-knn-"
+                            "filter-and-refinement-progressive-bounding-dynamic-refinement-ordering-sia"
+                        ),
+                    },
+                ],
+                "memberships": [
+                    {
+                        "item_id": first_item["item_id"],
+                        "paths": [
+                            "/domain/machine-learning",
+                            "topic/attention-residuals-attnres-block-attnres-deep-transformer-residuals-memory-communication-cross-stage-caching",
+                        ],
+                        "confidence": 0.9,
+                    }
+                ],
+                "skipped": [],
+            }
+
+        assert payload["retry"]["validation_error"]
+        assert payload["retry"]["invalid_plan"]["memberships"][0]["paths"][0].startswith("/")
+        assert payload["aggregate"]["fields"]["topic"]["high_cardinality"] is True
+        assert "file_ref" not in json.dumps(payload)
+        return {
+            "template": ["domain"],
+            "canonical_values": [
+                {"field": "domain", "display": "Machine Learning", "slug": "machine-learning"},
+            ],
+            "memberships": [
+                {
+                    "item_id": item["item_id"],
+                    "paths": ["domain/machine-learning"],
+                    "confidence": 0.85,
+                }
+                for item in payload["items"]
+            ],
+            "skipped": [],
+        }
+
+
 @dataclass
 class Candidate:
     document_id: str
@@ -427,7 +487,10 @@ def test_semantic_folder_display_names_disambiguate_same_title_memberships(tmp_p
 
 
 def test_semantic_folder_validation_rejects_taxonomy_repairs_and_limits():
-    from pageindex.filesystem.semantic_folder import validate_semantic_folder_plan
+    from pageindex.filesystem.semantic_folder import (
+        SEGMENT_MAX_CHARS,
+        validate_semantic_folder_plan,
+    )
 
     base = {
         "template": ["domain"],
@@ -479,6 +542,73 @@ def test_semantic_folder_validation_rejects_taxonomy_repairs_and_limits():
             {**base, "memberships": [{"item_id": "item_0001", "paths": ["domain/unknown"]}]},
             item_file_refs={"item_0001": "file_a"},
         )
+    with pytest.raises(ValueError, match="must be relative"):
+        validate_semantic_folder_plan(
+            {**base, "memberships": [{"item_id": "item_0001", "paths": ["/domain/finance"]}]},
+            item_file_refs={"item_0001": "file_a"},
+        )
+    with pytest.raises(ValueError, match="field/value segments"):
+        validate_semantic_folder_plan(
+            {**base, "memberships": [{"item_id": "item_0001", "paths": ["domain"]}]},
+            item_file_refs={"item_0001": "file_a"},
+        )
+    with pytest.raises(ValueError, match="does not match selected template"):
+        validate_semantic_folder_plan(
+            {
+                **base,
+                "template": ["domain", "topic"],
+                "memberships": [{"item_id": "item_0001", "paths": ["topic/finance"]}],
+            },
+            item_file_refs={"item_0001": "file_a"},
+        )
+    with pytest.raises(ValueError, match="Unsafe Semantic Folder domain slug"):
+        validate_semantic_folder_plan(
+            {
+                **base,
+                "canonical_values": [
+                    {
+                        "field": "domain",
+                        "display": "Overlong",
+                        "slug": "a" * (SEGMENT_MAX_CHARS + 1),
+                    },
+                ],
+                "memberships": [{"item_id": "item_0001", "paths": ["domain/" + "a" * (SEGMENT_MAX_CHARS + 1)]}],
+            },
+            item_file_refs={"item_0001": "file_a"},
+        )
+
+
+def test_semantic_folder_planner_retries_invalid_real_corpus_patterns_and_degrades_topic(tmp_path):
+    filesystem = _filesystem(
+        tmp_path,
+        {
+            f"Paper {index}": {
+                "summary": f"Research paper {index}",
+                "domain": "Machine Learning",
+                "topic": f"Specific paper-only mechanism {index}",
+            }
+            for index in range(1, 7)
+        },
+    )
+    for index in range(1, 7):
+        _register_generated_file(
+            filesystem,
+            f"Paper {index}",
+            folder="/documents",
+            external_id=f"doc_{index}",
+        )
+    planner = BadThenDomainPlanner()
+
+    result = filesystem.build_semantic_folder("/documents", planner=planner)
+
+    assert result["template"] == "domain"
+    assert len(planner.payloads) == 2
+    assert planner.payloads[0]["aggregate"]["fields"]["topic"]["high_cardinality"] is True
+    assert planner.payloads[1]["retry"]["validation_error"]
+    listing = filesystem.browse("/documents/semantic/domain/machine-learning")
+    assert len(listing["files"]) == 6
+    for file in listing["files"]:
+        assert file["folder_path"] == "/documents/semantic/domain/machine-learning"
 
 
 def test_cli_semantic_folder_build_is_user_surface_not_agent_surface(monkeypatch, capsys, tmp_path):

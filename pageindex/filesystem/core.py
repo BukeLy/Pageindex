@@ -26,8 +26,10 @@ from .store import (
 )
 from .semantic_folder import (
     CANDIDATE_FIELDS as SEMANTIC_FOLDER_CANDIDATE_FIELDS,
+    SEGMENT_MAX_CHARS as SEMANTIC_FOLDER_SEGMENT_MAX_CHARS,
     OpenAISemanticFolderPlanner,
     SemanticFolderBuildItem,
+    SemanticFolderPlanError,
     SemanticFolderPlanner,
     semantic_mount_path,
     validate_semantic_folder_plan,
@@ -370,26 +372,11 @@ class PageIndexFileSystem:
                     topic=metadata.get("topic"),
                 )
             )
-        planning_payload = {
-            "feature": "PIFS Semantic Folder",
-            "candidate_fields": list(SEMANTIC_FOLDER_CANDIDATE_FIELDS),
-            "membership_limit": 3,
-            "path_contract": "relative field/value segments under semantic mount path",
-            "items": [
-                {
-                    "item_id": item.item_id,
-                    "title": item.title,
-                    "summary": item.summary,
-                    "domain": item.domain,
-                    "topic": item.topic,
-                }
-                for item in items
-            ],
-        }
+        planning_payload = self._semantic_folder_planning_payload(items)
         planner = planner or OpenAISemanticFolderPlanner()
-        raw_plan = planner.plan(planning_payload)
-        validated = validate_semantic_folder_plan(
-            raw_plan,
+        raw_plan, validated, plan_attempts = self._plan_semantic_folder(
+            planner,
+            planning_payload,
             item_file_refs=item_file_refs,
         )
         memberships = [
@@ -430,6 +417,7 @@ class PageIndexFileSystem:
             ],
             "planner": {
                 "type": planner.__class__.__name__,
+                "attempts": plan_attempts,
             },
         }
         self.store.apply_semantic_folder_build(
@@ -450,6 +438,130 @@ class PageIndexFileSystem:
             "metadata_failed": metadata_stats["failed"],
             "planning": "generated",
         }
+
+    def _plan_semantic_folder(
+        self,
+        planner: SemanticFolderPlanner,
+        planning_payload: dict[str, Any],
+        *,
+        item_file_refs: dict[str, str],
+        max_attempts: int = 3,
+    ) -> tuple[dict[str, Any], Any, int]:
+        payload = dict(planning_payload)
+        last_error: SemanticFolderPlanError | None = None
+        raw_plan: dict[str, Any] = {}
+        for attempt in range(1, max_attempts + 1):
+            raw_plan = planner.plan(payload)
+            try:
+                validated = validate_semantic_folder_plan(
+                    raw_plan,
+                    item_file_refs=item_file_refs,
+                )
+                return raw_plan, validated, attempt
+            except SemanticFolderPlanError as exc:
+                last_error = exc
+                if attempt >= max_attempts:
+                    raise
+                payload = {
+                    **planning_payload,
+                    "retry": {
+                        "attempt": attempt + 1,
+                        "validation_error": str(exc),
+                        "invalid_plan": raw_plan,
+                        "instructions": (
+                            "Regenerate the entire plan. Do not explain. Do not patch only the "
+                            "invalid path. Choose a useful template from observed cardinality; "
+                            "degrade to ['domain'] when topic is too specific or mostly unique. "
+                            "Paths must be relative field/value segments matching the selected "
+                            "template prefix and slugs must satisfy the provided constraints."
+                        ),
+                    },
+                }
+        raise last_error or SemanticFolderPlanError("Semantic Folder planning failed")
+
+    def _semantic_folder_planning_payload(
+        self,
+        items: list[SemanticFolderBuildItem],
+    ) -> dict[str, Any]:
+        return {
+            "feature": "PIFS Semantic Folder",
+            "candidate_fields": list(SEMANTIC_FOLDER_CANDIDATE_FIELDS),
+            "membership_limit": 3,
+            "constraints": {
+                "paths_are_relative": True,
+                "path_shape": "field/value segments under the semantic mount path",
+                "no_leading_slash": True,
+                "max_slug_chars": SEMANTIC_FOLDER_SEGMENT_MAX_CHARS,
+                "forbidden_slug_values": ["unknown", "misc", "uncategorized"],
+                "template_examples": {
+                    "domain": "domain/technology",
+                    "domain_topic": "domain/technology/topic/machine-learning",
+                },
+                "invalid_examples": [
+                    "/domain/technology",
+                    "topic/machine-learning",
+                    "domain",
+                    "domain=technology",
+                    "domain-technology",
+                ],
+            },
+            "template_selection_guidance": (
+                "Pick the shortest useful navigation hierarchy. Use ['domain'] when topic "
+                "values are high-cardinality, document-specific, or too long for human navigation. "
+                "Use ['domain', 'topic'] only when topics can be canonicalized into a small set of "
+                "short broad categories under each domain."
+            ),
+            "aggregate": self._semantic_folder_aggregate(items),
+            "items": [
+                {
+                    "item_id": item.item_id,
+                    "title": item.title,
+                    "summary": item.summary,
+                    "domain": item.domain,
+                    "topic": item.topic,
+                }
+                for item in items
+            ],
+        }
+
+    def _semantic_folder_aggregate(
+        self,
+        items: list[SemanticFolderBuildItem],
+    ) -> dict[str, Any]:
+        total = len(items)
+        fields: dict[str, Any] = {}
+        for field in SEMANTIC_FOLDER_CANDIDATE_FIELDS:
+            counts: dict[str, int] = {}
+            for item in items:
+                for value in self._semantic_metadata_values(getattr(item, field)):
+                    counts[value] = counts.get(value, 0) + 1
+            unique_count = len(counts)
+            high_cardinality = bool(total and unique_count >= max(5, int(total * 0.7)))
+            fields[field] = {
+                "observed_value_count": unique_count,
+                "item_count": total,
+                "high_cardinality": high_cardinality,
+                "values": [
+                    {"value": value, "count": count}
+                    for value, count in sorted(
+                        counts.items(),
+                        key=lambda entry: (-entry[1], entry[0].lower()),
+                    )[:20]
+                ],
+            }
+        return {"item_count": total, "fields": fields}
+
+    @staticmethod
+    def _semantic_metadata_values(value: Any) -> list[str]:
+        if value is None:
+            return []
+        if isinstance(value, list):
+            values: list[str] = []
+            for item in value:
+                values.extend(PageIndexFileSystem._semantic_metadata_values(item))
+            return values
+        text = str(value).strip()
+        return [text] if text else []
 
     def _ensure_semantic_folder_candidate_metadata(
         self,

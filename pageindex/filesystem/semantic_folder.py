@@ -9,7 +9,8 @@ from typing import Any, Protocol
 
 CANDIDATE_FIELDS = ("domain", "topic")
 MEMBERSHIP_LIMIT = 3
-SEGMENT_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
+SEGMENT_MAX_CHARS = 127
+SEGMENT_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,126}$")
 
 
 class SemanticFolderPlanError(ValueError):
@@ -91,9 +92,17 @@ class OpenAISemanticFolderPlanner:
                         "Plan a PIFS Semantic Folder from document-level metadata. "
                         "Use only the provided transient item ids, title, summary, domain, and topic. "
                         "Do not infer from storage paths or original folders. "
-                        "Choose a useful field/value folder template using domain and topic, "
-                        "canonicalize display values, provide path-safe slugs, and reduce each "
-                        "document to at most three semantic memberships. Return strict JSON only."
+                        "Choose a useful navigation template using domain and topic cardinality. "
+                        "If topic values are mostly unique, paper-specific, or too verbose, choose "
+                        "a domain-only template instead of creating one topic folder per document. "
+                        "All membership paths must be relative field/value segments with no leading "
+                        "slash. If template is ['domain', 'topic'], every full path must look like "
+                        "domain/<domain-slug>/topic/<topic-slug>; never emit a standalone topic/... "
+                        "root. Slugs must be path-safe and at most 127 characters. Canonicalize broad "
+                        "display values and short slugs; do not use unknown/misc placeholders. Reduce "
+                        "each document to at most three semantic memberships. If retry feedback is "
+                        "present, regenerate a fully valid plan instead of explaining the error. "
+                        "Return strict JSON only."
                     ),
                 },
                 {
