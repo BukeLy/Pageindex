@@ -139,7 +139,7 @@ class OpenAISemanticFolderPlanner:
                             "items": {
                                 "type": "object",
                                 "additionalProperties": False,
-                                "required": ["item_id", "paths"],
+                                "required": ["item_id", "paths", "confidence"],
                                 "properties": {
                                     "item_id": {"type": "string"},
                                     "paths": {

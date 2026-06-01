@@ -319,6 +319,77 @@ def test_browse_inside_semantic_folder_returns_navigation_local_locators(tmp_pat
     )
 
 
+def test_grep_and_stat_inside_semantic_folder_return_navigation_local_paths(tmp_path):
+    from pageindex.filesystem.commands import PIFSCommandExecutor
+
+    filesystem = _filesystem(
+        tmp_path,
+        {
+            "Report": {"summary": "Report summary", "domain": "Finance", "topic": "Rates"},
+        },
+    )
+    _register_generated_file(filesystem, "Report", external_id="doc_report")
+    filesystem.build_semantic_folder(
+        "/",
+        planner=TitlePlanner({"Report": ["domain/finance/topic/rates"]}),
+    )
+    executor = PIFSCommandExecutor(filesystem)
+
+    grep_output = executor.execute('grep -R "rates" /semantic/domain/finance/topic/rates')
+    stat_output = executor.execute("stat /semantic/domain/finance/topic/rates/Report")
+    field_output = executor.execute("stat --field domain /semantic/domain/finance/topic/rates/Report")
+
+    assert "/semantic/domain/finance/topic/rates/Report:1:" in grep_output
+    assert "/documents/Report" not in grep_output
+    assert "target: /semantic/domain/finance/topic/rates/Report" in stat_output
+    assert "/documents/Report" not in stat_output
+    assert field_output.startswith("/semantic/domain/finance/topic/rates/Report:\n")
+
+
+def test_semantic_folder_listing_order_is_alphabetical(tmp_path):
+    from pageindex.filesystem.commands import PIFSCommandExecutor
+
+    filesystem = _filesystem(
+        tmp_path,
+        {
+            "Zeta": {"summary": "Zeta summary", "domain": "Finance", "topic": "Rates"},
+            "Alpha": {"summary": "Alpha summary", "domain": "Finance", "topic": "Rates"},
+        },
+    )
+    _register_generated_file(filesystem, "Zeta", folder="/documents", external_id="doc_zeta")
+    _register_generated_file(filesystem, "Alpha", folder="/documents", external_id="doc_alpha")
+    filesystem.build_semantic_folder(
+        "/",
+        planner=TitlePlanner(
+            {
+                "Zeta": ["domain/finance/topic/rates"],
+                "Alpha": ["domain/finance/topic/rates"],
+            }
+        ),
+    )
+    executor = PIFSCommandExecutor(filesystem)
+
+    root_listing = executor.execute("ls /")
+    documents_listing = executor.execute("ls /documents")
+    semantic_listing = executor.execute("ls /semantic/domain/finance/topic/rates")
+
+    assert root_listing.index("/documents/") < root_listing.index("/semantic/")
+    assert documents_listing.index("/documents/Alpha") < documents_listing.index("/documents/Zeta")
+    assert semantic_listing.index("/semantic/domain/finance/topic/rates/Alpha") < (
+        semantic_listing.index("/semantic/domain/finance/topic/rates/Zeta")
+    )
+
+
+def test_openai_semantic_folder_response_format_requires_nullable_confidence():
+    from pageindex.filesystem.semantic_folder import OpenAISemanticFolderPlanner
+
+    schema = OpenAISemanticFolderPlanner._response_format()["json_schema"]["schema"]
+    membership_schema = schema["properties"]["memberships"]["items"]
+
+    assert "confidence" in membership_schema["required"]
+    assert membership_schema["properties"]["confidence"]["type"] == ["number", "null"]
+
+
 def test_semantic_folder_display_names_disambiguate_same_title_memberships(tmp_path):
     filesystem = _filesystem(
         tmp_path,

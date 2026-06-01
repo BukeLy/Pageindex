@@ -998,7 +998,7 @@ class SQLiteFileSystemStore:
                         ) AS children_count
                     FROM folders fo
                     WHERE fo.parent_id = ?
-                    ORDER BY fo.kind, fo.name
+                    ORDER BY lower(fo.name), fo.name
                     LIMIT ?
                     """,
                     (folder["folder_id"], limit),
@@ -1994,7 +1994,11 @@ class SQLiteFileSystemStore:
         else:
             sql += " AND pf.path = ?"
             params = [path]
-        sql += " GROUP BY f.file_ref ORDER BY f.created_at DESC, f.title LIMIT ?"
+        sql += """
+            GROUP BY f.file_ref
+            ORDER BY lower(display_title), display_title, lower(folder_path), folder_path, f.file_ref
+            LIMIT ?
+        """
         params.append(limit)
         return conn.execute(sql, params).fetchall()
 
