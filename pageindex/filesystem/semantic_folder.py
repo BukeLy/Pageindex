@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import hashlib
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
@@ -11,6 +12,10 @@ CANDIDATE_FIELDS = ("domain", "topic")
 MEMBERSHIP_LIMIT = 3
 SEGMENT_MAX_CHARS = 127
 SEGMENT_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,126}$")
+PARTIAL_PATH_POLICY_TEMPLATE_PREFIX = "template_prefix"
+PARTIAL_PATH_POLICIES = (PARTIAL_PATH_POLICY_TEMPLATE_PREFIX,)
+CONTRACT_SCHEMA_VERSION = 1
+LEDGER_SCHEMA_VERSION = 1
 
 
 class SemanticFolderPlanError(ValueError):
@@ -24,6 +29,18 @@ class SemanticFolderBuildItem:
     summary: str
     domain: Any = None
     topic: Any = None
+    build_item_id: str = ""
+    file_ref: str = ""
+
+
+@dataclass(frozen=True)
+class SemanticFolderCanonicalValue:
+    canonical_id: str
+    field: str
+    display: str
+    slug: str
+    lifecycle: str = "accepted"
+    origin: str = "current_build"
 
 
 @dataclass(frozen=True)
@@ -38,10 +55,12 @@ class SemanticFolderMembership:
 @dataclass(frozen=True)
 class SemanticFolderValidatedPlan:
     template: list[str]
+    partial_path_policy: str
     canonical_values: list[dict[str, str]]
     memberships: list[SemanticFolderMembership]
     skipped: list[dict[str, str]]
     raw_plan: dict[str, Any]
+    finalized: bool = False
 
 
 class SemanticFolderPlanner(Protocol):
@@ -119,8 +138,11 @@ class OpenAISemanticFolderPlanner:
                         "each document to at most three semantic memberships. Every input item must "
                         "appear in memberships or skipped; prefer at least one useful membership for "
                         "each item unless its selected first field is missing or no useful semantic "
-                        "placement exists. If retry feedback is present, regenerate a fully valid "
-                        "plan instead of explaining the error. "
+                        "placement exists. Set partial_path_policy to template_prefix. For the "
+                        "registry_finalization planning_stage, set finalized to true only after the "
+                        "active registry has no pending references and the lifecycle ledger is closed. "
+                        "For earlier stages, set finalized to false. If retry feedback is present, "
+                        "regenerate a fully valid plan instead of explaining the error. "
                         "Return strict JSON only."
                     ),
                 },
@@ -143,11 +165,22 @@ class OpenAISemanticFolderPlanner:
                 "schema": {
                     "type": "object",
                     "additionalProperties": False,
-                    "required": ["template", "canonical_values", "memberships", "skipped"],
+                    "required": [
+                        "template",
+                        "partial_path_policy",
+                        "canonical_values",
+                        "memberships",
+                        "skipped",
+                        "finalized",
+                    ],
                     "properties": {
                         "template": {
                             "type": "array",
                             "items": {"type": "string", "enum": list(CANDIDATE_FIELDS)},
+                        },
+                        "partial_path_policy": {
+                            "type": "string",
+                            "enum": list(PARTIAL_PATH_POLICIES),
                         },
                         "canonical_values": {
                             "type": "array",
@@ -190,6 +223,7 @@ class OpenAISemanticFolderPlanner:
                                 },
                             },
                         },
+                        "finalized": {"type": "boolean"},
                     },
                 },
             },
@@ -205,10 +239,19 @@ def validate_semantic_folder_plan(
     plan: dict[str, Any],
     *,
     item_file_refs: dict[str, str],
+    expected_template: list[str] | None = None,
+    require_memberships: bool = True,
+    require_finalized: bool = False,
 ) -> SemanticFolderValidatedPlan:
     if not isinstance(plan, dict):
         raise SemanticFolderPlanError("Semantic Folder planner returned a non-object plan")
     template = _validate_template(plan.get("template"))
+    if expected_template is not None and template != expected_template:
+        raise SemanticFolderPlanError(
+            "Semantic Folder template alignment failed: "
+            f"expected {'/'.join(expected_template)}, got {'/'.join(template)}"
+        )
+    partial_path_policy = _validate_partial_path_policy(plan.get("partial_path_policy"))
     canonical_values = _validate_canonical_values(plan.get("canonical_values"))
     canonical_lookup = {
         (item["field"], item["slug"]): item for item in canonical_values
@@ -230,6 +273,7 @@ def validate_semantic_folder_plan(
             relative_path, canonical_segments = _validate_membership_path(
                 raw_path,
                 template=template,
+                partial_path_policy=partial_path_policy,
                 canonical_lookup=canonical_lookup,
             )
             key = (item_id, relative_path)
@@ -274,14 +318,21 @@ def validate_semantic_folder_plan(
             "Semantic Folder plan omitted build item(s); each item must be placed "
             f"or explicitly skipped: {preview}"
         )
-    if not memberships:
+    finalized = bool(plan.get("finalized") is True)
+    if require_finalized and not finalized:
+        raise SemanticFolderPlanError(
+            "Semantic Folder registry finalization must explicitly return finalized=true"
+        )
+    if require_memberships and not memberships:
         raise SemanticFolderPlanError("No useful Semantic Folder hierarchy was planned")
     return SemanticFolderValidatedPlan(
         template=template,
+        partial_path_policy=partial_path_policy,
         canonical_values=canonical_values,
         memberships=memberships,
         skipped=skipped,
         raw_plan=plan,
+        finalized=finalized,
     )
 
 
@@ -299,6 +350,17 @@ def _validate_template(value: Any) -> list[str]:
     return template
 
 
+def _validate_partial_path_policy(value: Any) -> str:
+    if value is None:
+        return PARTIAL_PATH_POLICY_TEMPLATE_PREFIX
+    policy = str(value or "").strip()
+    if policy not in PARTIAL_PATH_POLICIES:
+        raise SemanticFolderPlanError(
+            f"Unsupported Semantic Folder partial path policy: {policy}"
+        )
+    return policy
+
+
 def _validate_canonical_values(value: Any) -> list[dict[str, str]]:
     rows = _required_list(value, "canonical_values")
     seen_slug: dict[tuple[str, str], str] = {}
@@ -309,8 +371,14 @@ def _validate_canonical_values(value: Any) -> list[dict[str, str]]:
         field = str(row.get("field") or "").strip()
         display = str(row.get("display") or "").strip()
         slug = str(row.get("slug") or "").strip()
+        lifecycle = str(row.get("lifecycle") or "accepted").strip()
         if field not in CANDIDATE_FIELDS:
             raise SemanticFolderPlanError(f"Unsupported Semantic Folder canonical field: {field}")
+        if lifecycle != "accepted":
+            raise SemanticFolderPlanError(
+                "Semantic Folder final registry cannot expose inactive canonical values: "
+                f"{field}/{slug or '<missing>'} is {lifecycle}"
+            )
         if not display:
             raise SemanticFolderPlanError("Semantic Folder canonical display value is required")
         _validate_segment(slug, label=f"{field} slug")
@@ -321,15 +389,25 @@ def _validate_canonical_values(value: Any) -> list[dict[str, str]]:
                 f"Semantic Folder segment collision for {field}/{slug}: "
                 f"{previous!r} and {display!r}"
             )
-        seen_slug[key] = display
-        canonical_values.append({"field": field, "display": display, "slug": slug})
-    return canonical_values
+        if previous is None:
+            seen_slug[key] = display
+            canonical_values.append({"field": field, "display": display, "slug": slug})
+    return [
+        {
+            **row,
+            "canonical_id": f"can_{index:04d}",
+            "lifecycle": "accepted",
+            "origin": "current_build",
+        }
+        for index, row in enumerate(canonical_values, 1)
+    ]
 
 
 def _validate_membership_path(
     value: Any,
     *,
     template: list[str],
+    partial_path_policy: str,
     canonical_lookup: dict[tuple[str, str], dict[str, str]],
 ) -> tuple[str, list[dict[str, str]]]:
     raw_path = str(value or "").strip()
@@ -345,6 +423,10 @@ def _validate_membership_path(
     canonical_segments: list[dict[str, str]] = []
     fields = parts[0::2]
     values = parts[1::2]
+    if partial_path_policy != PARTIAL_PATH_POLICY_TEMPLATE_PREFIX:
+        raise SemanticFolderPlanError(
+            f"Unsupported Semantic Folder partial path policy: {partial_path_policy}"
+        )
     if fields != template[: len(fields)]:
         raise SemanticFolderPlanError(
             f"Semantic Folder membership path does not match selected template: {raw_path}"
@@ -359,7 +441,14 @@ def _validate_membership_path(
             raise SemanticFolderPlanError(
                 f"Semantic Folder path uses undeclared canonical value: {field}/{slug}"
             )
-        canonical_segments.append(canonical)
+        canonical_segments.append(
+            {
+                "field": canonical["field"],
+                "canonical_id": canonical["canonical_id"],
+                "display": canonical["display"],
+                "slug": canonical["slug"],
+            }
+        )
     return "/".join(parts), canonical_segments
 
 
@@ -407,3 +496,95 @@ def _optional_float(value: Any) -> float | None:
 def _normalize_path(path: str) -> str:
     parts = [part for part in str(path or "/").replace("\\", "/").split("/") if part and part != "."]
     return "/" + "/".join(parts) if parts else "/"
+
+
+def build_finalized_semantic_folder_contract(
+    *,
+    source_scope: str,
+    mount_path: str,
+    template: list[str],
+    partial_path_policy: str,
+    canonical_values: list[dict[str, Any]],
+    memberships: list[dict[str, Any]],
+    skipped: list[dict[str, Any]],
+    source_snapshot: list[dict[str, Any]],
+) -> dict[str, Any]:
+    active_registry = [
+        {
+            "canonical_id": str(row["canonical_id"]),
+            "field": str(row["field"]),
+            "display": str(row["display"]),
+            "slug": str(row["slug"]),
+            "lifecycle": "accepted",
+            "origin": "current_build",
+        }
+        for row in canonical_values
+    ]
+    final_memberships = [
+        {
+            "build_item_id": str(row["build_item_id"]),
+            "item_id": str(row["item_id"]),
+            "segments": [
+                {
+                    "field": str(segment["field"]),
+                    "canonical_id": str(segment["canonical_id"]),
+                }
+                for segment in row.get("canonical_segments") or []
+            ],
+            "relative_path_snapshot": str(row["relative_path"]),
+        }
+        for row in memberships
+    ]
+    final_memberships.sort(
+        key=lambda row: (row["build_item_id"], row["relative_path_snapshot"])
+    )
+    skipped_rows = [
+        {
+            "build_item_id": str(row.get("build_item_id") or ""),
+            "item_id": str(row["item_id"]),
+            "reason": str(row.get("reason") or "skipped"),
+        }
+        for row in skipped
+    ]
+    skipped_rows.sort(key=lambda row: (row["build_item_id"], row["item_id"]))
+    snapshot_rows = [
+        {
+            "build_item_id": str(row["build_item_id"]),
+            "item_id": str(row["item_id"]),
+            "file_ref": str(row["file_ref"]),
+            "title": str(row.get("title") or ""),
+        }
+        for row in source_snapshot
+    ]
+    snapshot_rows.sort(key=lambda row: row["build_item_id"])
+    lifecycle_ledger = {
+        "active_registry_finalized": True,
+        "pending_refs": [],
+        "accepted_canonical_ids": [
+            row["canonical_id"] for row in sorted(active_registry, key=lambda item: item["canonical_id"])
+        ],
+        "closed": True,
+    }
+    return {
+        "schema_version": CONTRACT_SCHEMA_VERSION,
+        "ledger_schema_version": LEDGER_SCHEMA_VERSION,
+        "source_scope": _normalize_path(source_scope),
+        "mount_path": _normalize_path(mount_path),
+        "template": list(template),
+        "partial_path_policy": partial_path_policy,
+        "active_registry": active_registry,
+        "final_memberships": final_memberships,
+        "skipped": skipped_rows,
+        "source_snapshot": snapshot_rows,
+        "lifecycle_ledger": lifecycle_ledger,
+    }
+
+
+def semantic_folder_contract_hash(contract: dict[str, Any]) -> str:
+    payload = json.dumps(
+        contract,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return "sha256:" + hashlib.sha256(payload).hexdigest()

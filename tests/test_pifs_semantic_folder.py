@@ -43,9 +43,11 @@ class TitlePlanner:
                 skipped.append({"item_id": item["item_id"], "reason": "missing first field"})
         return {
             "template": self.template,
+            "partial_path_policy": "template_prefix",
             "canonical_values": canonical_values,
             "memberships": memberships,
             "skipped": skipped,
+            "finalized": payload.get("planning_stage") == "registry_finalization",
         }
 
 
@@ -55,8 +57,8 @@ class BadThenTopicPlanner:
 
     def plan(self, payload):
         self.payloads.append(payload)
-        first_item = payload["items"][0]
         if len(self.payloads) == 1:
+            first_item = payload["items"][0]
             return {
                 "template": ["domain", "topic"],
                 "canonical_values": [
@@ -88,13 +90,15 @@ class BadThenTopicPlanner:
                 "skipped": [],
             }
 
-        assert payload["retry"]["validation_error"]
-        assert payload["retry"]["invalid_plan"]["memberships"][0]["paths"][0].startswith("/")
         assert payload["aggregate"]["fields"]["topic"]["high_cardinality"] is True
         assert "file_ref" not in json.dumps(payload)
+        if payload.get("planning_stage") != "registry_finalization":
+            assert payload["retry"]["validation_error"]
+            assert payload["retry"]["invalid_plan"]["memberships"][0]["paths"][0].startswith("/")
         topics = ["earnings-results", "corporate-governance", "strategic-transactions"]
         return {
             "template": ["topic"],
+            "partial_path_policy": "template_prefix",
             "canonical_values": [
                 {"field": "topic", "display": "Earnings Results", "slug": "earnings-results"},
                 {"field": "topic", "display": "Corporate Governance", "slug": "corporate-governance"},
@@ -109,6 +113,7 @@ class BadThenTopicPlanner:
                 for index, item in enumerate(payload["items"])
             ],
             "skipped": [],
+            "finalized": payload.get("planning_stage") == "registry_finalization",
         }
 
 
@@ -118,11 +123,12 @@ class OmittingThenCompletePlanner:
 
     def plan(self, payload):
         self.payloads.append(payload)
-        first_item = payload["items"][0]
         topics = ["earnings-results", "corporate-governance"]
         if len(self.payloads) == 1:
+            first_item = payload["items"][0]
             return {
                 "template": ["topic"],
+                "partial_path_policy": "template_prefix",
                 "canonical_values": [
                     {"field": "topic", "display": "Earnings Results", "slug": "earnings-results"},
                 ],
@@ -134,11 +140,14 @@ class OmittingThenCompletePlanner:
                     }
                 ],
                 "skipped": [],
+                "finalized": False,
             }
 
-        assert "omitted build item" in payload["retry"]["validation_error"]
+        if payload.get("planning_stage") != "registry_finalization":
+            assert "omitted build item" in payload["retry"]["validation_error"]
         return {
             "template": ["topic"],
+            "partial_path_policy": "template_prefix",
             "canonical_values": [
                 {"field": "topic", "display": "Earnings Results", "slug": "earnings-results"},
                 {"field": "topic", "display": "Corporate Governance", "slug": "corporate-governance"},
@@ -152,6 +161,7 @@ class OmittingThenCompletePlanner:
                 for index, item in enumerate(payload["items"])
             ],
             "skipped": [],
+            "finalized": payload.get("planning_stage") == "registry_finalization",
         }
 
 
@@ -239,6 +249,7 @@ def test_semantic_folder_build_materializes_scope_relative_mount_and_memberships
     )
 
     result = filesystem.build_semantic_folder("/", planner=planner)
+    finalized_contract_hash = result.pop("finalized_contract_hash")
 
     assert result == {
         "source": "/",
@@ -250,8 +261,21 @@ def test_semantic_folder_build_materializes_scope_relative_mount_and_memberships
         "metadata_cached": 4,
         "metadata_generating": 0,
         "metadata_failed": 0,
+        "metadata_deferred": 0,
         "planning": "generated",
+        "publish_status": "published",
+        "explicit_skips": 0,
+        "alignment_failures": 0,
+        "stale_items": 0,
+        "drift_items": 0,
+        "display_collision_groups": 0,
+        "display_disambiguated_files": 0,
+        "partial_success": False,
+        "warnings": [],
+        "planning_stages": 2,
+        "materialization_chunks": 1,
     }
+    assert finalized_contract_hash.startswith("sha256:")
     assert filesystem.store.resolve_file_ref("/semantic/domain/finance/topic/rates/Rates") == rates_ref
     assert (
         filesystem.store.resolve_file_ref(
@@ -268,9 +292,9 @@ def test_semantic_folder_build_materializes_scope_relative_mount_and_memberships
 
     payload_item = planner.payloads[0]["items"][0]
     assert set(payload_item) == {"item_id", "title", "summary", "domain", "topic"}
-    assert "file_ref" not in json.dumps(planner.payloads[0])
-    assert "storage_uri" not in json.dumps(planner.payloads[0])
-    assert "/documents" not in json.dumps(planner.payloads[0])
+    assert "file_ref" not in json.dumps(planner.payloads)
+    assert "storage_uri" not in json.dumps(planner.payloads)
+    assert "/documents" not in json.dumps(planner.payloads)
 
 
 def test_semantic_folder_build_uses_scope_relative_mount_and_rejects_conflict(tmp_path):
@@ -516,11 +540,13 @@ def test_semantic_folder_display_names_disambiguate_same_title_memberships(tmp_p
         external_id="doc_second",
     )
 
-    filesystem.build_semantic_folder(
+    result = filesystem.build_semantic_folder(
         "/",
         planner=TitlePlanner({"Report": ["domain/finance/topic/rates"]}),
     )
 
+    assert result["display_collision_groups"] == 1
+    assert result["display_disambiguated_files"] == 2
     listing = filesystem.browse("/semantic/domain/finance/topic/rates")
     paths = sorted(f"{item['folder_path']}/{item['title']}" for item in listing["files"])
     assert paths == [
@@ -530,6 +556,15 @@ def test_semantic_folder_display_names_disambiguate_same_title_memberships(tmp_p
     assert filesystem.store.resolve_file_ref(paths[0]) in {first_ref, second_ref}
     assert filesystem.store.resolve_file_ref(paths[1]) in {first_ref, second_ref}
     assert filesystem.store.resolve_file_ref(paths[0]) != filesystem.store.resolve_file_ref(paths[1])
+    with filesystem.store.connect() as conn:
+        row = conn.execute(
+            "SELECT manifest_json FROM semantic_folder_manifests ORDER BY created_at DESC LIMIT 1"
+        ).fetchone()
+    manifest = json.loads(row["manifest_json"])
+    display_ledger = manifest["materialization"]["display_ledger"]
+    assert len(display_ledger) == 2
+    assert all(item["base_display_name"] == "Report" for item in display_ledger)
+    assert all(item["suffix"] for item in display_ledger)
 
 
 def test_semantic_folder_validation_rejects_taxonomy_repairs_and_limits():
@@ -658,9 +693,10 @@ def test_semantic_folder_planner_retries_invalid_patterns_and_can_canonicalize_h
     result = filesystem.build_semantic_folder("/documents", planner=planner)
 
     assert result["template"] == "topic"
-    assert len(planner.payloads) == 2
+    assert len(planner.payloads) == 3
     assert planner.payloads[0]["aggregate"]["fields"]["topic"]["high_cardinality"] is True
     assert planner.payloads[1]["retry"]["validation_error"]
+    assert planner.payloads[2]["planning_stage"] == "registry_finalization"
     listing = filesystem.browse("/documents/semantic/topic")
     assert [folder["name"] for folder in listing["folders"]] == [
         "corporate-governance",
@@ -705,13 +741,241 @@ def test_semantic_folder_planner_retries_omitted_items_instead_of_silently_skipp
 
     assert result["template"] == "topic"
     assert result["skipped"] == 0
-    assert len(planner.payloads) == 2
+    assert len(planner.payloads) == 3
     assert "omitted build item" in planner.payloads[1]["retry"]["validation_error"]
+    assert planner.payloads[2]["planning_stage"] == "registry_finalization"
     listing = filesystem.browse("/documents/semantic/topic")
     assert [folder["name"] for folder in listing["folders"]] == [
         "corporate-governance",
         "earnings-results",
     ]
+
+
+def test_semantic_folder_large_scope_uses_batch_membership_and_finalization(tmp_path):
+    titles = [f"Doc {index:02d}" for index in range(30)]
+    filesystem = _filesystem(
+        tmp_path,
+        {
+            title: {"summary": f"{title} summary", "domain": "Finance", "topic": "Rates"}
+            for title in titles
+        },
+    )
+    for index, title in enumerate(titles):
+        _register_generated_file(filesystem, title, folder="/documents", external_id=f"doc_{index}")
+    planner = TitlePlanner({title: ["domain/finance/topic/rates"] for title in titles})
+
+    result = filesystem.build_semantic_folder("/documents", planner=planner)
+
+    assert result["files"] == 30
+    assert result["memberships"] == 30
+    assert result["planning_stages"] == 3
+    assert result["materialization_chunks"] == 1
+    assert [payload["planning_stage"] for payload in planner.payloads] == [
+        "sample_planning",
+        "membership_planning",
+        "registry_finalization",
+    ]
+    assert len(planner.payloads[0]["items"]) == 25
+    assert len(planner.payloads[1]["items"]) == 30
+    assert "file_ref" not in json.dumps(planner.payloads)
+    with filesystem.store.connect() as conn:
+        row = conn.execute(
+            "SELECT lifecycle_status, contract_hash FROM semantic_folder_builds WHERE contract_hash = ?",
+            (result["finalized_contract_hash"],),
+        ).fetchone()
+    assert dict(row) == {
+        "lifecycle_status": "published",
+        "contract_hash": result["finalized_contract_hash"],
+    }
+
+
+def test_semantic_folder_large_missing_metadata_is_deferred_to_planner(tmp_path):
+    titles = [f"Deferred {index:02d}" for index in range(11)]
+    filesystem = _filesystem(
+        tmp_path,
+        {
+            title: {
+                "summary": f"{title} summary",
+                "domain": "Finance",
+                "topic": "Rates",
+            }
+            for title in titles
+        },
+    )
+    for title in titles:
+        filesystem.register_file(
+            storage_uri=f"file:///tmp/{title}.txt",
+            folder_path="/documents",
+            external_id=title.lower().replace(" ", "_"),
+            title=title,
+            content=f"{title} evidence.",
+            content_type="text/plain",
+            metadata_policy={
+                "fields": {
+                    "summary": True,
+                    "doc_type": False,
+                    "domain": False,
+                    "topic": False,
+                    "entity": False,
+                    "relation": False,
+                },
+                "projection_indexes": {"summary": False},
+                "batch": False,
+            },
+        )
+    planner = TitlePlanner({title: ["domain/finance/topic/rates"] for title in titles})
+
+    result = filesystem.build_semantic_folder("/documents", planner=planner)
+
+    assert result["metadata_deferred"] == 22
+    assert result["metadata_generating"] == 0
+    assert result["warnings"] == ["large_missing_metadata_set_deferred_to_planner"]
+    assert not any(fields == ("domain", "topic") for _, fields in filesystem.metadata_generator.calls)
+    assert result["memberships"] == 11
+
+
+def test_semantic_folder_finalization_barrier_blocks_publish(tmp_path):
+    filesystem = _filesystem(
+        tmp_path,
+        {
+            "Report": {"summary": "Report summary", "domain": "Finance", "topic": "Rates"},
+        },
+    )
+    _register_generated_file(filesystem, "Report", external_id="doc_report")
+
+    class NeverFinalizingPlanner(TitlePlanner):
+        def plan(self, payload):
+            plan = super().plan(payload)
+            plan["finalized"] = False
+            return plan
+
+    with pytest.raises(ValueError, match="finalized=true"):
+        filesystem.build_semantic_folder(
+            "/",
+            planner=NeverFinalizingPlanner({"Report": ["domain/finance/topic/rates"]}),
+        )
+
+    with pytest.raises(KeyError):
+        filesystem.store.folder_info("/semantic")
+    with filesystem.store.connect() as conn:
+        row = conn.execute(
+            "SELECT lifecycle_status, error FROM semantic_folder_builds ORDER BY created_at DESC LIMIT 1"
+        ).fetchone()
+    assert row["lifecycle_status"] == "failed"
+    assert "finalized=true" in row["error"]
+
+
+def test_semantic_folder_registry_finalization_retries_missing_active_refs(tmp_path):
+    filesystem = _filesystem(
+        tmp_path,
+        {
+            "Report": {"summary": "Report summary", "domain": "Finance", "topic": "Rates"},
+        },
+    )
+    _register_generated_file(filesystem, "Report", external_id="doc_report")
+
+    class MissingRegistryThenCompletePlanner(TitlePlanner):
+        def plan(self, payload):
+            if payload.get("planning_stage") != "registry_finalization":
+                return super().plan(payload)
+            self.payloads.append(payload)
+            if "retry" not in payload:
+                return {
+                    "template": ["domain", "topic"],
+                    "partial_path_policy": "template_prefix",
+                    "canonical_values": [
+                        {"field": "domain", "display": "Finance", "slug": "finance"},
+                    ],
+                    "memberships": [],
+                    "skipped": [],
+                    "finalized": True,
+                }
+            assert "undeclared canonical value" in payload["retry"]["validation_error"]
+            return {
+                "template": ["domain", "topic"],
+                "partial_path_policy": "template_prefix",
+                "canonical_values": [
+                    {"field": "domain", "display": "Finance", "slug": "finance"},
+                    {"field": "topic", "display": "Rates", "slug": "rates"},
+                ],
+                "memberships": [],
+                "skipped": [],
+                "finalized": True,
+            }
+
+    planner = MissingRegistryThenCompletePlanner({"Report": ["domain/finance/topic/rates"]})
+
+    result = filesystem.build_semantic_folder("/", planner=planner)
+
+    assert result["publish_status"] == "published"
+    assert [payload.get("planning_stage") for payload in planner.payloads] == [
+        "sample_planning",
+        "registry_finalization",
+        "registry_finalization",
+    ]
+    assert planner.payloads[-1]["retry"]["validation_error"]
+    assert filesystem.store.resolve_file_ref("/semantic/domain/finance/topic/rates/Report")
+
+
+def test_semantic_folder_registry_finalization_ignores_stray_memberships(tmp_path):
+    filesystem = _filesystem(
+        tmp_path,
+        {
+            "Report": {"summary": "Report summary", "domain": "Finance", "topic": "Rates"},
+        },
+    )
+    _register_generated_file(filesystem, "Report", external_id="doc_report")
+
+    class VerboseFinalizationPlanner(TitlePlanner):
+        def plan(self, payload):
+            plan = super().plan(payload)
+            if payload.get("planning_stage") == "registry_finalization":
+                plan["memberships"] = [
+                    {"item_id": "item_0001", "paths": ["domain/finance/topic/rates"], "confidence": 0.5}
+                ]
+            return plan
+
+    result = filesystem.build_semantic_folder(
+        "/",
+        planner=VerboseFinalizationPlanner({"Report": ["domain/finance/topic/rates"]}),
+    )
+
+    assert result["publish_status"] == "published"
+    assert filesystem.store.resolve_file_ref("/semantic/domain/finance/topic/rates/Report")
+
+
+def test_semantic_folder_publish_cas_failure_preserves_visible_generation(tmp_path):
+    filesystem = _filesystem(
+        tmp_path,
+        {
+            "Report": {"summary": "Report summary", "domain": "Finance", "topic": "Rates"},
+        },
+    )
+    file_ref = _register_generated_file(filesystem, "Report", external_id="doc_report")
+    result = filesystem.build_semantic_folder(
+        "/",
+        planner=TitlePlanner({"Report": ["domain/finance/topic/rates"]}),
+    )
+    assert filesystem.store.resolve_file_ref("/semantic/domain/finance/topic/rates/Report") == file_ref
+
+    with pytest.raises(RuntimeError, match="CAS failed"):
+        filesystem.store.apply_semantic_folder_build(
+            source_scope="/",
+            mount_path="/semantic",
+            memberships=[],
+            manifest={
+                "build_id": "semantic_folder_stale",
+                "finalized_contract_hash": "sha256:stale",
+            },
+            expected_generation="stale-generation",
+        )
+
+    assert filesystem.store.resolve_file_ref("/semantic/domain/finance/topic/rates/Report") == file_ref
+    assert (
+        filesystem.store.semantic_mount_generation(source_scope="/", mount_path="/semantic")
+        != "semantic_folder_stale"
+    )
+    assert result["publish_status"] == "published"
 
 
 def test_cli_semantic_folder_build_is_user_surface_not_agent_surface(monkeypatch, capsys, tmp_path):

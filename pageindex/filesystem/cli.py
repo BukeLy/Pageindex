@@ -306,18 +306,39 @@ def _run_semantic_folder(argv: list[str], *, workspace: str) -> int:
     if args.semantic_folder_command == "build":
         filesystem = _filesystem_from_workspace(workspace)
         result = filesystem.build_semantic_folder(args.source_scope)
+        print(f"publish: {result.get('publish_status', 'published')}")
         print(f"source: {result['source']}")
         print(f"mount: {result['mount']}")
         print(f"template: {result['template']}")
         print(f"files: {result['files']}")
         print(f"memberships: {result['memberships']}")
         print(f"skipped: {result['skipped']}")
+        print(f"alignment_failures: {result.get('alignment_failures', 0)}")
+        print(f"partial_success: {str(result.get('partial_success', False)).lower()}")
         print(
             "metadata: "
             f"cached={result['metadata_cached']} "
             f"generating={result['metadata_generating']} "
-            f"failed={result['metadata_failed']}"
+            f"failed={result['metadata_failed']} "
+            f"deferred={result.get('metadata_deferred', 0)}"
         )
+        print(
+            "freshness: "
+            f"stale={result.get('stale_items', 0)} "
+            f"drift={result.get('drift_items', 0)}"
+        )
+        print(
+            "display: "
+            f"collision_groups={result.get('display_collision_groups', 0)} "
+            f"disambiguated_files={result.get('display_disambiguated_files', 0)}"
+        )
+        print(
+            "chunks: "
+            f"planning_stages={result.get('planning_stages', 0)} "
+            f"materialization={result.get('materialization_chunks', 0)}"
+        )
+        warnings = result.get("warnings") or []
+        print(f"warnings: {', '.join(warnings) if warnings else 'none'}")
         print(f"planning: {result['planning']}")
         return 0
     raise ValueError(f"unknown semantic-folder command: {args.semantic_folder_command}")

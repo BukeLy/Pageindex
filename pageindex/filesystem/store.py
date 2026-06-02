@@ -92,6 +92,19 @@ class SQLiteFileSystemStore:
                 created_at TEXT DEFAULT CURRENT_TIMESTAMP
             );
 
+            CREATE TABLE IF NOT EXISTS semantic_folder_builds (
+                build_id TEXT PRIMARY KEY,
+                source_scope TEXT NOT NULL,
+                mount_path TEXT NOT NULL,
+                lifecycle_status TEXT NOT NULL,
+                expected_generation TEXT,
+                contract_hash TEXT,
+                manifest_json TEXT NOT NULL DEFAULT '{}',
+                error TEXT,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+            );
+
             CREATE TABLE IF NOT EXISTS metadata_schema (
                 schema_id TEXT PRIMARY KEY,
                 scope_path TEXT,
@@ -139,6 +152,8 @@ class SQLiteFileSystemStore:
             CREATE INDEX IF NOT EXISTS idx_file_folders_folder ON file_folders(folder_id);
             CREATE INDEX IF NOT EXISTS idx_semantic_folder_manifests_scope
                 ON semantic_folder_manifests(source_scope, created_at);
+            CREATE INDEX IF NOT EXISTS idx_semantic_folder_builds_mount
+                ON semantic_folder_builds(source_scope, mount_path, lifecycle_status, created_at);
             CREATE INDEX IF NOT EXISTS idx_metadata_fields_name ON metadata_fields(name);
             CREATE INDEX IF NOT EXISTS idx_metadata_values_field_text ON metadata_values(field_id, value_text);
             CREATE INDEX IF NOT EXISTS idx_metadata_values_field_number ON metadata_values(field_id, value_number);
@@ -430,6 +445,64 @@ class SQLiteFileSystemStore:
             ).fetchone()
         return None if row is None else str(row["path"])
 
+    def semantic_mount_generation(
+        self,
+        *,
+        source_scope: str,
+        mount_path: str,
+    ) -> str | None:
+        with self.connect() as conn:
+            return self._semantic_mount_generation(
+                conn,
+                source_scope=normalize_path(source_scope),
+                mount_path=normalize_path(mount_path),
+            )
+
+    def begin_semantic_folder_build(
+        self,
+        *,
+        build_id: str,
+        source_scope: str,
+        mount_path: str,
+        expected_generation: str | None,
+    ) -> None:
+        source_scope = normalize_path(source_scope)
+        mount_path = normalize_path(mount_path)
+        with self.connect() as conn:
+            conn.execute(
+                """
+                UPDATE semantic_folder_builds
+                SET lifecycle_status = 'superseded',
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE source_scope = ?
+                  AND mount_path = ?
+                  AND lifecycle_status IN ('planning', 'publishable', 'publishing')
+                """,
+                (source_scope, mount_path),
+            )
+            conn.execute(
+                """
+                INSERT INTO semantic_folder_builds(
+                    build_id, source_scope, mount_path, lifecycle_status, expected_generation
+                ) VALUES (?, ?, ?, 'planning', ?)
+                """,
+                (build_id, source_scope, mount_path, expected_generation),
+            )
+
+    def mark_semantic_folder_build_failed(self, build_id: str, error: str) -> None:
+        with self.connect() as conn:
+            conn.execute(
+                """
+                UPDATE semantic_folder_builds
+                SET lifecycle_status = 'failed',
+                    error = ?,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE build_id = ?
+                  AND lifecycle_status != 'published'
+                """,
+                (error[:2000], build_id),
+            )
+
     def semantic_source_file_entries(self, source_scope: str) -> list[FileEntry]:
         source_scope = normalize_path(source_scope)
         with self.connect() as conn:
@@ -487,9 +560,11 @@ class SQLiteFileSystemStore:
         mount_path: str,
         memberships: list[dict[str, Any]],
         manifest: dict[str, Any],
+        expected_generation: str | None = None,
     ) -> None:
         source_scope = normalize_path(source_scope)
         mount_path = normalize_path(mount_path)
+        manifest = dict(manifest)
         build_id = str(manifest["build_id"])
         with self.connect() as conn:
             source = self._folder_by_path(conn, source_scope)
@@ -499,6 +574,31 @@ class SQLiteFileSystemStore:
                 conn,
                 source_scope=source_scope,
                 mount_path=mount_path,
+            )
+            current_generation = self._semantic_mount_generation(
+                conn,
+                source_scope=source_scope,
+                mount_path=mount_path,
+            )
+            if current_generation != expected_generation:
+                raise RuntimeError(
+                    "Semantic Folder publish CAS failed: visible generation changed "
+                    f"for {mount_path}"
+                )
+            conn.execute(
+                """
+                UPDATE semantic_folder_builds
+                SET lifecycle_status = 'publishing',
+                    manifest_json = ?,
+                    contract_hash = ?,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE build_id = ?
+                """,
+                (
+                    json.dumps(manifest, ensure_ascii=False),
+                    manifest.get("finalized_contract_hash"),
+                    build_id,
+                ),
             )
             self._delete_semantic_mount_tree(
                 conn,
@@ -523,6 +623,7 @@ class SQLiteFileSystemStore:
                 leaf_path = normalize_path(f"{mount_path}/{membership['relative_path']}")
                 leaf_groups.setdefault(leaf_path, []).append(membership)
             display_names: dict[tuple[str, str], str] = {}
+            display_ledger: list[dict[str, Any]] = []
             for leaf_path, items in leaf_groups.items():
                 titles: dict[str, list[str]] = {}
                 for item in items:
@@ -531,9 +632,23 @@ class SQLiteFileSystemStore:
                 for item in items:
                     title = self._file_title(conn, str(item["file_ref"]))
                     display = title
+                    suffix = ""
                     if len(titles[title]) > 1:
+                        suffix = self._semantic_display_suffix(str(item["file_ref"]))
                         display = self._semantic_display_name(title, str(item["file_ref"]))
                     display_names[(str(item["file_ref"]), leaf_path)] = display
+                    display_ledger.append(
+                        {
+                            "leaf_path": leaf_path,
+                            "base_display_name": title,
+                            "disambiguated_display_name": display,
+                            "collision_group": sorted(titles[title]),
+                            "suffix": suffix,
+                            "build_item_id": str(item.get("build_item_id") or ""),
+                            "file_ref": str(item["file_ref"]),
+                            "relative_path": str(item["relative_path"]),
+                        }
+                    )
 
             for leaf_path, items in leaf_groups.items():
                 folder_metadata = {
@@ -562,7 +677,9 @@ class SQLiteFileSystemStore:
                         "source_scope": source_scope,
                         "mount_path": mount_path,
                         "build_id": build_id,
+                        "build_item_id": item.get("build_item_id"),
                         "relative_path": item["relative_path"],
+                        "base_display_name": self._file_title(conn, file_ref),
                         "display_name": display_name,
                         "canonical_segments": item.get("canonical_segments") or [],
                     }
@@ -581,6 +698,36 @@ class SQLiteFileSystemStore:
                             json.dumps(membership_metadata, ensure_ascii=False),
                         ),
                     )
+            manifest.setdefault("materialization", {})
+            manifest["materialization"].update(
+                {
+                    "staging_chunks_complete": True,
+                    "chunk_count": 1,
+                    "chunks": [
+                        {
+                            "index": 1,
+                            "memberships": len(memberships),
+                            "contract_hash": manifest.get("finalized_contract_hash"),
+                        }
+                    ],
+                    "display_ledger": sorted(
+                        display_ledger,
+                        key=lambda row: (
+                            row["leaf_path"],
+                            row["base_display_name"],
+                            row["file_ref"],
+                        ),
+                    ),
+                }
+            )
+            manifest.setdefault("lifecycle", {})
+            manifest["lifecycle"].update(
+                {
+                    "status": "published",
+                    "publishable": True,
+                    "visible_generation": build_id,
+                }
+            )
             conn.execute(
                 """
                 INSERT INTO semantic_folder_manifests(
@@ -592,6 +739,21 @@ class SQLiteFileSystemStore:
                     source_scope,
                     mount_path,
                     json.dumps(manifest, ensure_ascii=False),
+                ),
+            )
+            conn.execute(
+                """
+                UPDATE semantic_folder_builds
+                SET lifecycle_status = 'published',
+                    manifest_json = ?,
+                    contract_hash = ?,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE build_id = ?
+                """,
+                (
+                    json.dumps(manifest, ensure_ascii=False),
+                    manifest.get("finalized_contract_hash"),
+                    build_id,
                 ),
             )
 
@@ -646,6 +808,28 @@ class SQLiteFileSystemStore:
         raise FileExistsError(
             f"Semantic mount path already exists as a non-generated folder: {mount_path}"
         )
+
+    def _semantic_mount_generation(
+        self,
+        conn: sqlite3.Connection,
+        *,
+        source_scope: str,
+        mount_path: str,
+    ) -> str | None:
+        row = self._folder_by_path(conn, mount_path)
+        if row is None:
+            return None
+        metadata = self._json_object(row["metadata_json"])
+        if (
+            row["kind"] == "generated"
+            and metadata.get("generator") == "pifs_semantic_folder"
+            and metadata.get("mount_role") == "semantic_mount"
+            and metadata.get("source_scope") == source_scope
+            and metadata.get("mount_path") == mount_path
+        ):
+            build_id = metadata.get("build_id")
+            return str(build_id) if build_id else None
+        return None
 
     def _delete_semantic_mount_tree(
         self,
@@ -726,11 +910,15 @@ class SQLiteFileSystemStore:
 
     @staticmethod
     def _semantic_display_name(title: str, file_ref: str) -> str:
-        suffix = file_ref.replace("file_", "")[:8]
+        suffix = SQLiteFileSystemStore._semantic_display_suffix(file_ref)
         path = Path(title)
         if path.suffix:
             return f"{path.stem} [{suffix}]{path.suffix}"
         return f"{title} [{suffix}]"
+
+    @staticmethod
+    def _semantic_display_suffix(file_ref: str) -> str:
+        return file_ref.replace("file_", "")[:8]
 
     def _ensure_title_available_in_folder(
         self,
