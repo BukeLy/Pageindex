@@ -777,6 +777,10 @@ def test_semantic_folder_large_scope_uses_batch_membership_and_finalization(tmp_
     ]
     assert len(planner.payloads[0]["items"]) == 25
     assert len(planner.payloads[1]["items"]) == 30
+    finalization_contract = planner.payloads[2]["planning_contract"]
+    assert "membership_intent_draft" not in finalization_contract
+    assert "skipped_draft" not in finalization_contract
+    assert "registry_lifecycle_contract" in finalization_contract
     assert "file_ref" not in json.dumps(planner.payloads)
     with filesystem.store.connect() as conn:
         row = conn.execute(
@@ -787,6 +791,71 @@ def test_semantic_folder_large_scope_uses_batch_membership_and_finalization(tmp_
         "lifecycle_status": "published",
         "contract_hash": result["finalized_contract_hash"],
     }
+
+
+def test_semantic_folder_registry_finalization_contract_is_bounded_for_large_synthetic_ledger():
+    from pageindex.filesystem.core import PageIndexFileSystem
+
+    source_count = 50_000
+    draft_memberships = [
+        {
+            "item_id": f"item_{index:04d}",
+            "relative_path": "topic/enterprise-operations",
+            "canonical_segments": [
+                {
+                    "field": "topic",
+                    "display": "Enterprise Operations",
+                    "slug": "enterprise-operations",
+                }
+            ],
+            "confidence": 0.8,
+        }
+        for index in range(1, source_count + 1)
+    ]
+    draft_skipped = [
+        {"item_id": f"skip_{index:04d}", "reason": "missing first field"}
+        for index in range(1, source_count + 1)
+    ]
+    payload_items = [
+        {
+            "item_id": f"item_{index:04d}",
+            "title": f"Document {index}",
+            "summary": "bounded example evidence",
+            "domain": None,
+            "topic": None,
+        }
+        for index in range(1, 200)
+    ]
+
+    contract = PageIndexFileSystem._semantic_folder_registry_lifecycle_contract(
+        draft_canonical_values=[
+            {
+                "field": "topic",
+                "display": "Enterprise Operations",
+                "slug": "enterprise-operations",
+            }
+        ],
+        draft_memberships=draft_memberships,
+        draft_skipped=draft_skipped,
+        payload_items=payload_items,
+        aggregate={"item_count": source_count},
+        stage_records=[
+            {"stage": "sample_planning", "attempts": 1, "items": 25},
+            {"stage": "membership_planning", "attempts": 1, "items": source_count},
+        ],
+    )
+    payload_text = json.dumps(contract, sort_keys=True)
+
+    assert len(payload_text) < 50_000
+    assert "membership_intent_draft" not in payload_text
+    assert "skipped_draft" not in payload_text
+    assert "item_50000" not in payload_text
+    assert contract["coverage"]["membership_intent_count"] == source_count
+    assert contract["coverage"]["explicit_skip_count"] == source_count
+    assert (
+        contract["candidate_registry"]["topic"]["included_candidates"][0]["membership_count"]
+        == source_count
+    )
 
 
 def test_semantic_folder_large_missing_metadata_is_deferred_to_planner(tmp_path):
@@ -908,13 +977,217 @@ def test_semantic_folder_registry_finalization_retries_missing_active_refs(tmp_p
     result = filesystem.build_semantic_folder("/", planner=planner)
 
     assert result["publish_status"] == "published"
-    assert [payload.get("planning_stage") for payload in planner.payloads] == [
-        "sample_planning",
-        "registry_finalization",
-        "registry_finalization",
-    ]
+    stages = [payload.get("planning_stage") for payload in planner.payloads]
+    assert stages[0] == "sample_planning"
+    assert stages.count("membership_disposition") == 3
+    assert stages.count("registry_finalization") == 2
+    for payload in planner.payloads:
+        if payload.get("planning_stage") == "registry_finalization":
+            assert "membership_intent_draft" not in payload["planning_contract"]
+            assert "skipped_draft" not in payload["planning_contract"]
     assert planner.payloads[-1]["retry"]["validation_error"]
     assert filesystem.store.resolve_file_ref("/semantic/domain/finance/topic/rates/Report")
+
+
+def test_semantic_folder_inactive_registry_refs_use_localized_disposition(tmp_path):
+    titles = [f"Doc {index:02d}" for index in range(30)]
+    filesystem = _filesystem(
+        tmp_path,
+        {
+            title: {"summary": f"{title} summary", "domain": "Ops", "topic": "Legacy"}
+            for title in titles
+        },
+    )
+    for index, title in enumerate(titles):
+        _register_generated_file(filesystem, title, external_id=f"doc_{index}")
+
+    class DispositionPlanner:
+        def __init__(self):
+            self.payloads: list[dict[str, Any]] = []
+
+        def plan(self, payload):
+            self.payloads.append(payload)
+            stage = payload.get("planning_stage")
+            if stage in {"sample_planning", "membership_planning"}:
+                return {
+                    "template": ["topic"],
+                    "partial_path_policy": "template_prefix",
+                    "canonical_values": [
+                        {"field": "topic", "display": "Legacy Topic", "slug": "legacy-topic"},
+                    ],
+                    "memberships": [
+                        {
+                            "item_id": item["item_id"],
+                            "paths": ["topic/legacy-topic"],
+                            "confidence": 0.7,
+                        }
+                        for item in payload["items"]
+                    ],
+                    "skipped": [],
+                    "finalized": False,
+                }
+            if stage == "registry_finalization":
+                contract = payload["planning_contract"]
+                assert "membership_intent_draft" not in contract
+                assert "skipped_draft" not in contract
+                return {
+                    "template": ["topic"],
+                    "partial_path_policy": "template_prefix",
+                    "canonical_values": [
+                        {
+                            "field": "topic",
+                            "display": "Enterprise Operations",
+                            "slug": "enterprise-operations",
+                        },
+                    ],
+                    "memberships": [],
+                    "skipped": [],
+                    "finalized": True,
+                    "lifecycle_outcomes": [
+                        {
+                            "field": "topic",
+                            "display": "Legacy Topic",
+                            "slug": "legacy-topic",
+                            "lifecycle": "rejected",
+                            "reason": "too narrow for the finalized registry",
+                        }
+                    ],
+                    "canonical_mappings": [
+                        {
+                            "field": "topic",
+                            "source_slug": "legacy-topic",
+                            "target_slug": "enterprise-operations",
+                            "lifecycle": "merged_away",
+                            "reason": "localized disposition should remap affected intents",
+                        }
+                    ],
+                }
+            if stage == "membership_disposition":
+                assert payload["planning_contract"]["affected_membership_intents"]
+                assert payload["planning_contract"]["final_active_registry"] == [
+                    {
+                        "field": "topic",
+                        "display": "Enterprise Operations",
+                        "slug": "enterprise-operations",
+                        "lifecycle": "accepted",
+                    }
+                ]
+                return {
+                    "template": ["topic"],
+                    "partial_path_policy": "template_prefix",
+                    "canonical_values": [
+                        {
+                            "field": "topic",
+                            "display": "Enterprise Operations",
+                            "slug": "enterprise-operations",
+                        },
+                    ],
+                    "memberships": [
+                        {
+                            "item_id": item["item_id"],
+                            "paths": ["topic/enterprise-operations"],
+                            "confidence": 0.82,
+                        }
+                        for item in payload["items"]
+                    ],
+                    "skipped": [],
+                    "finalized": False,
+                }
+            raise AssertionError(stage)
+
+    planner = DispositionPlanner()
+
+    result = filesystem.build_semantic_folder("/documents", planner=planner)
+
+    assert result["memberships"] == 30
+    assert [payload["planning_stage"] for payload in planner.payloads] == [
+        "sample_planning",
+        "membership_planning",
+        "registry_finalization",
+        "membership_disposition",
+    ]
+    assert filesystem.store.resolve_file_ref(
+        "/documents/semantic/topic/enterprise-operations/Doc 00"
+    )
+
+
+def test_semantic_folder_disposition_omission_blocks_publish(tmp_path):
+    titles = [f"Doc {index:02d}" for index in range(30)]
+    filesystem = _filesystem(
+        tmp_path,
+        {
+            title: {"summary": f"{title} summary", "domain": "Ops", "topic": "Legacy"}
+            for title in titles
+        },
+    )
+    for index, title in enumerate(titles):
+        _register_generated_file(filesystem, title, external_id=f"doc_{index}")
+
+    class OmittingDispositionPlanner:
+        def plan(self, payload):
+            stage = payload.get("planning_stage")
+            if stage in {"sample_planning", "membership_planning"}:
+                return {
+                    "template": ["topic"],
+                    "partial_path_policy": "template_prefix",
+                    "canonical_values": [
+                        {"field": "topic", "display": "Legacy Topic", "slug": "legacy-topic"},
+                    ],
+                    "memberships": [
+                        {
+                            "item_id": item["item_id"],
+                            "paths": ["topic/legacy-topic"],
+                            "confidence": 0.7,
+                        }
+                        for item in payload["items"]
+                    ],
+                    "skipped": [],
+                    "finalized": False,
+                }
+            if stage == "registry_finalization":
+                return {
+                    "template": ["topic"],
+                    "partial_path_policy": "template_prefix",
+                    "canonical_values": [
+                        {
+                            "field": "topic",
+                            "display": "Enterprise Operations",
+                            "slug": "enterprise-operations",
+                        },
+                    ],
+                    "memberships": [],
+                    "skipped": [],
+                    "finalized": True,
+                }
+            if stage == "membership_disposition":
+                return {
+                    "template": ["topic"],
+                    "partial_path_policy": "template_prefix",
+                    "canonical_values": [
+                        {
+                            "field": "topic",
+                            "display": "Enterprise Operations",
+                            "slug": "enterprise-operations",
+                        },
+                    ],
+                    "memberships": [
+                        {
+                            "item_id": item["item_id"],
+                            "paths": ["topic/enterprise-operations"],
+                            "confidence": 0.82,
+                        }
+                        for item in payload["items"][:-1]
+                    ],
+                    "skipped": [],
+                    "finalized": False,
+                }
+            raise AssertionError(stage)
+
+    with pytest.raises(ValueError, match="omitted build item"):
+        filesystem.build_semantic_folder("/documents", planner=OmittingDispositionPlanner())
+
+    with pytest.raises(KeyError):
+        filesystem.store.folder_info("/documents/semantic")
 
 
 def test_semantic_folder_registry_finalization_ignores_stray_memberships(tmp_path):

@@ -139,10 +139,17 @@ class OpenAISemanticFolderPlanner:
                         "appear in memberships or skipped; prefer at least one useful membership for "
                         "each item unless its selected first field is missing or no useful semantic "
                         "placement exists. Set partial_path_policy to template_prefix. For the "
-                        "registry_finalization planning_stage, set finalized to true only after the "
-                        "active registry has no pending references and the lifecycle ledger is closed. "
+                        "registry_finalization planning_stage, use only the compact "
+                        "registry_lifecycle_contract; do not ask for or reconstruct a full per-item "
+                        "membership/skipped ledger. Set finalized to true only after the active "
+                        "registry has no pending references and the lifecycle ledger is closed. "
+                        "For membership_disposition, resolve only the provided affected items using "
+                        "the final_active_registry; either place them with accepted registry slugs "
+                        "or explicitly skip them. "
                         "For earlier stages, set finalized to false. If retry feedback is present, "
                         "regenerate a fully valid plan instead of explaining the error. "
+                        "Always return lifecycle_outcomes and canonical_mappings arrays; use [] "
+                        "when there is nothing to report. "
                         "Return strict JSON only."
                     ),
                 },
@@ -172,6 +179,8 @@ class OpenAISemanticFolderPlanner:
                         "memberships",
                         "skipped",
                         "finalized",
+                        "lifecycle_outcomes",
+                        "canonical_mappings",
                     ],
                     "properties": {
                         "template": {
@@ -224,6 +233,62 @@ class OpenAISemanticFolderPlanner:
                             },
                         },
                         "finalized": {"type": "boolean"},
+                        "lifecycle_outcomes": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "additionalProperties": False,
+                                "required": ["field", "display", "slug", "lifecycle", "reason"],
+                                "properties": {
+                                    "field": {"type": "string", "enum": list(CANDIDATE_FIELDS)},
+                                    "display": {"type": "string"},
+                                    "slug": {"type": "string"},
+                                    "lifecycle": {
+                                        "type": "string",
+                                        "enum": [
+                                            "accepted",
+                                            "rejected",
+                                            "deprecated",
+                                            "ignored",
+                                            "merged_away",
+                                            "split_away",
+                                        ],
+                                    },
+                                    "reason": {"type": "string"},
+                                },
+                            },
+                        },
+                        "canonical_mappings": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "additionalProperties": False,
+                                "required": [
+                                    "field",
+                                    "source_slug",
+                                    "target_slug",
+                                    "lifecycle",
+                                    "reason",
+                                ],
+                                "properties": {
+                                    "field": {"type": "string", "enum": list(CANDIDATE_FIELDS)},
+                                    "source_slug": {"type": "string"},
+                                    "target_slug": {"type": "string"},
+                                    "lifecycle": {
+                                        "type": "string",
+                                        "enum": [
+                                            "accepted",
+                                            "rejected",
+                                            "deprecated",
+                                            "ignored",
+                                            "merged_away",
+                                            "split_away",
+                                        ],
+                                    },
+                                    "reason": {"type": "string"},
+                                },
+                            },
+                        },
                     },
                 },
             },

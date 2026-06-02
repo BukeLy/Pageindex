@@ -84,6 +84,10 @@ SEMANTIC_FOLDER_SAMPLE_ITEM_LIMIT = 25
 SEMANTIC_FOLDER_BATCH_ITEM_LIMIT = 100
 SEMANTIC_FOLDER_METADATA_BACKFILL_LIMIT = 20
 SEMANTIC_FOLDER_MAX_PLANNING_ATTEMPTS = 3
+SEMANTIC_FOLDER_REGISTRY_FIELD_VALUE_LIMIT = 60
+SEMANTIC_FOLDER_REGISTRY_EXAMPLE_LIMIT = 2
+SEMANTIC_FOLDER_SKIP_REASON_LIMIT = 20
+SEMANTIC_FOLDER_SKIP_EXAMPLE_LIMIT = 10
 SEMANTIC_PROJECTION_INDEX_NAMES = {
     "summary": "summary_only_vector",
     "entity": "entity_vectors",
@@ -640,20 +644,22 @@ class PageIndexFileSystem:
             items=[],
             guidance=(
                 "Return only the final active current-build registry and close the lifecycle "
-                "ledger. The batch membership ledger is provided for alignment context and will "
-                "be deterministically validated against your active registry. No pending, "
-                "inactive, rejected, merged-away, split-away, or deprecated canonical reference "
-                "may remain. Set finalized=true."
+                "ledger from the compact registry evidence. Do not expect or request a full "
+                "per-item membership or skipped ledger. No pending, inactive, rejected, "
+                "merged-away, split-away, or deprecated canonical reference may remain in the "
+                "active registry. Set finalized=true."
             ),
             planning_contract={
                 "template": sample_validated.template,
                 "partial_path_policy": sample_validated.partial_path_policy,
-                "active_registry_draft": self._semantic_folder_registry_for_planner(
-                    draft_canonical_values
+                "registry_lifecycle_contract": self._semantic_folder_registry_lifecycle_contract(
+                    draft_canonical_values=draft_canonical_values,
+                    draft_memberships=draft_memberships,
+                    draft_skipped=draft_skipped,
+                    payload_items=payload_items,
+                    aggregate=planning_payload.get("aggregate") or {},
+                    stage_records=stage_records,
                 ),
-                "membership_intent_draft": draft_memberships,
-                "skipped_draft": draft_skipped,
-                "stage_ledger": stage_records,
             },
         )
         raw_final, final_membership_validated, final_attempts = (
@@ -664,6 +670,8 @@ class PageIndexFileSystem:
                 expected_template=sample_validated.template,
                 draft_memberships=draft_memberships,
                 draft_skipped=draft_skipped,
+                base_payload=planning_payload,
+                stage_records=stage_records,
             )
         )
         stage_records.append(
@@ -690,6 +698,8 @@ class PageIndexFileSystem:
         expected_template: list[str],
         draft_memberships: list[dict[str, Any]],
         draft_skipped: list[dict[str, Any]],
+        base_payload: dict[str, Any],
+        stage_records: list[dict[str, Any]],
         max_attempts: int = SEMANTIC_FOLDER_MAX_PLANNING_ATTEMPTS,
     ) -> tuple[dict[str, Any], Any, int]:
         payload = dict(planning_payload)
@@ -710,12 +720,23 @@ class PageIndexFileSystem:
                     require_memberships=False,
                     require_finalized=True,
                 )
+                aligned_memberships, aligned_skipped = self._resolve_inactive_registry_refs(
+                    planner,
+                    base_payload,
+                    expected_template=registry_validated.template,
+                    partial_path_policy=registry_validated.partial_path_policy,
+                    final_canonical_values=registry_validated.canonical_values,
+                    draft_memberships=draft_memberships,
+                    draft_skipped=draft_skipped,
+                    item_file_refs=item_file_refs,
+                    stage_records=stage_records,
+                )
                 final_plan = self._semantic_folder_final_plan_from_draft(
                     template=registry_validated.template,
                     partial_path_policy=registry_validated.partial_path_policy,
                     canonical_values=registry_validated.canonical_values,
-                    draft_memberships=draft_memberships,
-                    draft_skipped=draft_skipped,
+                    draft_memberships=aligned_memberships,
+                    draft_skipped=aligned_skipped,
                 )
                 final_validated = validate_semantic_folder_plan(
                     final_plan,
@@ -736,13 +757,191 @@ class PageIndexFileSystem:
                         "invalid_plan": raw_plan,
                         "instructions": (
                             "Finalize the active registry again. Do not explain. The final "
-                            "active registry must include every accepted current-build canonical "
-                            "value referenced by the batch membership ledger, with no pending or "
-                            "inactive refs and no same-field slug collisions."
+                            "active registry must be derived from the compact registry lifecycle "
+                            "contract, with no pending or inactive refs and no same-field slug "
+                            "collisions. Do not request or reconstruct a full per-item ledger."
                         ),
                     },
                 }
         raise last_error or SemanticFolderPlanError("Semantic Folder registry finalization failed")
+
+    def _resolve_inactive_registry_refs(
+        self,
+        planner: SemanticFolderPlanner,
+        base_payload: dict[str, Any],
+        *,
+        expected_template: list[str],
+        partial_path_policy: str,
+        final_canonical_values: list[dict[str, Any]],
+        draft_memberships: list[dict[str, Any]],
+        draft_skipped: list[dict[str, Any]],
+        item_file_refs: dict[str, str],
+        stage_records: list[dict[str, Any]],
+    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+        active_keys = {
+            (str(row["field"]), str(row["slug"]))
+            for row in final_canonical_values
+        }
+        affected_item_ids = {
+            str(membership["item_id"])
+            for membership in draft_memberships
+            if any(
+                (
+                    str(segment.get("field")),
+                    str(segment.get("slug")),
+                )
+                not in active_keys
+                for segment in membership.get("canonical_segments") or []
+            )
+        }
+        if not affected_item_ids:
+            return draft_memberships, draft_skipped
+
+        payload_item_by_id = {
+            str(item["item_id"]): item for item in base_payload.get("items", [])
+        }
+        memberships_by_item: dict[str, list[dict[str, Any]]] = {}
+        for membership in draft_memberships:
+            memberships_by_item.setdefault(str(membership["item_id"]), []).append(membership)
+        skips_by_item: dict[str, list[dict[str, Any]]] = {}
+        for skipped in draft_skipped:
+            skips_by_item.setdefault(str(skipped["item_id"]), []).append(skipped)
+
+        replacement_memberships: list[dict[str, Any]] = []
+        replacement_skipped: list[dict[str, Any]] = []
+        affected_items = [
+            payload_item_by_id.get(item_id, {"item_id": item_id})
+            for item_id in sorted(affected_item_ids, key=self._semantic_item_sort_key)
+        ]
+        for batch_index, batch_items in enumerate(
+            self._semantic_folder_chunks(affected_items, SEMANTIC_FOLDER_BATCH_ITEM_LIMIT),
+            1,
+        ):
+            batch_item_ids = [str(item["item_id"]) for item in batch_items]
+            disposition_payload = self._semantic_folder_stage_payload(
+                base_payload,
+                planning_stage="membership_disposition",
+                items=batch_items,
+                guidance=(
+                    "Resolve only these affected membership intents after registry "
+                    "finalization. Use only the finalized active registry. Return new "
+                    "memberships for accepted placements or explicit skips for items that "
+                    "cannot be placed. Do not introduce new canonical values."
+                ),
+                planning_contract={
+                    "template": expected_template,
+                    "partial_path_policy": partial_path_policy,
+                    "final_active_registry": self._semantic_folder_registry_for_planner(
+                        final_canonical_values
+                    ),
+                    "affected_membership_intents": [
+                        self._semantic_folder_membership_for_planner(row)
+                        for item_id in batch_item_ids
+                        for row in memberships_by_item.get(item_id, [])
+                    ],
+                    "affected_skip_intents": [
+                        {
+                            "item_id": str(row["item_id"]),
+                            "reason": str(row.get("reason") or "skipped"),
+                        }
+                        for item_id in batch_item_ids
+                        for row in skips_by_item.get(item_id, [])
+                    ],
+                    "disposition_reason": (
+                        "One or more prior membership intents referenced canonical values "
+                        "that are not active in the finalized registry."
+                    ),
+                },
+            )
+            _, batch_validated, batch_attempts = self._plan_semantic_folder_disposition_stage(
+                planner,
+                disposition_payload,
+                item_file_refs={
+                    item_id: item_file_refs[item_id]
+                    for item_id in batch_item_ids
+                },
+                expected_template=expected_template,
+                partial_path_policy=partial_path_policy,
+                final_canonical_values=final_canonical_values,
+            )
+            stage_records.append(
+                {
+                    "stage": "membership_disposition",
+                    "batch": batch_index,
+                    "attempts": batch_attempts,
+                    "items": len(batch_items),
+                }
+            )
+            replacement_memberships.extend(
+                self._semantic_folder_membership_intent(row)
+                for row in batch_validated.memberships
+            )
+            replacement_skipped.extend(batch_validated.skipped)
+
+        unaffected_memberships = [
+            row for row in draft_memberships if str(row["item_id"]) not in affected_item_ids
+        ]
+        unaffected_skipped = [
+            row for row in draft_skipped if str(row["item_id"]) not in affected_item_ids
+        ]
+        return (
+            unaffected_memberships + replacement_memberships,
+            unaffected_skipped + replacement_skipped,
+        )
+
+    def _plan_semantic_folder_disposition_stage(
+        self,
+        planner: SemanticFolderPlanner,
+        planning_payload: dict[str, Any],
+        *,
+        item_file_refs: dict[str, str],
+        expected_template: list[str],
+        partial_path_policy: str,
+        final_canonical_values: list[dict[str, Any]],
+        max_attempts: int = SEMANTIC_FOLDER_MAX_PLANNING_ATTEMPTS,
+    ) -> tuple[dict[str, Any], Any, int]:
+        payload = dict(planning_payload)
+        last_error: SemanticFolderPlanError | None = None
+        raw_plan: dict[str, Any] = {}
+        for attempt in range(1, max_attempts + 1):
+            raw_plan = planner.plan(payload)
+            try:
+                disposition_plan = {
+                    **raw_plan,
+                    "canonical_values": final_canonical_values,
+                    "finalized": False,
+                }
+                validated = validate_semantic_folder_plan(
+                    disposition_plan,
+                    item_file_refs=item_file_refs,
+                    expected_template=expected_template,
+                    require_memberships=False,
+                    require_finalized=False,
+                )
+                if validated.partial_path_policy != partial_path_policy:
+                    raise SemanticFolderPlanError(
+                        "Semantic Folder disposition partial path policy changed: "
+                        f"{validated.partial_path_policy}"
+                    )
+                return raw_plan, validated, attempt
+            except SemanticFolderPlanError as exc:
+                last_error = exc
+                if attempt >= max_attempts:
+                    raise
+                payload = {
+                    **planning_payload,
+                    "retry": {
+                        "attempt": attempt + 1,
+                        "validation_error": str(exc),
+                        "invalid_plan": raw_plan,
+                        "instructions": (
+                            "Regenerate the localized disposition only. Use only the provided "
+                            "final_active_registry. Every affected item must appear in "
+                            "memberships or skipped. Do not introduce new canonical values."
+                        ),
+                    },
+                }
+        raise last_error or SemanticFolderPlanError("Semantic Folder membership disposition failed")
 
     def _plan_semantic_folder_stage(
         self,
@@ -945,6 +1144,185 @@ class PageIndexFileSystem:
                 }
             )
         return rows
+
+    @classmethod
+    def _semantic_folder_registry_lifecycle_contract(
+        cls,
+        *,
+        draft_canonical_values: list[dict[str, Any]],
+        draft_memberships: list[dict[str, Any]],
+        draft_skipped: list[dict[str, Any]],
+        payload_items: list[dict[str, Any]],
+        aggregate: dict[str, Any],
+        stage_records: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        item_by_id = {str(item.get("item_id")): item for item in payload_items}
+        proposals: dict[tuple[str, str, str], int] = {}
+        for row in draft_canonical_values:
+            key = (
+                str(row.get("field") or ""),
+                str(row.get("display") or ""),
+                str(row.get("slug") or ""),
+            )
+            proposals[key] = proposals.get(key, 0) + 1
+
+        membership_counts: dict[tuple[str, str, str], int] = {}
+        examples: dict[tuple[str, str, str], list[dict[str, Any]]] = {}
+        items_with_membership: set[str] = set()
+        for membership in draft_memberships:
+            item_id = str(membership.get("item_id") or "")
+            items_with_membership.add(item_id)
+            for segment in membership.get("canonical_segments") or []:
+                key = (
+                    str(segment.get("field") or ""),
+                    str(segment.get("display") or ""),
+                    str(segment.get("slug") or ""),
+                )
+                membership_counts[key] = membership_counts.get(key, 0) + 1
+                bucket = examples.setdefault(key, [])
+                if len(bucket) < SEMANTIC_FOLDER_REGISTRY_EXAMPLE_LIMIT:
+                    bucket.append(cls._semantic_folder_registry_example(item_by_id.get(item_id)))
+
+        field_values: dict[str, list[dict[str, Any]]] = {
+            field: [] for field in SEMANTIC_FOLDER_CANDIDATE_FIELDS
+        }
+        for key in sorted(
+            set(proposals) | set(membership_counts),
+            key=lambda item: (
+                item[0],
+                -membership_counts.get(item, 0),
+                -proposals.get(item, 0),
+                item[2],
+                item[1],
+            ),
+        ):
+            field, display, slug = key
+            if field not in field_values:
+                continue
+            field_values[field].append(
+                {
+                    "field": field,
+                    "display": cls._semantic_planning_summary(
+                        display,
+                        max_chars=SEMANTIC_FOLDER_PLANNING_VALUE_MAX_CHARS,
+                    ),
+                    "slug": slug,
+                    "proposal_count": proposals.get(key, 0),
+                    "membership_count": membership_counts.get(key, 0),
+                    "examples": examples.get(key, []),
+                }
+            )
+
+        skipped_reason_counts: dict[str, int] = {}
+        skipped_examples: list[dict[str, Any]] = []
+        skipped_item_ids: set[str] = set()
+        for skipped in draft_skipped:
+            item_id = str(skipped.get("item_id") or "")
+            skipped_item_ids.add(item_id)
+            reason = str(skipped.get("reason") or "skipped")
+            skipped_reason_counts[reason] = skipped_reason_counts.get(reason, 0) + 1
+            if len(skipped_examples) < SEMANTIC_FOLDER_SKIP_EXAMPLE_LIMIT:
+                skipped_examples.append(
+                    {
+                        "item_id": item_id,
+                        "reason": reason,
+                        "item": cls._semantic_folder_registry_example(item_by_id.get(item_id)),
+                    }
+                )
+
+        source_item_count = len(payload_items)
+        planned_item_ids = items_with_membership | skipped_item_ids
+        return {
+            "source_item_count": source_item_count,
+            "coverage": {
+                "membership_intent_count": len(draft_memberships),
+                "items_with_membership": len(items_with_membership),
+                "explicit_skip_count": len(draft_skipped),
+                "items_skipped": len(skipped_item_ids),
+                "unresolved_item_count": max(0, source_item_count - len(planned_item_ids)),
+            },
+            "aggregate": aggregate,
+            "candidate_registry": {
+                field: {
+                    "candidate_count": len(values),
+                    "included_candidates": values[:SEMANTIC_FOLDER_REGISTRY_FIELD_VALUE_LIMIT],
+                    "omitted_candidate_count": max(
+                        0,
+                        len(values) - SEMANTIC_FOLDER_REGISTRY_FIELD_VALUE_LIMIT,
+                    ),
+                }
+                for field, values in field_values.items()
+            },
+            "skips": {
+                "reason_counts": [
+                    {"reason": reason, "count": count}
+                    for reason, count in sorted(
+                        skipped_reason_counts.items(),
+                        key=lambda item: (-item[1], item[0]),
+                    )[:SEMANTIC_FOLDER_SKIP_REASON_LIMIT]
+                ],
+                "omitted_reason_count": max(
+                    0,
+                    len(skipped_reason_counts) - SEMANTIC_FOLDER_SKIP_REASON_LIMIT,
+                ),
+                "examples": skipped_examples,
+            },
+            "stage_ledger_summary": {
+                "stage_count": len(stage_records),
+                "attempts": sum(int(record.get("attempts") or 0) for record in stage_records),
+                "membership_batches": sum(
+                    1 for record in stage_records if record.get("stage") == "membership_planning"
+                ),
+                "items_seen_by_stage": [
+                    {
+                        "stage": str(record.get("stage") or ""),
+                        "items": int(record.get("items") or 0),
+                    }
+                    for record in stage_records[:20]
+                ],
+                "omitted_stage_record_count": max(0, len(stage_records) - 20),
+            },
+            "prior_adoption_context": {
+                "available": False,
+                "reason": "no prior adoption context is attached in V1",
+            },
+        }
+
+    @classmethod
+    def _semantic_folder_registry_example(cls, item: dict[str, Any] | None) -> dict[str, Any]:
+        if not item:
+            return {}
+        return {
+            "item_id": str(item.get("item_id") or ""),
+            "title": cls._semantic_planning_summary(item.get("title"), max_chars=120),
+            "summary": cls._semantic_planning_summary(item.get("summary"), max_chars=160),
+            "domain": cls._semantic_planning_metadata_value(item.get("domain")),
+            "topic": cls._semantic_planning_metadata_value(item.get("topic")),
+        }
+
+    @staticmethod
+    def _semantic_folder_membership_for_planner(membership: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "item_id": str(membership.get("item_id") or ""),
+            "relative_path": str(membership.get("relative_path") or ""),
+            "canonical_segments": [
+                {
+                    "field": str(segment.get("field") or ""),
+                    "display": str(segment.get("display") or ""),
+                    "slug": str(segment.get("slug") or ""),
+                }
+                for segment in membership.get("canonical_segments") or []
+            ],
+            "confidence": membership.get("confidence"),
+        }
+
+    @staticmethod
+    def _semantic_item_sort_key(item_id: str) -> tuple[int, str]:
+        suffix = str(item_id).rsplit("_", 1)[-1]
+        try:
+            return int(suffix), str(item_id)
+        except ValueError:
+            return 0, str(item_id)
 
     def _semantic_folder_payload_items(
         self,
