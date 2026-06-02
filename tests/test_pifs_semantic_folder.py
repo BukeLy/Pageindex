@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import time
 from dataclasses import dataclass
 from typing import Any
 
@@ -793,6 +794,237 @@ def test_semantic_folder_large_scope_uses_batch_membership_and_finalization(tmp_
     }
 
 
+def test_semantic_folder_planning_progress_is_persisted_for_start_and_success(tmp_path):
+    titles = [f"Doc {index:02d}" for index in range(30)]
+    filesystem = _filesystem(
+        tmp_path,
+        {
+            title: {"summary": f"{title} summary", "domain": "Finance", "topic": "Rates"}
+            for title in titles
+        },
+    )
+    for index, title in enumerate(titles):
+        _register_generated_file(filesystem, title, folder="/documents", external_id=f"doc_{index}")
+
+    class ProgressInspectingPlanner(TitlePlanner):
+        def __init__(self):
+            super().__init__({title: ["domain/finance/topic/rates"] for title in titles})
+            self.started_rows: list[dict[str, Any]] = []
+
+        def plan(self, payload):
+            with filesystem.store.connect() as conn:
+                row = conn.execute(
+                    """
+                    SELECT stage, chunk_index, chunk_total, item_count, attempt, status
+                    FROM semantic_folder_build_progress
+                    ORDER BY rowid DESC
+                    LIMIT 1
+                    """
+                ).fetchone()
+            assert row is not None
+            started = dict(row)
+            assert started["status"] == "started"
+            assert started["stage"] == payload["planning_stage"]
+            self.started_rows.append(started)
+            return super().plan(payload)
+
+    progress_events: list[dict[str, Any]] = []
+    planner = ProgressInspectingPlanner()
+
+    result = filesystem.build_semantic_folder(
+        "/documents",
+        planner=planner,
+        progress_callback=progress_events.append,
+    )
+
+    assert result["publish_status"] == "published"
+    assert [row["stage"] for row in planner.started_rows] == [
+        "sample_planning",
+        "membership_planning",
+        "registry_finalization",
+    ]
+    assert [event["status"] for event in progress_events] == [
+        "started",
+        "success",
+        "started",
+        "success",
+        "started",
+        "success",
+    ]
+    with filesystem.store.connect() as conn:
+        rows = [
+            dict(row)
+            for row in conn.execute(
+                """
+                SELECT stage, chunk_index, chunk_total, item_count, attempt, status,
+                       started_at, finished_at, elapsed_seconds, error
+                FROM semantic_folder_build_progress
+                ORDER BY rowid
+                """
+            ).fetchall()
+        ]
+    assert [
+        (row["stage"], row["chunk_index"], row["chunk_total"], row["item_count"], row["status"])
+        for row in rows
+    ] == [
+        ("sample_planning", 1, 1, 25, "success"),
+        ("membership_planning", 1, 1, 30, "success"),
+        ("registry_finalization", 1, 1, 30, "success"),
+    ]
+    assert all(row["started_at"] for row in rows)
+    assert all(row["finished_at"] for row in rows)
+    assert all(row["elapsed_seconds"] is not None for row in rows)
+    assert all(row["error"] is None for row in rows)
+
+
+def test_semantic_folder_planning_failure_progress_is_sanitized_and_unpublished(tmp_path):
+    titles = [f"Doc {index:02d}" for index in range(30)]
+    filesystem = _filesystem(
+        tmp_path,
+        {
+            title: {"summary": f"{title} summary", "domain": "Finance", "topic": "Rates"}
+            for title in titles
+        },
+    )
+    for index, title in enumerate(titles):
+        _register_generated_file(filesystem, title, folder="/documents", external_id=f"doc_{index}")
+
+    class FailingMembershipPlanner(TitlePlanner):
+        def __init__(self):
+            super().__init__({title: ["domain/finance/topic/rates"] for title in titles})
+
+        def plan(self, payload):
+            if payload.get("planning_stage") == "membership_planning":
+                raise RuntimeError("raw prompt leaked file_abc123 sk-secret should not persist")
+            return super().plan(payload)
+
+    progress_events: list[dict[str, Any]] = []
+
+    with pytest.raises(RuntimeError):
+        filesystem.build_semantic_folder(
+            "/documents",
+            planner=FailingMembershipPlanner(),
+            progress_callback=progress_events.append,
+        )
+
+    with filesystem.store.connect() as conn:
+        progress_rows = [
+            dict(row)
+            for row in conn.execute(
+                """
+                SELECT stage, chunk_index, status, error
+                FROM semantic_folder_build_progress
+                ORDER BY rowid
+                """
+            ).fetchall()
+        ]
+        build_row = dict(
+            conn.execute(
+                """
+                SELECT lifecycle_status, error
+                FROM semantic_folder_builds
+                ORDER BY created_at DESC
+                LIMIT 1
+                """
+            ).fetchone()
+        )
+
+    failure_rows = [row for row in progress_rows if row["status"] == "failure"]
+    assert len(failure_rows) == 1
+    assert failure_rows[0]["stage"] == "membership_planning"
+    stored_error = failure_rows[0]["error"]
+    assert stored_error
+    assert "file_abc123" not in stored_error
+    assert "sk-secret" not in stored_error
+    assert "raw prompt" not in stored_error
+    assert "[file_ref]" in stored_error
+    assert "[redacted-key]" in stored_error
+    assert build_row["lifecycle_status"] == "failed"
+    assert build_row["error"] == stored_error
+    assert any(event["status"] == "failure" for event in progress_events)
+    with pytest.raises(KeyError):
+        filesystem.store.folder_info("/documents/semantic")
+
+
+def test_semantic_folder_planning_timeout_is_recorded_and_unpublished(tmp_path):
+    filesystem = _filesystem(
+        tmp_path,
+        {
+            "Slow": {"summary": "Slow summary", "domain": "Finance", "topic": "Rates"},
+        },
+    )
+    _register_generated_file(filesystem, "Slow", folder="/documents")
+
+    class SlowPlanner:
+        request_timeout = 0.01
+
+        def plan(self, payload):
+            time.sleep(1)
+            return {
+                "template": ["domain", "topic"],
+                "partial_path_policy": "template_prefix",
+                "canonical_values": [
+                    {"field": "domain", "display": "Finance", "slug": "finance"},
+                    {"field": "topic", "display": "Rates", "slug": "rates"},
+                ],
+                "memberships": [
+                    {
+                        "item_id": item["item_id"],
+                        "paths": ["domain/finance/topic/rates"],
+                        "confidence": 0.8,
+                    }
+                    for item in payload["items"]
+                ],
+                "skipped": [],
+                "finalized": payload.get("planning_stage") == "registry_finalization",
+            }
+
+    progress_events: list[dict[str, Any]] = []
+
+    with pytest.raises(Exception, match="timed out"):
+        filesystem.build_semantic_folder(
+            "/documents",
+            planner=SlowPlanner(),
+            progress_callback=progress_events.append,
+        )
+
+    with filesystem.store.connect() as conn:
+        rows = [
+            dict(row)
+            for row in conn.execute(
+                """
+                SELECT stage, chunk_index, attempt, status, error
+                FROM semantic_folder_build_progress
+                ORDER BY rowid
+                """
+            ).fetchall()
+        ]
+        build_row = dict(
+            conn.execute(
+                """
+                SELECT lifecycle_status, error
+                FROM semantic_folder_builds
+                ORDER BY created_at DESC
+                LIMIT 1
+                """
+            ).fetchone()
+        )
+    assert [
+        (row["stage"], row["chunk_index"], row["attempt"], row["status"])
+        for row in rows
+    ] == [
+        ("sample_planning", 1, 1, "failure"),
+        ("sample_planning", 1, 2, "failure"),
+        ("sample_planning", 1, 3, "failure"),
+    ]
+    assert all("timed out after 0.0s" in row["error"] for row in rows)
+    assert build_row["lifecycle_status"] == "failed"
+    assert "timed out after 0.0s" in build_row["error"]
+    assert any(event["status"] == "failure" for event in progress_events)
+    with pytest.raises(KeyError):
+        filesystem.store.folder_info("/documents/semantic")
+
+
 def test_semantic_folder_registry_finalization_contract_is_bounded_for_large_synthetic_ledger():
     from pageindex.filesystem.core import PageIndexFileSystem
 
@@ -1262,7 +1494,19 @@ def test_cli_semantic_folder_build_is_user_surface_not_agent_surface(monkeypatch
         def configure_existing_projection_retrieval(self):
             return False
 
-        def build_semantic_folder(self, source_scope="/"):
+        def build_semantic_folder(self, source_scope="/", *, progress_callback=None):
+            if progress_callback is not None:
+                progress_callback(
+                    {
+                        "stage": "membership_planning",
+                        "chunk_index": 1,
+                        "chunk_total": 2,
+                        "item_count": 25,
+                        "attempt": 1,
+                        "status": "started",
+                        "elapsed_seconds": 0.0,
+                    }
+                )
             return {
                 "source": source_scope,
                 "mount": "/documents/semantic",
@@ -1282,6 +1526,7 @@ def test_cli_semantic_folder_build_is_user_surface_not_agent_surface(monkeypatch
 
     assert status == 0
     output = capsys.readouterr().out
+    assert "progress: stage=membership_planning chunk=1/2 items=25 attempt=1 status=started" in output
     assert "source: /documents" in output
     assert "mount: /documents/semantic" in output
     assert "metadata: cached=5 generating=1 failed=0" in output

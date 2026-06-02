@@ -2,11 +2,15 @@ from __future__ import annotations
 
 import json
 import os
+import queue
+import re
 import shutil
 import tempfile
+import threading
+import time
 import uuid
 from pathlib import Path, PurePosixPath
-from typing import TYPE_CHECKING, Any, Optional, Union
+from typing import TYPE_CHECKING, Any, Callable, Optional, Union
 from urllib.parse import unquote, urlparse
 
 from .metadata import MetadataQueryEngine
@@ -356,6 +360,7 @@ class PageIndexFileSystem:
         source_scope: str = "/",
         *,
         planner: SemanticFolderPlanner | None = None,
+        progress_callback: Callable[[dict[str, Any]], None] | None = None,
     ) -> dict[str, Any]:
         source_scope = normalize_path(source_scope or "/")
         blocked_mount = self.store.semantic_generated_mount_containing(source_scope)
@@ -416,6 +421,8 @@ class PageIndexFileSystem:
                 planner,
                 planning_payload,
                 item_file_refs=item_file_refs,
+                build_id=build_id,
+                progress_callback=progress_callback,
             )
             items_by_id = {item.item_id: item for item in items}
             memberships = [
@@ -540,7 +547,10 @@ class PageIndexFileSystem:
                 "finalized_contract_hash": finalized_contract_hash,
             }
         except Exception as exc:
-            self.store.mark_semantic_folder_build_failed(build_id, str(exc))
+            self.store.mark_semantic_folder_build_failed(
+                build_id,
+                self._semantic_folder_progress_error(exc),
+            )
             raise
 
     def _plan_semantic_folder(
@@ -549,6 +559,8 @@ class PageIndexFileSystem:
         planning_payload: dict[str, Any],
         *,
         item_file_refs: dict[str, str],
+        build_id: str,
+        progress_callback: Callable[[dict[str, Any]], None] | None = None,
     ) -> tuple[dict[str, Any], Any, dict[str, Any]]:
         payload_items = list(planning_payload["items"])
         sample_payload_items = payload_items[:SEMANTIC_FOLDER_SAMPLE_ITEM_LIMIT]
@@ -570,6 +582,12 @@ class PageIndexFileSystem:
                 str(item["item_id"]): item_file_refs[str(item["item_id"])]
                 for item in sample_payload_items
             },
+            build_id=build_id,
+            stage="sample_planning",
+            chunk_index=1,
+            chunk_total=1,
+            item_count=len(sample_payload_items),
+            progress_callback=progress_callback,
         )
         stage_records.append(
             {
@@ -591,10 +609,11 @@ class PageIndexFileSystem:
             draft_skipped = list(sample_validated.skipped)
 
         if len(payload_items) > SEMANTIC_FOLDER_SAMPLE_ITEM_LIMIT:
-            for batch_index, batch_items in enumerate(
-                self._semantic_folder_chunks(payload_items, SEMANTIC_FOLDER_BATCH_ITEM_LIMIT),
-                1,
-            ):
+            membership_batches = self._semantic_folder_chunks(
+                payload_items,
+                SEMANTIC_FOLDER_BATCH_ITEM_LIMIT,
+            )
+            for batch_index, batch_items in enumerate(membership_batches, 1):
                 batch_payload = self._semantic_folder_stage_payload(
                     planning_payload,
                     planning_stage="membership_planning",
@@ -621,6 +640,12 @@ class PageIndexFileSystem:
                     },
                     expected_template=sample_validated.template,
                     require_memberships=False,
+                    build_id=build_id,
+                    stage="membership_planning",
+                    chunk_index=batch_index,
+                    chunk_total=len(membership_batches),
+                    item_count=len(batch_items),
+                    progress_callback=progress_callback,
                 )
                 stage_records.append(
                     {
@@ -672,6 +697,8 @@ class PageIndexFileSystem:
                 draft_skipped=draft_skipped,
                 base_payload=planning_payload,
                 stage_records=stage_records,
+                build_id=build_id,
+                progress_callback=progress_callback,
             )
         )
         stage_records.append(
@@ -700,14 +727,25 @@ class PageIndexFileSystem:
         draft_skipped: list[dict[str, Any]],
         base_payload: dict[str, Any],
         stage_records: list[dict[str, Any]],
+        build_id: str,
+        progress_callback: Callable[[dict[str, Any]], None] | None,
         max_attempts: int = SEMANTIC_FOLDER_MAX_PLANNING_ATTEMPTS,
     ) -> tuple[dict[str, Any], Any, int]:
         payload = dict(planning_payload)
         last_error: SemanticFolderPlanError | None = None
         raw_plan: dict[str, Any] = {}
         for attempt in range(1, max_attempts + 1):
-            raw_plan = planner.plan(payload)
+            progress_started = self._start_semantic_folder_progress(
+                build_id=build_id,
+                stage="registry_finalization",
+                chunk_index=1,
+                chunk_total=1,
+                item_count=len(item_file_refs),
+                attempt=attempt,
+                progress_callback=progress_callback,
+            )
             try:
+                raw_plan = self._semantic_folder_call_planner(planner, payload)
                 registry_plan = {
                     **raw_plan,
                     "memberships": [],
@@ -730,6 +768,8 @@ class PageIndexFileSystem:
                     draft_skipped=draft_skipped,
                     item_file_refs=item_file_refs,
                     stage_records=stage_records,
+                    build_id=build_id,
+                    progress_callback=progress_callback,
                 )
                 final_plan = self._semantic_folder_final_plan_from_draft(
                     template=registry_validated.template,
@@ -744,8 +784,22 @@ class PageIndexFileSystem:
                     expected_template=expected_template,
                     require_finalized=True,
                 )
+                self._finish_semantic_folder_progress(
+                    progress_started,
+                    status="success",
+                    progress_callback=progress_callback,
+                )
                 return raw_plan, final_validated, attempt
-            except SemanticFolderPlanError as exc:
+            except Exception as exc:
+                safe_error = self._semantic_folder_progress_error(exc)
+                self._finish_semantic_folder_progress(
+                    progress_started,
+                    status="failure",
+                    error=safe_error,
+                    progress_callback=progress_callback,
+                )
+                if not isinstance(exc, SemanticFolderPlanError):
+                    raise
                 last_error = exc
                 if attempt >= max_attempts:
                     raise
@@ -777,6 +831,8 @@ class PageIndexFileSystem:
         draft_skipped: list[dict[str, Any]],
         item_file_refs: dict[str, str],
         stage_records: list[dict[str, Any]],
+        build_id: str,
+        progress_callback: Callable[[dict[str, Any]], None] | None,
     ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
         active_keys = {
             (str(row["field"]), str(row["slug"]))
@@ -813,10 +869,11 @@ class PageIndexFileSystem:
             payload_item_by_id.get(item_id, {"item_id": item_id})
             for item_id in sorted(affected_item_ids, key=self._semantic_item_sort_key)
         ]
-        for batch_index, batch_items in enumerate(
-            self._semantic_folder_chunks(affected_items, SEMANTIC_FOLDER_BATCH_ITEM_LIMIT),
-            1,
-        ):
+        disposition_batches = self._semantic_folder_chunks(
+            affected_items,
+            SEMANTIC_FOLDER_BATCH_ITEM_LIMIT,
+        )
+        for batch_index, batch_items in enumerate(disposition_batches, 1):
             batch_item_ids = [str(item["item_id"]) for item in batch_items]
             disposition_payload = self._semantic_folder_stage_payload(
                 base_payload,
@@ -863,6 +920,12 @@ class PageIndexFileSystem:
                 expected_template=expected_template,
                 partial_path_policy=partial_path_policy,
                 final_canonical_values=final_canonical_values,
+                build_id=build_id,
+                stage="membership_disposition",
+                chunk_index=batch_index,
+                chunk_total=len(disposition_batches),
+                item_count=len(batch_items),
+                progress_callback=progress_callback,
             )
             stage_records.append(
                 {
@@ -898,14 +961,29 @@ class PageIndexFileSystem:
         expected_template: list[str],
         partial_path_policy: str,
         final_canonical_values: list[dict[str, Any]],
+        build_id: str,
+        stage: str,
+        chunk_index: int,
+        chunk_total: int,
+        item_count: int,
+        progress_callback: Callable[[dict[str, Any]], None] | None,
         max_attempts: int = SEMANTIC_FOLDER_MAX_PLANNING_ATTEMPTS,
     ) -> tuple[dict[str, Any], Any, int]:
         payload = dict(planning_payload)
         last_error: SemanticFolderPlanError | None = None
         raw_plan: dict[str, Any] = {}
         for attempt in range(1, max_attempts + 1):
-            raw_plan = planner.plan(payload)
+            progress_started = self._start_semantic_folder_progress(
+                build_id=build_id,
+                stage=stage,
+                chunk_index=chunk_index,
+                chunk_total=chunk_total,
+                item_count=item_count,
+                attempt=attempt,
+                progress_callback=progress_callback,
+            )
             try:
+                raw_plan = self._semantic_folder_call_planner(planner, payload)
                 disposition_plan = {
                     **raw_plan,
                     "canonical_values": final_canonical_values,
@@ -923,8 +1001,22 @@ class PageIndexFileSystem:
                         "Semantic Folder disposition partial path policy changed: "
                         f"{validated.partial_path_policy}"
                     )
+                self._finish_semantic_folder_progress(
+                    progress_started,
+                    status="success",
+                    progress_callback=progress_callback,
+                )
                 return raw_plan, validated, attempt
-            except SemanticFolderPlanError as exc:
+            except Exception as exc:
+                safe_error = self._semantic_folder_progress_error(exc)
+                self._finish_semantic_folder_progress(
+                    progress_started,
+                    status="failure",
+                    error=safe_error,
+                    progress_callback=progress_callback,
+                )
+                if not isinstance(exc, SemanticFolderPlanError):
+                    raise
                 last_error = exc
                 if attempt >= max_attempts:
                     raise
@@ -952,14 +1044,29 @@ class PageIndexFileSystem:
         expected_template: list[str] | None = None,
         require_memberships: bool = True,
         require_finalized: bool = False,
+        build_id: str,
+        stage: str,
+        chunk_index: int,
+        chunk_total: int,
+        item_count: int,
+        progress_callback: Callable[[dict[str, Any]], None] | None,
         max_attempts: int = SEMANTIC_FOLDER_MAX_PLANNING_ATTEMPTS,
     ) -> tuple[dict[str, Any], Any, int]:
         payload = dict(planning_payload)
         last_error: SemanticFolderPlanError | None = None
         raw_plan: dict[str, Any] = {}
         for attempt in range(1, max_attempts + 1):
-            raw_plan = planner.plan(payload)
+            progress_started = self._start_semantic_folder_progress(
+                build_id=build_id,
+                stage=stage,
+                chunk_index=chunk_index,
+                chunk_total=chunk_total,
+                item_count=item_count,
+                attempt=attempt,
+                progress_callback=progress_callback,
+            )
             try:
+                raw_plan = self._semantic_folder_call_planner(planner, payload)
                 validated = validate_semantic_folder_plan(
                     raw_plan,
                     item_file_refs=item_file_refs,
@@ -967,8 +1074,22 @@ class PageIndexFileSystem:
                     require_memberships=require_memberships,
                     require_finalized=require_finalized,
                 )
+                self._finish_semantic_folder_progress(
+                    progress_started,
+                    status="success",
+                    progress_callback=progress_callback,
+                )
                 return raw_plan, validated, attempt
-            except SemanticFolderPlanError as exc:
+            except Exception as exc:
+                safe_error = self._semantic_folder_progress_error(exc)
+                self._finish_semantic_folder_progress(
+                    progress_started,
+                    status="failure",
+                    error=safe_error,
+                    progress_callback=progress_callback,
+                )
+                if not isinstance(exc, SemanticFolderPlanError):
+                    raise
                 last_error = exc
                 if attempt >= max_attempts:
                     raise
@@ -991,6 +1112,153 @@ class PageIndexFileSystem:
                     },
                 }
         raise last_error or SemanticFolderPlanError("Semantic Folder planning failed")
+
+    @staticmethod
+    def _semantic_folder_call_planner(
+        planner: SemanticFolderPlanner,
+        payload: dict[str, Any],
+    ) -> dict[str, Any]:
+        timeout = getattr(planner, "request_timeout", None)
+        if timeout is None:
+            return planner.plan(payload)
+        try:
+            timeout_seconds = float(timeout)
+        except (TypeError, ValueError):
+            return planner.plan(payload)
+        if timeout_seconds <= 0:
+            return planner.plan(payload)
+
+        result_queue: queue.Queue[tuple[str, Any]] = queue.Queue(maxsize=1)
+
+        def run_plan() -> None:
+            try:
+                result_queue.put_nowait(("success", planner.plan(payload)))
+            except BaseException as exc:
+                result_queue.put_nowait(("error", exc))
+
+        thread = threading.Thread(
+            target=run_plan,
+            name="pifs-semantic-folder-planner",
+            daemon=True,
+        )
+        thread.start()
+        try:
+            status, value = result_queue.get(timeout=timeout_seconds)
+        except queue.Empty as exc:
+            raise SemanticFolderPlanError(
+                f"Semantic Folder planner request timed out after {timeout_seconds:.1f}s"
+            ) from exc
+        if status == "error":
+            raise value
+        return value
+
+    def _start_semantic_folder_progress(
+        self,
+        *,
+        build_id: str,
+        stage: str,
+        chunk_index: int,
+        chunk_total: int,
+        item_count: int,
+        attempt: int,
+        progress_callback: Callable[[dict[str, Any]], None] | None,
+    ) -> dict[str, Any]:
+        event = {
+            "build_id": build_id,
+            "stage": stage,
+            "chunk_index": int(chunk_index),
+            "chunk_total": int(chunk_total),
+            "item_count": int(item_count),
+            "attempt": int(attempt),
+            "status": "started",
+            "elapsed_seconds": 0.0,
+            "_started_monotonic": time.monotonic(),
+        }
+        self.store.start_semantic_folder_progress(
+            build_id=build_id,
+            stage=stage,
+            chunk_index=int(chunk_index),
+            chunk_total=int(chunk_total),
+            item_count=int(item_count),
+            attempt=int(attempt),
+        )
+        self._emit_semantic_folder_progress(event, progress_callback=progress_callback)
+        return event
+
+    def _finish_semantic_folder_progress(
+        self,
+        started_event: dict[str, Any],
+        *,
+        status: str,
+        progress_callback: Callable[[dict[str, Any]], None] | None,
+        error: str | None = None,
+    ) -> None:
+        elapsed_seconds = max(
+            0.0,
+            time.monotonic() - float(started_event.get("_started_monotonic") or time.monotonic()),
+        )
+        self.store.finish_semantic_folder_progress(
+            build_id=str(started_event["build_id"]),
+            stage=str(started_event["stage"]),
+            chunk_index=int(started_event["chunk_index"]),
+            attempt=int(started_event["attempt"]),
+            status=status,
+            error=error,
+        )
+        event = {
+            key: value
+            for key, value in started_event.items()
+            if not key.startswith("_")
+        }
+        event.update(
+            {
+                "status": status,
+                "elapsed_seconds": round(elapsed_seconds, 3),
+            }
+        )
+        if error:
+            event["error"] = error
+        self._emit_semantic_folder_progress(event, progress_callback=progress_callback)
+
+    @staticmethod
+    def _emit_semantic_folder_progress(
+        event: dict[str, Any],
+        *,
+        progress_callback: Callable[[dict[str, Any]], None] | None,
+    ) -> None:
+        if progress_callback is None:
+            return
+        safe_event = {
+            key: value
+            for key, value in event.items()
+            if not key.startswith("_")
+        }
+        try:
+            progress_callback(safe_event)
+        except Exception:
+            return
+
+    @staticmethod
+    def _semantic_folder_progress_error(exc: BaseException) -> str:
+        error = " ".join(str(exc).split())
+        for env_name in (
+            "PIFS_SEMANTIC_FOLDER_API_KEY",
+            "PIFS_METADATA_API_KEY",
+            "OPENAI_API_KEY",
+            "GEMINI_API_KEY",
+        ):
+            value = os.environ.get(env_name)
+            if value:
+                error = error.replace(value, "[redacted]")
+        replacements = [
+            (r"sk-[A-Za-z0-9_\-]+", "[redacted-key]"),
+            (r"(?i)\bapi[_ -]?key\b[^\s,;)]*", "api_key=[redacted]"),
+            (r"(?i)\bfile_[A-Za-z0-9_\-]+", "[file_ref]"),
+            (r"(?i)\bprompt\b", "[prompt]"),
+        ]
+        for pattern, replacement in replacements:
+            error = re.sub(pattern, replacement, error)
+        return error[:500]
 
     def _semantic_folder_planning_payload(
         self,

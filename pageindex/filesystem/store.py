@@ -105,6 +105,24 @@ class SQLiteFileSystemStore:
                 updated_at TEXT DEFAULT CURRENT_TIMESTAMP
             );
 
+            CREATE TABLE IF NOT EXISTS semantic_folder_build_progress (
+                build_id TEXT NOT NULL,
+                stage TEXT NOT NULL,
+                chunk_index INTEGER NOT NULL,
+                chunk_total INTEGER NOT NULL,
+                item_count INTEGER NOT NULL,
+                attempt INTEGER NOT NULL,
+                status TEXT NOT NULL,
+                started_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                finished_at TEXT,
+                elapsed_seconds REAL,
+                error TEXT,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY(build_id, stage, chunk_index, attempt),
+                FOREIGN KEY(build_id) REFERENCES semantic_folder_builds(build_id) ON DELETE CASCADE
+            );
+
             CREATE TABLE IF NOT EXISTS metadata_schema (
                 schema_id TEXT PRIMARY KEY,
                 scope_path TEXT,
@@ -154,6 +172,8 @@ class SQLiteFileSystemStore:
                 ON semantic_folder_manifests(source_scope, created_at);
             CREATE INDEX IF NOT EXISTS idx_semantic_folder_builds_mount
                 ON semantic_folder_builds(source_scope, mount_path, lifecycle_status, created_at);
+            CREATE INDEX IF NOT EXISTS idx_semantic_folder_build_progress_build
+                ON semantic_folder_build_progress(build_id, stage, chunk_index, attempt);
             CREATE INDEX IF NOT EXISTS idx_metadata_fields_name ON metadata_fields(name);
             CREATE INDEX IF NOT EXISTS idx_metadata_values_field_text ON metadata_values(field_id, value_text);
             CREATE INDEX IF NOT EXISTS idx_metadata_values_field_number ON metadata_values(field_id, value_number);
@@ -501,6 +521,85 @@ class SQLiteFileSystemStore:
                   AND lifecycle_status != 'published'
                 """,
                 (error[:2000], build_id),
+            )
+
+    def start_semantic_folder_progress(
+        self,
+        *,
+        build_id: str,
+        stage: str,
+        chunk_index: int,
+        chunk_total: int,
+        item_count: int,
+        attempt: int,
+    ) -> None:
+        with self.connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO semantic_folder_build_progress(
+                    build_id, stage, chunk_index, chunk_total, item_count,
+                    attempt, status, started_at, finished_at, elapsed_seconds, error,
+                    updated_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, 'started', CURRENT_TIMESTAMP, NULL, NULL, NULL,
+                        CURRENT_TIMESTAMP)
+                ON CONFLICT(build_id, stage, chunk_index, attempt) DO UPDATE SET
+                    chunk_total = excluded.chunk_total,
+                    item_count = excluded.item_count,
+                    status = 'started',
+                    started_at = CURRENT_TIMESTAMP,
+                    finished_at = NULL,
+                    elapsed_seconds = NULL,
+                    error = NULL,
+                    updated_at = CURRENT_TIMESTAMP
+                """,
+                (
+                    build_id,
+                    stage,
+                    int(chunk_index),
+                    int(chunk_total),
+                    int(item_count),
+                    int(attempt),
+                ),
+            )
+
+    def finish_semantic_folder_progress(
+        self,
+        *,
+        build_id: str,
+        stage: str,
+        chunk_index: int,
+        attempt: int,
+        status: str,
+        error: str | None = None,
+    ) -> None:
+        if status not in {"success", "failure"}:
+            raise ValueError(f"Unsupported Semantic Folder progress status: {status}")
+        with self.connect() as conn:
+            conn.execute(
+                """
+                UPDATE semantic_folder_build_progress
+                SET status = ?,
+                    finished_at = CURRENT_TIMESTAMP,
+                    elapsed_seconds = ROUND(
+                        (julianday(CURRENT_TIMESTAMP) - julianday(started_at)) * 86400,
+                        3
+                    ),
+                    error = ?,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE build_id = ?
+                  AND stage = ?
+                  AND chunk_index = ?
+                  AND attempt = ?
+                """,
+                (
+                    status,
+                    None if error is None else error[:500],
+                    build_id,
+                    stage,
+                    int(chunk_index),
+                    int(attempt),
+                ),
             )
 
     def semantic_source_file_entries(self, source_scope: str) -> list[FileEntry]:

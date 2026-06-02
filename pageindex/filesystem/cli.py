@@ -305,7 +305,26 @@ def _run_semantic_folder(argv: list[str], *, workspace: str) -> int:
 
     if args.semantic_folder_command == "build":
         filesystem = _filesystem_from_workspace(workspace)
-        result = filesystem.build_semantic_folder(args.source_scope)
+
+        def print_progress(event):
+            elapsed = float(event.get("elapsed_seconds") or 0.0)
+            fields = [
+                "progress:",
+                f"stage={event.get('stage', '')}",
+                f"chunk={event.get('chunk_index', 0)}/{event.get('chunk_total', 0)}",
+                f"items={event.get('item_count', 0)}",
+                f"attempt={event.get('attempt', 0)}",
+                f"status={event.get('status', '')}",
+                f"elapsed={elapsed:.1f}s",
+            ]
+            if event.get("error"):
+                fields.append(f"error={event['error']}")
+            print(" ".join(fields), flush=True)
+
+        result = filesystem.build_semantic_folder(
+            args.source_scope,
+            progress_callback=print_progress,
+        )
         print(f"publish: {result.get('publish_status', 'published')}")
         print(f"source: {result['source']}")
         print(f"mount: {result['mount']}")
