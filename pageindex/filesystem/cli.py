@@ -319,14 +319,12 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="PageIndex FileSystem CLI")
     parser.add_argument("--workspace", default=None)
     parser.add_argument("--env-file", default=None)
-    parser.add_argument("--json", action="store_true", dest="json_output")
     parser.add_argument("command", nargs=argparse.REMAINDER)
     args = parser.parse_args(argv)
     _load_env_file(args.env_file, workspace=args.workspace)
     args.workspace = _resolve_workspace(args.workspace)
 
     command_tokens = [token for token in args.command if token != "--"]
-    json_output = args.json_output
 
     if not command_tokens:
         parser.error("a filesystem command is required")
@@ -345,15 +343,12 @@ def main(argv: list[str] | None = None) -> int:
                 parser.error("--workspace is required unless PIFS_WORKSPACE is set or `pifs set workspace <path>` has been run")
             return _run_add(command_args, workspace=args.workspace)
 
-        if "--json" in command_tokens:
-            command_tokens = [token for token in command_tokens if token != "--json"]
-            json_output = True
         if not args.workspace:
             parser.error("--workspace is required unless PIFS_WORKSPACE is set or `pifs set workspace <path>` has been run")
         return _run_passthrough(
             command_tokens,
             workspace=args.workspace,
-            json_output=json_output,
+            json_output=False,
         )
     except PIFSCommandError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)

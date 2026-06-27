@@ -117,13 +117,13 @@ def test_cli_passthrough_invokes_pifs_command_executor(monkeypatch, capsys, tmp_
     monkeypatch.setattr(cli, "PageIndexFileSystem", FakeFileSystem)
     monkeypatch.setattr(cli, "PIFSCommandExecutor", FakeExecutor)
 
-    status = cli.main(["--workspace", str(workspace), "ls", "/documents", "--json"])
+    status = cli.main(["--workspace", str(workspace), "ls", "/documents"])
 
     assert status == 0
     assert capsys.readouterr().out == "executed:ls /documents\n"
     assert len(executor_instances) == 1
     assert executor_instances[0].filesystem.workspace == workspace
-    assert executor_instances[0].json_output is True
+    assert executor_instances[0].json_output is False
     assert executor_instances[0].commands == ["ls /documents"]
 
 

@@ -68,8 +68,8 @@ Use only the bash tool. It is a read-only PIFS virtual shell, not a real OS
 shell. The workspace contains registered example PDFs.
 
 Retrieval strategy:
-- Start with ls or tree to understand the workspace.
-- Use concrete PIFS paths from ls/find output, such as /documents/report.pdf,
+- Start with tree to understand the workspace.
+- Use concrete PIFS paths from tree/browse output, such as /documents/report.pdf,
   or stable file_ref/document ids. Do not invent temporary ref_N aliases.
 - Folder paths such as /documents are positional command targets; do not put
   folder paths inside --where.
@@ -79,15 +79,14 @@ Retrieval strategy:
 - If the folder is uncertain, use recursive browse from a structural parent,
   for example:
   browse -R /documents "Federal Reserve supervision regulation"
-- browse returns file candidates only; it is not folder semantic recall.
+- Use recursive browse only after inspecting plausible folders or rephrasing.
+- browse returns document candidates only; it is not final evidence.
 - After browse returns candidates, verify evidence with grep, cat <path>
   --structure, or cat <path> --page before answering.
-- Use find --where only with JSON metadata DSL, for example:
-  find /documents --where '{"file_format":"pdf"}'
-- Use grep -R only for lexical evidence; do not treat semantic candidates as
-  literal matches.
-- Use grep <query> <file> for one selected file; use grep -R only with folder
-  targets.
+- Use browse --where with JSON metadata DSL when metadata pruning is needed.
+- Use grep <query> <file> only for one selected file.
+- Do not use find, recursive grep, folder grep, pipes, browse spaces, or stat
+  schema/field modes.
 - Run one evidence command at a time. Do not chain large commands like
   cat <path> --structure, grep, and cat <path> --page in one bash call.
 - For PDFs, use cat <path> --structure to inspect the PageIndex tree, then
@@ -100,7 +99,6 @@ Retrieval strategy:
   range. Then run cat <path> --page on the smallest useful evidence range, usually the
   section start page or first 1-2 pages, before the final answer. Do not print
   a broad multi-page section unless the user asks to read the whole section.
-- Do not use cat --all on PDFs.
 - Answer only from PIFS tool output and cite file refs or document ids.
 """
 

@@ -91,9 +91,11 @@ def test_add_text_folder_target_copies_artifact_indexes_summary_and_is_readable(
     assert copied_path.resolve() != source.resolve()
 
     executor = PIFSCommandExecutor(filesystem, json_output=True)
-    rendered = json.loads(executor.execute("cat /documents/reports/filing.txt --all"))
+    rendered = json.loads(executor.execute("grep alpha /documents/reports/filing.txt"))
 
-    assert rendered["data"]["text"] == "alpha filing text for pifs add"
+    assert rendered["data"]["matches"] == [
+        {"line": 1, "text": "alpha filing text for pifs add"}
+    ]
     assert info["metadata"]["summary"].startswith("Summary for filing.txt")
     assert filesystem.summary_projection_indexer.index.info()["document_count"] == 1
 
@@ -112,8 +114,8 @@ def test_add_rejects_same_folder_same_basename_without_overwrite(tmp_path):
         filesystem.add_file(source, "/documents")
 
     executor = PIFSCommandExecutor(filesystem, json_output=True)
-    rendered = json.loads(executor.execute("cat /documents/conflict.txt --all"))
-    assert rendered["data"]["text"] == "first body"
+    rendered = json.loads(executor.execute("grep first /documents/conflict.txt"))
+    assert rendered["data"]["matches"] == [{"line": 1, "text": "first body"}]
 
 
 def test_add_rejects_unsupported_type_before_registration(tmp_path):
