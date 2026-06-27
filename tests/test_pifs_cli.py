@@ -1,4 +1,5 @@
 import builtins
+import json
 import os
 import sys
 from pathlib import Path
@@ -61,7 +62,7 @@ def test_browse_surfaces_projection_dimension_mismatch_lazily(tmp_path):
 
     workspace = tmp_path / "workspace"
     index_dir = workspace / "artifacts" / "projection_indexes"
-    summary_index = SQLiteVecSemanticIndex(index_dir / "summary_only_vector.sqlite")
+    summary_index = SQLiteVecSemanticIndex(index_dir / "summary.sqlite")
     summary_index.reset(
         dimension=3,
         metadata={
@@ -87,14 +88,13 @@ def test_browse_surfaces_projection_dimension_mismatch_lazily(tmp_path):
     filesystem = cli._filesystem_from_workspace(str(workspace))
 
     assert filesystem.semantic_retrieval_channels() == ()
-    with pytest.raises(
-        RuntimeError,
-        match=(
-            "summary projection index dimension mismatch: .*"
-            "dimension 3.*summary_projection_embedding_dimensions is 1024.*Rebuild"
-        ),
-    ):
-        PIFSCommandExecutor(filesystem).execute('browse / "summary"')
+    result = json.loads(PIFSCommandExecutor(filesystem).execute('browse / "summary"'))
+
+    assert result["success"] is False
+    assert result["error"]["code"] == "invalid_command"
+    assert "summary projection index dimension mismatch" in result["error"]["message"]
+    assert "dimension 3" in result["error"]["message"]
+    assert "summary_projection_embedding_dimensions is 1024" in result["error"]["message"]
 
 
 def test_cli_passthrough_invokes_pifs_command_executor(monkeypatch, capsys, tmp_path):
@@ -104,9 +104,8 @@ def test_cli_passthrough_invokes_pifs_command_executor(monkeypatch, capsys, tmp_
     executor_instances = []
 
     class FakeExecutor:
-        def __init__(self, filesystem, *, json_output=False):
+        def __init__(self, filesystem):
             self.filesystem = filesystem
-            self.json_output = json_output
             self.commands = []
             executor_instances.append(self)
 
@@ -123,7 +122,6 @@ def test_cli_passthrough_invokes_pifs_command_executor(monkeypatch, capsys, tmp_
     assert capsys.readouterr().out == "executed:ls /documents\n"
     assert len(executor_instances) == 1
     assert executor_instances[0].filesystem.workspace == workspace
-    assert executor_instances[0].json_output is False
     assert executor_instances[0].commands == ["ls /documents"]
 
 
@@ -155,9 +153,8 @@ def test_cli_passthrough_uses_configured_workspace(monkeypatch, capsys, tmp_path
     monkeypatch.delenv("PIFS_WORKSPACE", raising=False)
 
     class FakeExecutor:
-        def __init__(self, filesystem, *, json_output=False):
+        def __init__(self, filesystem):
             self.filesystem = filesystem
-            self.json_output = json_output
             self.commands = []
             executor_instances.append(self)
 

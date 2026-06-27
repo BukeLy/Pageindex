@@ -298,7 +298,7 @@ class PIFSAgentStreamTest(unittest.TestCase):
 
     def test_threaded_runtime_error_is_not_retried_on_fresh_loop(self):
         session = object.__new__(PIFSAgentSession)
-        session.executor = SimpleNamespace(query_context=None)
+        session.executor = SimpleNamespace()
         session.normalized_stream_mode = "off"
         session.agent_log = []
         session.max_seconds = None

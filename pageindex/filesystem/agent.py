@@ -242,13 +242,8 @@ def build_agent_initial_context(
     *,
     root: str = "/",
     executor: PIFSCommandExecutor | None = None,
-    query_context: str | None = None,
 ) -> str:
-    executor = executor or PIFSCommandExecutor(
-        filesystem,
-        json_output=False,
-        query_context=query_context,
-    )
+    executor = executor or PIFSCommandExecutor(filesystem)
     return "\n".join(
         [
             f"Root path: {root}",
@@ -266,13 +261,11 @@ def build_pifs_agent_instructions(
     root: str = "/",
     system_prompt: str | None = None,
     executor: PIFSCommandExecutor | None = None,
-    query_context: str | None = None,
 ) -> str:
     initial_context = build_agent_initial_context(
         filesystem,
         root=root,
         executor=executor,
-        query_context=query_context,
     )
     return "\n\n".join(
         [
@@ -503,7 +496,7 @@ class PIFSAgentSession:
             raise
 
         set_tracing_disabled(should_disable_pifs_agent_tracing())
-        self.executor = PIFSCommandExecutor(filesystem, json_output=False)
+        self.executor = PIFSCommandExecutor(filesystem)
         instructions = build_pifs_agent_instructions(
             filesystem,
             root=root,
@@ -545,7 +538,6 @@ class PIFSAgentSession:
         self.session = SQLiteSession("pifs-chat") if persist_conversation else None
 
     def run(self, question: str) -> str:
-        self.executor.query_context = extract_agent_question_text(question)
         self.observer = PIFSAgentStreamObserver(
             self.normalized_stream_mode,
             stream_log=self.agent_log,
@@ -614,12 +606,3 @@ class PIFSAgentSession:
             force=self.verbose,
         )
         return output
-
-
-def extract_agent_question_text(prompt: str) -> str:
-    for line in str(prompt or "").splitlines():
-        if line.startswith("Question:"):
-            value = line.split(":", 1)[1].strip()
-            if value:
-                return value
-    return str(prompt or "").strip()

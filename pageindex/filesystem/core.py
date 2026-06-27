@@ -62,7 +62,7 @@ PROJECTION_INDEX_STATUSES = {
 DEFAULT_EMBEDDING_DIMENSIONS = 1024
 SEMANTIC_RETRIEVAL_CHANNELS = ("summary",)
 SEMANTIC_PROJECTION_INDEX_NAMES = {
-    "summary": "summary_only_vector",
+    "summary": "summary",
 }
 PAGEINDEX_DOCUMENT_SUFFIXES = {".pdf", ".md", ".markdown"}
 PAGEINDEX_DOCUMENT_CONTENT_TYPES = {

@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 import re
 import shlex
-from dataclasses import asdict, is_dataclass
 from typing import Any
 
 from .core import PageIndexFileSystem
@@ -23,24 +22,11 @@ class PIFSCommandExecutor:
     MAX_GREP_MATCHES = 20
     MAX_PAGE_SPAN = 5
 
-    def __init__(
-        self,
-        filesystem: PageIndexFileSystem,
-        *,
-        json_output: bool = False,
-        query_context: str | None = None,
-    ):
+    def __init__(self, filesystem: PageIndexFileSystem):
         self.filesystem = filesystem
-        self.query_context = query_context
 
     def allowed_commands(self) -> set[str]:
         return set(self.COMMAND_NAMES)
-
-    def command_capabilities(self) -> dict[str, Any]:
-        return {
-            "allowed_commands": sorted(self.allowed_commands()),
-            "retrieval": self.filesystem.retrieval_capabilities(),
-        }
 
     def describe_available_command_surfaces(self) -> str:
         return "\n".join(
@@ -159,7 +145,7 @@ class PIFSCommandExecutor:
         payload = self.filesystem.browse_semantic_files(
             self._normalize_folder_path(path),
             query,
-            retrieval_query=self._semantic_retrieval_query(query),
+            retrieval_query=query,
             recursive=recursive,
             space="summary",
             page=page,
@@ -362,13 +348,6 @@ class PIFSCommandExecutor:
         parts.extend(["--page", str(page)])
         return " ".join(parts)
 
-    def _semantic_retrieval_query(self, query: str) -> str:
-        query = str(query or "").strip()
-        context = str(self.query_context or "").strip()
-        if context and query and query.lower() not in context.lower():
-            return f"{context}\nSearch phrase: {query}"
-        return context or query
-
     @staticmethod
     def _json_filter(value: str | None) -> Any:
         if value is None:
@@ -432,20 +411,10 @@ class PIFSCommandExecutor:
             return "/"
         return "/" + value.strip("/")
 
-    @classmethod
-    def _jsonable(cls, value: Any) -> Any:
-        if is_dataclass(value):
-            return asdict(value)
-        if isinstance(value, list):
-            return [cls._jsonable(item) for item in value]
-        if isinstance(value, dict):
-            return {key: cls._jsonable(item) for key, item in value.items()}
-        return value
-
-    @classmethod
-    def _success(cls, data: dict[str, Any], *, next_steps: list[str] | None = None) -> str:
+    @staticmethod
+    def _success(data: dict[str, Any], *, next_steps: list[str] | None = None) -> str:
         return json.dumps(
-            {"success": True, "data": cls._jsonable(data), "next_steps": next_steps or []},
+            {"success": True, "data": data, "next_steps": next_steps or []},
             ensure_ascii=False,
         )
 

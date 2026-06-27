@@ -18,10 +18,8 @@ from .semantic_index import (
 )
 
 
-INDEX_BY_CHANNEL = {
-    "summary": "summary_only_vector",
-}
-SEMANTIC_TOOL_CHANNELS = ("summary",)
+SUMMARY_CHANNEL = "summary"
+SUMMARY_INDEX_NAME = "summary"
 
 
 @dataclass(frozen=True)
@@ -66,10 +64,9 @@ class SemanticProjectionSearchBackend:
             else self.index_dir / "embedding_cache.sqlite"
         )
         self.fetch_multiplier = fetch_multiplier
-        self.indexes = {
-            channel: SQLiteVecSemanticIndex(self.index_dir / f"{index_name}.sqlite")
-            for channel, index_name in INDEX_BY_CHANNEL.items()
-        }
+        self.summary_index = SQLiteVecSemanticIndex(
+            self.index_dir / f"{SUMMARY_INDEX_NAME}.sqlite"
+        )
 
     @classmethod
     def from_provider(
@@ -104,7 +101,7 @@ class SemanticProjectionSearchBackend:
         limit: int = 10,
         filters: dict[str, Any] | None = None,
     ) -> list[SemanticProjectionCandidate]:
-        if channel not in SEMANTIC_TOOL_CHANNELS:
+        if channel != SUMMARY_CHANNEL:
             raise ValueError(f"unsupported semantic channel: {channel}")
         if channel not in self.available_channels():
             return []
@@ -112,26 +109,22 @@ class SemanticProjectionSearchBackend:
         if not query:
             return []
         vector = self.embedding_cache.embed_texts(
-            [query_text_for_channel(channel, query)],
+            [query],
             provider=self.embedding_provider,
             model=self.cache_model,
             embedder=self.embedder,
             batch_size=1,
         )[0]
-        results = self.indexes[channel].search(
+        results = self.summary_index.search(
             vector,
             limit=limit,
             filters=filters,
             fetch_multiplier=self.fetch_multiplier,
         )
-        return rank_single_semantic_channel(channel, results)
+        return rank_single_semantic_channel(SUMMARY_CHANNEL, results)
 
     def available_channels(self) -> tuple[str, ...]:
-        return tuple(
-            channel
-            for channel in SEMANTIC_TOOL_CHANNELS
-            if self._channel_document_count(channel) > 0
-        )
+        return (SUMMARY_CHANNEL,) if self._summary_document_count() > 0 else ()
 
     def info(self) -> dict[str, Any]:
         return {
@@ -141,20 +134,17 @@ class SemanticProjectionSearchBackend:
             "embedding_dimensions": self.embedding_dimensions,
             "strategy": "semantic_channel_vector",
             "available_channels": list(self.available_channels()),
-            "channels": {
-                channel: self._safe_channel_info(channel)
-                for channel in self.indexes
-            },
+            "channels": {SUMMARY_CHANNEL: self._safe_summary_info()},
         }
 
-    def _channel_document_count(self, channel: str) -> int:
-        info = self._safe_channel_info(channel)
+    def _summary_document_count(self) -> int:
+        info = self._safe_summary_info()
         if not info.get("available"):
             return 0
         return int(info.get("document_count") or 0)
 
-    def _safe_channel_info(self, channel: str) -> dict[str, Any]:
-        index = self.indexes[channel]
+    def _safe_summary_info(self) -> dict[str, Any]:
+        index = self.summary_index
         if not index.db_path.exists():
             return {
                 "db_path": str(index.db_path),
@@ -200,7 +190,7 @@ class SummaryProjectionIndexer:
             else self.index_dir / "embedding_cache.sqlite"
         )
         self.index = SQLiteVecSemanticIndex(
-            self.index_dir / f"{INDEX_BY_CHANNEL['summary']}.sqlite"
+            self.index_dir / f"{SUMMARY_INDEX_NAME}.sqlite"
         )
         self._ensure_index()
 
@@ -304,7 +294,7 @@ class SummaryProjectionIndexer:
         embedding_dimensions: int,
     ) -> None:
         index_path = (
-            Path(index_dir).expanduser() / f"{INDEX_BY_CHANNEL['summary']}.sqlite"
+            Path(index_dir).expanduser() / f"{SUMMARY_INDEX_NAME}.sqlite"
         )
         if not index_path.exists():
             return
@@ -457,12 +447,6 @@ def make_embedder(provider: str, model: str, *, dimensions: int, timeout: float)
         dimensions=dimensions,
         timeout=timeout,
     )
-
-
-def query_text_for_channel(channel: str, query: str) -> str:
-    if channel == "summary":
-        return query
-    raise ValueError(f"unknown semantic channel: {channel}")
 
 
 def rank_single_semantic_channel(

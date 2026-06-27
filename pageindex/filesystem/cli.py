@@ -268,10 +268,9 @@ def _run_passthrough(
     command_tokens: list[str],
     *,
     workspace: str,
-    json_output: bool,
 ) -> int:
     filesystem = _filesystem_from_workspace(workspace)
-    executor = PIFSCommandExecutor(filesystem, json_output=json_output)
+    executor = PIFSCommandExecutor(filesystem)
     command = " ".join(shlex.quote(token) for token in command_tokens)
     print(executor.execute(command))
     return 0
@@ -348,7 +347,6 @@ def main(argv: list[str] | None = None) -> int:
         return _run_passthrough(
             command_tokens,
             workspace=args.workspace,
-            json_output=False,
         )
     except PIFSCommandError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)

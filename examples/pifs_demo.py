@@ -340,7 +340,7 @@ def configure_summary_projection_backend(
     embedding_model: str,
     embedding_dimensions: int,
 ) -> None:
-    if not (filesystem.summary_projection_index_dir / "summary_only_vector.sqlite").exists():
+    if not (filesystem.summary_projection_index_dir / "summary.sqlite").exists():
         return
     filesystem.configure_semantic_projection_retrieval(
         filesystem.summary_projection_index_dir,

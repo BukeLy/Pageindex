@@ -122,7 +122,7 @@ class PIFSCoreAlignmentTest(unittest.TestCase):
             )
             self.assertEqual(ls_result["data"]["depth"], 1)
 
-    def test_browse_summary_only_scoped_and_paginated(self):
+    def test_browse_summary_scoped_and_paginated(self):
         from pageindex.filesystem import PIFSCommandExecutor, PageIndexFileSystem
 
         with tempfile.TemporaryDirectory() as tmp:
@@ -300,7 +300,7 @@ class PIFSCoreAlignmentTest(unittest.TestCase):
                 instructions,
             )
 
-    def test_projection_surface_is_summary_only(self):
+    def test_projection_surface_is_summary(self):
         from pageindex.filesystem.core import (
             DEFAULT_METADATA_GENERATION_FIELDS,
             SEMANTIC_PROJECTION_INDEX_NAMES,
@@ -312,11 +312,11 @@ class PIFSCoreAlignmentTest(unittest.TestCase):
         )
 
         self.assertEqual(SEMANTIC_RETRIEVAL_CHANNELS, ("summary",))
-        self.assertEqual(SEMANTIC_PROJECTION_INDEX_NAMES, {"summary": "summary_only_vector"})
+        self.assertEqual(SEMANTIC_PROJECTION_INDEX_NAMES, {"summary": "summary"})
         self.assertNotIn("entity", DEFAULT_METADATA_GENERATION_FIELDS)
         self.assertNotIn("relation", DEFAULT_METADATA_GENERATION_FIELDS)
         self.assertEqual(GENERATED_METADATA_FIELDS, ("summary", "doc_type", "domain", "topic"))
-        self.assertIn('SEMANTIC_TOOL_CHANNELS = ("summary",)', semantic_projection_source)
+        self.assertIn('SUMMARY_INDEX_NAME = "summary"', semantic_projection_source)
         self.assertNotIn("entity_vectors", semantic_projection_source)
         self.assertNotIn("relation_vectors", semantic_projection_source)
 
