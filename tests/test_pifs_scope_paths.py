@@ -189,3 +189,99 @@ class PIFSScopePathTest(unittest.TestCase):
                 second_page["data"]["pagination"],
                 {"page": 2, "page_size": 50, "has_more": False, "next_page": None},
             )
+
+    def test_tree_child_paths_keep_active_metadata_scope(self):
+        from pageindex.filesystem import PIFSCommandExecutor, PageIndexFileSystem
+
+        with tempfile.TemporaryDirectory() as tmp:
+            from pathlib import Path
+
+            root = Path(tmp)
+            filesystem = PageIndexFileSystem(workspace=root / "workspace")
+            register_markdown(
+                filesystem,
+                root,
+                "doc_sec_2024",
+                "/documents/sec",
+                title="sec-2024.md",
+                metadata={"year": 2024, "ticker": "AAPL"},
+            )
+            register_markdown(
+                filesystem,
+                root,
+                "doc_sec_2023",
+                "/documents/sec",
+                title="sec-2023.md",
+                metadata={"year": 2023, "ticker": "AAPL"},
+            )
+            register_markdown(
+                filesystem,
+                root,
+                "doc_other_2024",
+                "/documents/other",
+                title="other-2024.md",
+                metadata={"year": 2024, "ticker": "MSFT"},
+            )
+
+            executor = PIFSCommandExecutor(filesystem)
+
+            tree = _payload(executor.execute("tree /documents/@year/2024 -L 1"))
+            self.assertTrue(tree["success"])
+            sec_node = next(
+                item
+                for item in tree["data"]["tree"]["folders"]
+                if item["name"] == "sec"
+            )
+            self.assertEqual(sec_node["path"], "/documents/sec/@year/2024")
+            self.assertEqual(sec_node["file_count"], 1)
+
+            stat = _payload(executor.execute("stat /documents/sec/@year/2024"))
+            self.assertTrue(stat["success"])
+            self.assertEqual(
+                stat["data"]["scope"]["metadata_filter"],
+                {"year": "2024"},
+            )
+            self.assertEqual(stat["data"]["scope"]["file_count"], 1)
+
+    def test_core_browse_semantic_files_accepts_metadata_scoped_path(self):
+        from pageindex.filesystem import PageIndexFileSystem
+
+        with tempfile.TemporaryDirectory() as tmp:
+            from pathlib import Path
+
+            root = Path(tmp)
+            filesystem = PageIndexFileSystem(workspace=root / "workspace")
+            refs = {
+                "doc_aapl": register_markdown(
+                    filesystem,
+                    root,
+                    "doc_aapl",
+                    "/documents",
+                    title="aapl.md",
+                    metadata={"ticker": "AAPL"},
+                ),
+                "doc_msft": register_markdown(
+                    filesystem,
+                    root,
+                    "doc_msft",
+                    "/documents",
+                    title="msft.md",
+                    metadata={"ticker": "MSFT"},
+                ),
+            }
+            filesystem.semantic_retrieval_backend = BrowseBackend(
+                ["doc_msft", "doc_aapl"],
+                file_refs_by_document_id=refs,
+            )
+
+            payload = filesystem.browse_semantic_files(
+                "/documents/@ticker/AAPL",
+                "query",
+                recursive=False,
+            )
+
+            self.assertEqual(
+                [item["document_id"] for item in payload["data"]],
+                ["doc_aapl"],
+            )
+            self.assertEqual(payload["scope"], "/documents/@ticker/AAPL")

@@ -304,27 +304,27 @@ class PIFSCommandExecutor:
         folders: list[dict[str, Any]],
         axes: list[dict[str, Any]],
     ) -> dict[str, Any]:
-        root_path = self._normalize_folder_path(scope.path)
+        root_key = self._normalize_folder_path(scope.folder_path)
         root = self._scope_root(scope, file_count=self.filesystem.scope_file_count(scope))
         nodes = {
-            root_path: root
+            root_key: root
         }
         for folder in sorted(folders, key=lambda item: item["path"]):
-            folder_path = self._normalize_folder_path(folder["path"])
-            nodes[folder_path] = {
-                "path": folder_path,
-                "name": folder.get("name") or folder_path.rsplit("/", 1)[-1],
+            physical_path = self._normalize_folder_path(folder["path"])
+            nodes[physical_path] = {
+                "path": self._scoped_folder_path(scope, physical_path),
+                "name": folder.get("name") or physical_path.rsplit("/", 1)[-1],
                 "type": "folder",
                 "file_count": folder.get("matched_files", 0) or folder.get("file_count", 0),
                 "children_count": folder.get("children_count", 0),
                 "folders": [],
             }
         for folder_path, node in sorted(nodes.items(), key=lambda item: item[0].count("/")):
-            if folder_path == root_path:
+            if folder_path == root_key:
                 continue
             parent = folder_path.rsplit("/", 1)[0] or "/"
-            nodes.get(parent, nodes[root_path])["folders"].append(node)
-        nodes[root_path]["folders"].extend(
+            nodes.get(parent, nodes[root_key])["folders"].append(node)
+        nodes[root_key]["folders"].extend(
             {
                 "path": self._join_scope_path(
                     scope.path,
@@ -337,8 +337,8 @@ class PIFSCommandExecutor:
             }
             for axis in axes
         )
-        nodes[root_path]["children_count"] = len(nodes[root_path]["folders"])
-        return nodes[root_path]
+        nodes[root_key]["children_count"] = len(nodes[root_key]["folders"])
+        return nodes[root_key]
 
     def _document_hit(self, row: dict[str, Any]) -> dict[str, Any]:
         return {
@@ -509,6 +509,19 @@ class PIFSCommandExecutor:
             "children_count": 0,
             "folders": [],
         }
+
+    def _scoped_folder_path(self, scope: Any, folder_path: str) -> str:
+        path = self._normalize_folder_path(folder_path)
+        for field, value in getattr(scope, "metadata_filter", {}).items():
+            path = self._join_scope_path(
+                path,
+                f"@{self.filesystem.encode_scope_segment(field)}",
+            )
+            path = self._join_scope_path(
+                path,
+                self.filesystem.encode_scope_segment(value),
+            )
+        return path
 
     @staticmethod
     def _join_scope_path(base: str, segment: str) -> str:

@@ -562,7 +562,8 @@ class PageIndexFileSystem:
         metadata_filter: Optional[dict[str, Any] | str] = None,
     ) -> dict[str, Any]:
         path = normalize_path(path)
-        self.store.folder_info(path)
+        query_scope = self.resolve_query_scope(path)
+        self.store.folder_info(query_scope.folder_path)
         query_text = self._query_text(retrieval_query or query).strip()
         if not query_text:
             raise ValueError("browse requires a query")
@@ -587,7 +588,6 @@ class PageIndexFileSystem:
             raise ValueError(
                 f"browse --space {space} is not available; available spaces: {available}"
             )
-        query_scope = self.resolve_query_scope(path)
         parsed_filter = self.merge_scope_filter(query_scope, metadata_filter)
         scope = {"folder_path": query_scope.folder_path, "recursive": recursive}
         scope_file_refs = self.store.file_refs_for_scope(
