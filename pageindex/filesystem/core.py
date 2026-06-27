@@ -34,8 +34,6 @@ DEFAULT_METADATA_GENERATION_FIELDS = {
     "doc_type": True,
     "domain": True,
     "topic": True,
-    "entity": False,
-    "relation": False,
 }
 
 DEFAULT_METADATA_FIELD_TYPES = {
@@ -43,8 +41,6 @@ DEFAULT_METADATA_FIELD_TYPES = {
     "doc_type": "string",
     "domain": "string",
     "topic": "string",
-    "entity": "string",
-    "relation": "string",
 }
 
 METADATA_STATUSES = {
@@ -67,8 +63,6 @@ DEFAULT_EMBEDDING_DIMENSIONS = 1024
 SEMANTIC_RETRIEVAL_CHANNELS = ("summary",)
 SEMANTIC_PROJECTION_INDEX_NAMES = {
     "summary": "summary_only_vector",
-    "entity": "entity_vectors",
-    "relation": "relation_vectors",
 }
 PAGEINDEX_DOCUMENT_SUFFIXES = {".pdf", ".md", ".markdown"}
 PAGEINDEX_DOCUMENT_CONTENT_TYPES = {
@@ -1138,8 +1132,6 @@ class PageIndexFileSystem:
                 "doc_type": False,
                 "domain": False,
                 "topic": False,
-                "entity": False,
-                "relation": False,
             },
             "projection_indexes": {"summary": True},
             "batch": False,

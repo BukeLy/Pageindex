@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import os
-import re
 import sqlite3
 import struct
 import time
@@ -21,16 +20,8 @@ from .semantic_index import (
 
 INDEX_BY_CHANNEL = {
     "summary": "summary_only_vector",
-    "entity": "entity_vectors",
-    "relation": "relation_vectors",
 }
-SEMANTIC_TOOL_CHANNELS = ("summary", "entity", "relation")
-
-
-@dataclass(frozen=True)
-class QueryProjection:
-    entities: list[str]
-    relations: list[str]
+SEMANTIC_TOOL_CHANNELS = ("summary",)
 
 
 @dataclass(frozen=True)
@@ -120,9 +111,8 @@ class SemanticProjectionSearchBackend:
         query = normalize_text(query)
         if not query:
             return []
-        projection = heuristic_query_projection(query)
         vector = self.embedding_cache.embed_texts(
-            [query_text_for_channel(channel, query, projection)],
+            [query_text_for_channel(channel, query)],
             provider=self.embedding_provider,
             model=self.cache_model,
             embedder=self.embedder,
@@ -469,13 +459,9 @@ def make_embedder(provider: str, model: str, *, dimensions: int, timeout: float)
     )
 
 
-def query_text_for_channel(channel: str, query: str, projection: QueryProjection) -> str:
+def query_text_for_channel(channel: str, query: str) -> str:
     if channel == "summary":
         return query
-    if channel == "entity":
-        return compact_join(projection.entities, limit=24) or query
-    if channel == "relation":
-        return "\n".join(projection.relations) or query
     raise ValueError(f"unknown semantic channel: {channel}")
 
 
@@ -503,99 +489,8 @@ def rank_single_semantic_channel(
         )
     return rows
 
-
-def heuristic_query_projection(question: str) -> QueryProjection:
-    entities = dedupe(
-        [
-            *identifier_terms(question),
-            *keyword_terms(question)[:16],
-        ]
-    )[:16]
-    predicate = infer_query_predicate(question)
-    subject = entities[0] if entities else "question"
-    return QueryProjection(
-        entities=entities,
-        relations=[f"{subject} | {predicate} | {question}"],
-    )
-
-
-def compact_join(values: list[str], *, limit: int) -> str:
-    return " | ".join(values[:limit])
-
-
-def identifier_terms(text: str) -> list[str]:
-    patterns = [
-        r"\b[A-Z]{2,12}-\d{2,}\b",
-        r"\b[A-Za-z_][A-Za-z0-9_]{2,}\b\s*(?:=|:)\s*[A-Za-z0-9_.:/-]+",
-        r"\b[A-Za-z][A-Za-z0-9_+-]+(?:[-_+][A-Za-z0-9]+)+\b",
-        r"\b[A-Z]{2,}[A-Za-z0-9_-]*\b",
-    ]
-    found: list[str] = []
-    for pattern in patterns:
-        found.extend(match.strip() for match in re.findall(pattern, text))
-    return found
-
-
-def keyword_terms(text: str) -> list[str]:
-    stopwords = {
-        "about",
-        "after",
-        "also",
-        "and",
-        "are",
-        "for",
-        "from",
-        "how",
-        "into",
-        "the",
-        "this",
-        "that",
-        "what",
-        "when",
-        "where",
-        "which",
-        "with",
-    }
-    terms = [
-        term.lower()
-        for term in re.findall(r"[A-Za-z][A-Za-z0-9_+-]{2,}", text)
-        if term.lower() not in stopwords
-    ]
-    return dedupe(terms)
-
-
-def infer_query_predicate(question: str) -> str:
-    lowered = question.lower()
-    rules = [
-        ("asks_default", ["default", "defaults"]),
-        ("asks_limit", ["limit", "maximum", "minimum", "size"]),
-        ("asks_cause", ["caused", "cause", "why"]),
-        ("asks_owner", ["who", "owner", "assigned"]),
-        ("asks_deadline", ["when", "deadline", "date"]),
-        ("asks_status", ["status", "state"]),
-        ("asks_requirement", ["required", "requirement", "must"]),
-    ]
-    for predicate, needles in rules:
-        if any(needle in lowered for needle in needles):
-            return predicate
-    return "asks_about"
-
-
-def dedupe(values: Any) -> list[str]:
-    seen = set()
-    result = []
-    for value in values:
-        normalized = re.sub(r"\s+", " ", str(value)).strip()
-        key = normalized.lower()
-        if not normalized or key in seen:
-            continue
-        seen.add(key)
-        result.append(normalized)
-    return result
-
-
 def normalize_text(text: str) -> str:
-    return re.sub(r"\s+", " ", str(text or "")).strip()
+    return " ".join(str(text or "").split())
 
 
 def embedding_cache_model_key(model: str, dimensions: int) -> str:

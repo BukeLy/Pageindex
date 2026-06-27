@@ -4,8 +4,8 @@ PageIndex FileSystem (PIFS) agent demo.
 This mirrors examples/agentic_vectorless_rag_demo.py, but exposes a corpus
 through the PageIndex FileSystem shell instead of direct PageIndex document
 tools. The agent receives one read-only bash-like PIFS tool and must retrieve
-evidence through commands such as ls, tree, browse, find, grep, cat <path>
---structure, and cat <path> --page.
+evidence through tree, browse, stat, cat --structure, cat --page, and
+single-file grep.
 
 The demo registers supported files under examples/documents. When a matching
 examples/documents/results/*_structure.json file exists, it is loaded into the
@@ -26,6 +26,7 @@ import hashlib
 import json
 import os
 import re
+import shlex
 import shutil
 import sys
 import time
@@ -606,67 +607,46 @@ def run_smoke_commands(
     *,
     verbose: bool = False,
 ) -> None:
-    json_executor = PIFSCommandExecutor(filesystem, json_output=True)
-    shell_executor = PIFSCommandExecutor(filesystem, json_output=False)
+    executor = PIFSCommandExecutor(filesystem)
 
-    command = "tree / --depth 2"
-    tree = execute_json_command(json_executor, command)
-    folders = (tree.get("data") or {}).get("folders") or []
-    documents_folder = next((item for item in folders if item.get("path") == "/documents"), {})
+    command = "tree / -L 2"
+    tree = execute_json_command(executor, command)
+    tree_data = tree.get("data") or {}
+    tree_root = tree_data.get("tree") or {}
     show_capability(
-        label="Folder browse",
+        label="Folder structure",
         command=command,
-        result=f"/documents contains {documents_folder.get('file_count', len(registered))} files",
-        raw=shell_executor.execute(command) if verbose else "",
+        result=(
+            f"{tree_data.get('total_folders', 0)} folders; "
+            f"root files={tree_root.get('file_count', 0)}"
+        ),
+        raw=executor.execute(command) if verbose else "",
         verbose=verbose,
     )
 
     command = "ls /documents"
-    listing = execute_json_command(json_executor, command)
-    files = (listing.get("data") or {}).get("files") or []
-    file_titles = ", ".join(item.get("title", "") for item in files[:3])
+    listing = execute_json_command(executor, command)
+    listing_data = listing.get("data") or {}
     show_capability(
-        label="List registered files",
+        label="List alias",
         command=command,
-        result=f"{len(files)} files: {file_titles}",
-        raw=shell_executor.execute(command) if verbose else "",
-        verbose=verbose,
-    )
-
-    command = "stat --schema"
-    schema = execute_json_command(json_executor, command)
-    fields = sorted(((schema.get("data") or {}).get("fields") or {}).keys())
-    show_capability(
-        label="Metadata schema",
-        command=command,
-        result=", ".join(fields),
-        raw=shell_executor.execute(command) if verbose else "",
-        verbose=verbose,
-    )
-
-    command = "find /documents --where '{\"source_collection\":\"examples/documents\"}' --limit 5"
-    found = execute_json_command(json_executor, command)
-    found_files = found.get("data") or []
-    show_capability(
-        label="Metadata DSL filter",
-        command=command,
-        result=f"{len(found_files)} documents matched source_collection=examples/documents",
-        raw=shell_executor.execute(command) if verbose else "",
+        result=f"ls delegates to tree depth={listing_data.get('depth')}",
+        raw=executor.execute(command) if verbose else "",
         verbose=verbose,
     )
 
     command = 'browse /documents "Federal Reserve annual report supervision regulation section page range"'
-    browse = execute_json_command(json_executor, command)
-    browse_hits = ((browse.get("data") or {}).get("data") or [])
+    browse = execute_json_command(executor, command)
+    browse_hits = ((browse.get("data") or {}).get("documents") or [])
     if browse_hits:
-        summary_result = f"{len(browse_hits)} browse candidates; top={browse_hits[0].get('external_id')}"
+        summary_result = f"{len(browse_hits)} browse candidates; top={browse_hits[0].get('document_id')}"
     else:
         summary_result = "browse is available, but this tiny two-doc demo returned no candidates"
     show_capability(
         label="Relevance browse",
         command=command,
         result=summary_result,
-        raw=shell_executor.execute(command) if verbose else "",
+        raw=executor.execute(command) if verbose else "",
         verbose=verbose,
     )
 
@@ -675,21 +655,21 @@ def run_smoke_commands(
         return
 
     command = f"stat {first_target}"
-    stat = execute_json_command(json_executor, command)
-    stat_data = stat.get("data") or {}
+    stat = execute_json_command(executor, command)
+    stat_data = (stat.get("data") or {}).get("document") or {}
     show_capability(
         label="File stat",
         command=command,
         result=(
-            f"{stat_data.get('title')} | tree={stat_data.get('pageindex_tree_status')} | "
+            f"{stat_data.get('title')} | tree={stat_data.get('status')} | "
             f"metadata_status={(stat_data.get('metadata_status') or {}).get('status')}"
         ),
-        raw=shell_executor.execute(command) if verbose else "",
+        raw=executor.execute(command) if verbose else "",
         verbose=verbose,
     )
 
     command = f"cat {first_target} --structure"
-    structure_payload = execute_json_command(json_executor, command)
+    structure_payload = execute_json_command(executor, command)
     structure_data = structure_payload.get("data") or {}
     structure = structure_data.get("structure") or []
     supervision_node = find_structure_node(structure, "Supervision and Regulation")
@@ -701,30 +681,30 @@ def run_smoke_commands(
             "found section 'Supervision and Regulation'"
             + (f" with page span {supervision_range}" if supervision_range else "")
         ),
-        raw=shell_executor.execute(command) if verbose else "",
+        raw=executor.execute(command) if verbose else "",
         verbose=verbose,
     )
 
     evidence_range = opening_page_range_for_node(supervision_node) or "1-2"
     command = f"cat {first_target} --page {evidence_range}"
-    page = execute_json_command(json_executor, command)
-    page_text = str((page.get("data") or {}).get("text") or "")
+    page = execute_json_command(executor, command)
+    page_text = str(((page.get("data") or {}).get("content") or {}).get("text") or "")
     show_capability(
         label="Page evidence",
         command=command,
         result=compact_lines(page_text, max_lines=3, max_chars=420),
-        raw=shell_executor.execute(command) if verbose else "",
+        raw=executor.execute(command) if verbose else "",
         verbose=verbose,
     )
 
-    command = 'grep -R "Supervision and Regulation" /documents'
-    grep = execute_json_command(json_executor, command)
-    grep_hits = ((grep.get("data") or {}).get("data") or [])
+    command = f'grep "Supervision and Regulation" {shlex.quote(first_target)}'
+    grep = execute_json_command(executor, command)
+    grep_hits = ((grep.get("data") or {}).get("matches") or [])
     show_capability(
         label="Lexical grep",
         command=command,
         result=f"{len(grep_hits)} real text matches",
-        raw=shell_executor.execute(command) if verbose else "",
+        raw=executor.execute(command) if verbose else "",
         verbose=verbose,
     )
 

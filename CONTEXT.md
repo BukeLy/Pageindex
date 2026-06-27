@@ -53,20 +53,20 @@ A stable window of 10 results inside a relevance-ranked PIFS Browse result set. 
 _Avoid_: limit-sized browse, offset-sized browse
 
 **PIFS Browse Record**:
-The shell representation of one browsed file as a key-value block. Fields appear in the order rank, similarity, path, summary; records are separated by blank lines and pagination hints are comment lines.
-_Avoid_: browse table
+The JSON representation of one browsed file inside the PIFS command envelope. It appears under `data.documents[]` and carries document identity, locator, rank, similarity, summary, metadata, and folder context.
+_Avoid_: shell key-value block, browse table
 
 **Browse Similarity**:
 A score shown with each PIFS Browse Record so the agent can judge whether the query is well aligned with the selected space. Low similarity means the result is weakly related, not that browsing failed.
 _Avoid_: treating low-similarity results as no results
 
 **PIFS Browse Space**:
-The relevance lens used by PIFS Browse to rank files for the query. Summary is the default space because most browsing starts from document summaries; agents may choose entity or relation when the question is better answered by those views.
-_Avoid_: hidden vector tool, separate search command
+The relevance lens used by PIFS Browse to rank files for the query. In the current core alignment pass, PIFS Browse exposes only the summary projection; entity and relation projection retrieval are intentionally absent from the agent-facing surface.
+_Avoid_: hidden vector tool, separate search command, entity/relation browse space
 
 **Unavailable Browse Space**:
-A requested PIFS Browse Space that has no ready index in the current workspace. It is an error; PIFS does not silently fall back to another space.
-_Avoid_: silent fallback
+A requested non-summary browse projection. It is an invalid command in the current core alignment pass; PIFS does not silently fall back to another space.
+_Avoid_: silent fallback, browse --space
 
 **PIFS Benchmark Success**:
 The product success condition for PIFS benchmarks has two layers: document discovery and evidence localization. Document discovery measures whether PIFS finds the right file with fewer candidate files and tokens. Evidence localization measures whether PIFS reaches the right page or span with fewer page reads and tokens. Final answer correctness is a guardrail for both layers.
