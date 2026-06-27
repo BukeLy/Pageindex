@@ -272,8 +272,13 @@ def _run_passthrough(
     filesystem = _filesystem_from_workspace(workspace)
     executor = PIFSCommandExecutor(filesystem)
     command = " ".join(shlex.quote(token) for token in command_tokens)
-    print(executor.execute(command))
-    return 0
+    output = executor.execute(command)
+    print(output)
+    try:
+        payload = json.loads(output)
+    except json.JSONDecodeError:
+        return 0
+    return 0 if payload.get("success") is not False else 2
 
 
 def _run_add(argv: list[str], *, workspace: str) -> int:

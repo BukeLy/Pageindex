@@ -125,6 +125,29 @@ def test_cli_passthrough_invokes_pifs_command_executor(monkeypatch, capsys, tmp_
     assert executor_instances[0].commands == ["ls /documents"]
 
 
+def test_cli_passthrough_returns_nonzero_for_failed_json_envelope(monkeypatch, capsys, tmp_path):
+    from pageindex.filesystem import cli
+
+    workspace = tmp_path / "workspace"
+
+    class FakeExecutor:
+        def __init__(self, filesystem):
+            self.filesystem = filesystem
+
+        def execute(self, command):
+            return json.dumps(
+                {"success": False, "error": {"message": "bad"}, "next_steps": []}
+            )
+
+    monkeypatch.setattr(cli, "PageIndexFileSystem", FakeFileSystem)
+    monkeypatch.setattr(cli, "PIFSCommandExecutor", FakeExecutor)
+
+    status = cli.main(["--workspace", str(workspace), "find", "/documents"])
+
+    assert status == 2
+    assert json.loads(capsys.readouterr().out)["success"] is False
+
+
 def test_cli_set_workspace_persists_default(monkeypatch, capsys, tmp_path):
     from pageindex.filesystem import cli
 
