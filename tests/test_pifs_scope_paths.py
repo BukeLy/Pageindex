@@ -1,0 +1,191 @@
+import json
+import tempfile
+import unittest
+from types import SimpleNamespace
+
+from tests.pifs_markdown_fixture import register_markdown
+
+
+class BrowseBackend:
+    def __init__(self, document_ids, *, file_refs_by_document_id=None):
+        self.document_ids = list(document_ids)
+        self.file_refs_by_document_id = dict(file_refs_by_document_id or {})
+
+    def available_channels(self):
+        return ("summary",)
+
+    def search_channel(self, channel, query, *, limit=10, filters=None):
+        file_ref_filter = set((filters or {}).get("file_ref") or [])
+        document_ids = self.document_ids
+        if file_ref_filter:
+            document_ids = [
+                document_id
+                for document_id in document_ids
+                if self.file_refs_by_document_id.get(document_id) in file_ref_filter
+            ]
+        return [
+            SimpleNamespace(
+                document_id=document_id,
+                snippet=f"{channel} candidate {rank}: {query}",
+                score=1.0 - rank * 0.01,
+                sources=[{"channel": channel, "rank": rank}],
+            )
+            for rank, document_id in enumerate(document_ids[:limit], 1)
+        ]
+
+
+def _payload(output):
+    return json.loads(output)
+
+
+class PIFSScopePathTest(unittest.TestCase):
+    def test_tree_browse_and_stat_accept_metadata_scope_paths(self):
+        from pageindex.filesystem import PIFSCommandExecutor, PageIndexFileSystem
+
+        with tempfile.TemporaryDirectory() as tmp:
+            from pathlib import Path
+
+            root = Path(tmp)
+            filesystem = PageIndexFileSystem(workspace=root / "workspace")
+            refs = {
+                "doc_aapl_2024": register_markdown(
+                    filesystem,
+                    root,
+                    "doc_aapl_2024",
+                    "/documents/sec-filings",
+                    title="aapl-2024.md",
+                    metadata={"year": 2024, "ticker": "AAPL", "doc_type": "10-K"},
+                ),
+                "doc_aapl_2023": register_markdown(
+                    filesystem,
+                    root,
+                    "doc_aapl_2023",
+                    "/documents/sec-filings",
+                    title="aapl-2023.md",
+                    metadata={"year": 2023, "ticker": "AAPL", "doc_type": "10-K"},
+                ),
+                "doc_msft_2024": register_markdown(
+                    filesystem,
+                    root,
+                    "doc_msft_2024",
+                    "/documents/sec-filings",
+                    title="msft-2024.md",
+                    metadata={"year": 2024, "ticker": "MSFT", "doc_type": "10-K"},
+                ),
+            }
+            filesystem.semantic_retrieval_backend = BrowseBackend(
+                ["doc_msft_2024", "doc_aapl_2024", "doc_aapl_2023"],
+                file_refs_by_document_id=refs,
+            )
+            executor = PIFSCommandExecutor(filesystem)
+
+            tree_root = _payload(executor.execute("tree /documents -L 1"))
+            self.assertTrue(tree_root["success"])
+
+            root_folders = tree_root["data"]["tree"]["folders"]
+            self.assertTrue(any(item["path"] == "/documents/sec-filings" for item in root_folders))
+            self.assertEqual(
+                [item["name"] for item in root_folders if item["type"] == "metadata_axis"],
+                ["@doc_type", "@ticker", "@year"],
+            )
+
+            tree_year = _payload(executor.execute("tree /documents/@year"))
+            self.assertTrue(tree_year["success"])
+            self.assertEqual(
+                [item["path"] for item in tree_year["data"]["tree"]["folders"]],
+                ["/documents/@year/2024", "/documents/@year/2023"],
+            )
+
+            browse = _payload(
+                executor.execute('browse /documents/@year/2024/@ticker/AAPL "risk factors"')
+            )
+            self.assertTrue(browse["success"])
+            self.assertEqual(
+                [item["document_id"] for item in browse["data"]["documents"]],
+                ["doc_aapl_2024"],
+            )
+            self.assertEqual(browse["data"]["scope"]["path"], "/documents/@year/2024/@ticker/AAPL")
+            self.assertEqual(browse["data"]["scope"]["folder_path"], "/documents")
+            self.assertEqual(
+                browse["data"]["scope"]["metadata_filter"],
+                {"year": "2024", "ticker": "AAPL"},
+            )
+
+            stat = _payload(executor.execute("stat /documents/@year/2024/@ticker/AAPL"))
+            self.assertTrue(stat["success"])
+            self.assertEqual(stat["data"]["scope"]["folder_path"], "/documents")
+            self.assertEqual(
+                stat["data"]["scope"]["metadata_filter"],
+                {"year": "2024", "ticker": "AAPL"},
+            )
+            self.assertEqual(stat["data"]["scope"]["file_count"], 1)
+            self.assertEqual(stat["data"]["scope"]["available_axes"], ["doc_type"])
+
+    def test_scope_paths_reject_duplicate_and_unknown_metadata_fields(self):
+        from pageindex.filesystem import PIFSCommandExecutor, PageIndexFileSystem
+
+        with tempfile.TemporaryDirectory() as tmp:
+            from pathlib import Path
+
+            root = Path(tmp)
+            filesystem = PageIndexFileSystem(workspace=root / "workspace")
+            register_markdown(
+                filesystem,
+                root,
+                "doc_aapl_2024",
+                "/documents",
+                metadata={"year": 2024, "ticker": "AAPL"},
+            )
+            executor = PIFSCommandExecutor(filesystem)
+
+            duplicate = _payload(executor.execute("tree /documents/@ticker/AAPL/@ticker/MSFT"))
+            self.assertFalse(duplicate["success"])
+            self.assertIn("can appear only once", duplicate["error"]["message"])
+
+            unknown = _payload(executor.execute("tree /documents/@sector"))
+            self.assertFalse(unknown["success"])
+            self.assertIn("Unknown metadata axis", unknown["error"]["message"])
+
+    def test_tree_metadata_value_pagination_uses_page_flag(self):
+        from pageindex.filesystem import PIFSCommandExecutor, PageIndexFileSystem
+
+        with tempfile.TemporaryDirectory() as tmp:
+            from pathlib import Path
+
+            root = Path(tmp)
+            filesystem = PageIndexFileSystem(workspace=root / "workspace")
+            for index in range(55):
+                ticker = f"T{index:02d}"
+                register_markdown(
+                    filesystem,
+                    root,
+                    f"doc_{ticker}",
+                    "/documents",
+                    title=f"{ticker}.md",
+                    metadata={"ticker": ticker},
+                )
+
+            executor = PIFSCommandExecutor(filesystem)
+
+            first_page = _payload(executor.execute("tree /documents/@ticker"))
+            self.assertTrue(first_page["success"])
+            self.assertEqual(len(first_page["data"]["tree"]["folders"]), 50)
+            self.assertEqual(
+                first_page["data"]["pagination"],
+                {"page": 1, "page_size": 50, "has_more": True, "next_page": 2},
+            )
+            self.assertEqual(
+                [item["value"] for item in first_page["data"]["tree"]["folders"][:3]],
+                ["T00", "T01", "T02"],
+            )
+
+            second_page = _payload(executor.execute("tree /documents/@ticker --page 2"))
+            self.assertTrue(second_page["success"])
+            self.assertEqual(
+                [item["value"] for item in second_page["data"]["tree"]["folders"]],
+                ["T50", "T51", "T52", "T53", "T54"],
+            )
+            self.assertEqual(
+                second_page["data"]["pagination"],
+                {"page": 2, "page_size": 50, "has_more": False, "next_page": None},
+            )
