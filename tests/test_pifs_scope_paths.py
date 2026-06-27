@@ -256,21 +256,29 @@ class PIFSScopePathTest(unittest.TestCase):
                     filesystem,
                     root,
                     "doc_aapl",
-                    "/documents",
+                    "/documents/sec",
                     title="aapl.md",
                     metadata={"ticker": "AAPL"},
                 ),
                 "doc_msft": register_markdown(
                     filesystem,
                     root,
-                    "doc_msft",
+                    "doc_msft_direct",
                     "/documents",
-                    title="msft.md",
+                    title="msft-direct.md",
+                    metadata={"ticker": "MSFT"},
+                ),
+                "doc_msft_descendant": register_markdown(
+                    filesystem,
+                    root,
+                    "doc_msft_descendant",
+                    "/documents/sec",
+                    title="msft-descendant.md",
                     metadata={"ticker": "MSFT"},
                 ),
             }
             filesystem.semantic_retrieval_backend = BrowseBackend(
-                ["doc_msft", "doc_aapl"],
+                ["doc_msft_direct", "doc_msft_descendant", "doc_aapl"],
                 file_refs_by_document_id=refs,
             )
 

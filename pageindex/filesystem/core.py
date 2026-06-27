@@ -589,7 +589,8 @@ class PageIndexFileSystem:
                 f"browse --space {space} is not available; available spaces: {available}"
             )
         parsed_filter = self.merge_scope_filter(query_scope, metadata_filter)
-        scope = {"folder_path": query_scope.folder_path, "recursive": recursive}
+        effective_recursive = recursive or bool(query_scope.metadata_filter)
+        scope = {"folder_path": query_scope.folder_path, "recursive": effective_recursive}
         scope_file_refs = self.store.file_refs_for_scope(
             scope=scope,
             metadata_filter=parsed_filter,
@@ -674,7 +675,7 @@ class PageIndexFileSystem:
             "retrieval": f"{space}_vector",
             "query": query,
             "scope": query_scope.path,
-            "recursive": recursive,
+            "recursive": effective_recursive,
             "space": space,
             "available_spaces": list(available_spaces),
             "page": page,
