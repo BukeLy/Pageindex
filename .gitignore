@@ -10,3 +10,5 @@ examples/pifs_workspace/
 examples/Benchmark/
 /CONTEXT.md
 /docs/pifs-core-alignment/
+/pyproject.toml
+/uv.lock
