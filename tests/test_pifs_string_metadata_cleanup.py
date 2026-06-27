@@ -162,3 +162,28 @@ def test_set_metadata_replaces_custom_metadata_without_touching_summary(tmp_path
     assert filesystem.set_metadata(file_ref, {}, clear=True)["metadata"] == {
         "summary": "summary for meta.md"
     }
+
+
+def test_set_metadata_keeps_summary_out_of_ordinary_lexical_search(tmp_path, monkeypatch):
+    from pageindex.filesystem import PageIndexFileSystem
+
+    unique_summary_token = "summaryleaktoken"
+    filesystem = PageIndexFileSystem(tmp_path / "workspace")
+    _patch_summary_indexer(monkeypatch)
+    _patch_pageindex_client(monkeypatch, description=unique_summary_token)
+    path = tmp_path / "leak.md"
+    path.write_text("# Leak\n\nordinary body", encoding="utf-8")
+    file_ref = filesystem.register_file(
+        storage_uri=path.as_uri(),
+        folder_path="/documents",
+        title="leak.md",
+        content_type="text/markdown",
+        metadata={"ticker": "AAPL"},
+    )
+
+    assert filesystem.search(unique_summary_token) == []
+
+    filesystem.set_metadata(file_ref, {"ticker": "MSFT"})
+
+    assert filesystem.search(unique_summary_token) == []
+    assert {row.title for row in filesystem.search("MSFT")} == {"leak.md"}

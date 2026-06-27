@@ -61,7 +61,7 @@ class MetadataQueryEngine:
         except json.JSONDecodeError as exc:
             raise MetadataQueryError(
                 "metadata DSL must be a JSON object, for example "
-                '\'{"$and":[{"repo":"redwood"},{"year":{"$gte":2024}}]}\''
+                '\'{"$and":[{"repo":"redwood"},{"ticker":{"$in":["AAPL","MSFT"]}}]}\''
             ) from exc
         if not isinstance(parsed, dict):
             raise MetadataQueryError("metadata DSL must be a JSON object")

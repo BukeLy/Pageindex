@@ -1087,43 +1087,6 @@ class SQLiteFileSystemStore:
             raise KeyError(f"Unknown file_ref: {file_ref}")
         return self._file_entry(row)
 
-    def list_pending_metadata_status(self, *, limit: int | None = None) -> list[FileEntry]:
-        sql = """
-            SELECT
-                f.file_ref,
-                f.external_id,
-                f.storage_uri,
-                f.title,
-                f.descriptor,
-                f.content_type,
-                f.source_type,
-                f.fingerprint,
-                f.text_artifact_path,
-                f.raw_artifact_path,
-                f.pageindex_doc_id,
-                f.pageindex_tree_status,
-                f.metadata_json,
-                f.metadata_status_json,
-                COALESCE(primary_folder.path, '/') AS folder_path
-            FROM files f
-            LEFT JOIN file_folders ff ON ff.file_ref = f.file_ref
-            LEFT JOIN folders primary_folder ON primary_folder.folder_id = ff.folder_id
-            WHERE f.deleted_at IS NULL
-              AND (
-                f.metadata_status_json LIKE '%pending_generate%'
-                OR f.metadata_status_json LIKE '%pending_submit%'
-              )
-            GROUP BY f.file_ref
-            ORDER BY f.created_at, f.file_ref
-        """
-        params: list[Any] = []
-        if limit is not None:
-            sql += " LIMIT ?"
-            params.append(int(limit))
-        with self.connect() as conn:
-            rows = conn.execute(sql, params).fetchall()
-        return [self._file_entry(row) for row in rows]
-
     def update_file_metadata_status(
         self,
         file_ref: str,
@@ -1135,7 +1098,8 @@ class SQLiteFileSystemStore:
             row = self._file_entry_row(conn, file_ref)
             if row is None:
                 raise KeyError(f"Unknown file_ref: {file_ref}")
-            metadata_text_value = metadata_text(metadata)
+            indexed_metadata = self.indexed_metadata_values(metadata)
+            metadata_text_value = metadata_text(indexed_metadata)
             conn.execute(
                 """
                 UPDATE files
@@ -1153,7 +1117,7 @@ class SQLiteFileSystemStore:
             self.replace_metadata_values(
                 conn,
                 file_ref,
-                self.indexed_metadata_values(metadata),
+                indexed_metadata,
             )
             conn.execute(
                 """
