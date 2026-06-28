@@ -633,7 +633,7 @@ class PageIndexFileSystem:
             ]
             folder_path = self._preferred_folder_path(
                 folder_paths,
-                path,
+                query_scope.folder_path,
                 entry.folder_path,
             )
             display_title = self.store.membership_display_name(file_ref, folder_path) or entry.title

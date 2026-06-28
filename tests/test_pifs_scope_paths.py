@@ -293,3 +293,35 @@ class PIFSScopePathTest(unittest.TestCase):
                 ["doc_aapl"],
             )
             self.assertEqual(payload["scope"], "/documents/@ticker/AAPL")
+
+    def test_core_browse_semantic_files_prefers_in_scope_physical_membership(self):
+        from pageindex.filesystem import PageIndexFileSystem
+
+        with tempfile.TemporaryDirectory() as tmp:
+            from pathlib import Path
+
+            root = Path(tmp)
+            filesystem = PageIndexFileSystem(workspace=root / "workspace")
+            file_ref = register_markdown(
+                filesystem,
+                root,
+                "doc_shared",
+                "/adocs",
+                title="shared.md",
+                metadata={"ticker": "AAPL"},
+            )
+            filesystem.store.attach_file_to_folder(file_ref, "/zdocs")
+            filesystem.semantic_retrieval_backend = BrowseBackend(
+                ["doc_shared"],
+                file_refs_by_document_id={"doc_shared": file_ref},
+            )
+
+            payload = filesystem.browse_semantic_files(
+                "/zdocs/@ticker/AAPL",
+                "query",
+                recursive=False,
+            )
+
+            self.assertEqual([item["document_id"] for item in payload["data"]], ["doc_shared"])
+            self.assertEqual(payload["data"][0]["folder_path"], "/zdocs")
+            self.assertTrue(payload["data"][0]["path"].startswith("/zdocs/"))
