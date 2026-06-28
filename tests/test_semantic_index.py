@@ -393,3 +393,38 @@ def test_hash_embedding_provider_is_not_available():
 
     with pytest.raises(ValueError, match="unknown embedding provider: hash"):
         make_embedder("hash", "unused", dimensions=256, timeout=1)
+
+
+def test_make_embedder_accepts_direct_runtime_config(monkeypatch):
+    from pageindex.filesystem.semantic_projection import make_embedder
+
+    calls = []
+
+    class FakeOpenAI:
+        def __init__(self, **kwargs):
+            calls.append(kwargs)
+
+    fake_openai = type(sys)("openai")
+    fake_openai.OpenAI = FakeOpenAI
+    monkeypatch.setitem(sys.modules, "openai", fake_openai)
+    monkeypatch.delenv("PIFS_EMBEDDING_API_KEY", raising=False)
+    monkeypatch.delenv("PIFS_EMBEDDING_BASE_URL", raising=False)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("OPENAI_BASE_URL", raising=False)
+
+    make_embedder(
+        "openai",
+        "gemini-embedding-2-preview",
+        dimensions=3072,
+        timeout=12.5,
+        api_key="direct-key",
+        base_url="https://example.invalid/openai/",
+    )
+
+    assert calls == [
+        {
+            "api_key": "direct-key",
+            "base_url": "https://example.invalid/openai/",
+            "timeout": 12.5,
+        }
+    ]

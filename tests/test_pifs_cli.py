@@ -7,6 +7,11 @@ from pathlib import Path
 import pytest
 
 
+@pytest.fixture(autouse=True)
+def isolate_pifs_config(monkeypatch, tmp_path):
+    monkeypatch.setenv("PIFS_CONFIG_FILE", str(tmp_path / "missing-pifs.json"))
+
+
 class FakeFileSystem:
     def __init__(self, workspace):
         self.workspace = Path(workspace)
@@ -68,6 +73,8 @@ def test_cli_workspace_uses_embedding_config(monkeypatch, tmp_path):
                 "embedding_model": "gemini-embedding-2-preview",
                 "embedding_dimensions": 3072,
                 "embedding_timeout": 12.5,
+                "embedding_base_url": "https://example.invalid/openai/",
+                "embedding_api_key": "test-gemini-key",
             }
         ),
         encoding="utf-8",
@@ -79,6 +86,8 @@ def test_cli_workspace_uses_embedding_config(monkeypatch, tmp_path):
             self.kwargs = kwargs
 
     monkeypatch.setenv("PIFS_CONFIG_FILE", str(config_path))
+    monkeypatch.delenv("PIFS_EMBEDDING_API_KEY", raising=False)
+    monkeypatch.delenv("PIFS_EMBEDDING_BASE_URL", raising=False)
     monkeypatch.setattr(cli, "PageIndexFileSystem", ConfiguredFileSystem)
 
     filesystem = cli._filesystem_from_workspace(str(workspace))
@@ -89,7 +98,11 @@ def test_cli_workspace_uses_embedding_config(monkeypatch, tmp_path):
         "summary_projection_embedding_model": "gemini-embedding-2-preview",
         "summary_projection_embedding_dimensions": 3072,
         "summary_projection_embedding_timeout": 12.5,
+        "summary_projection_embedding_base_url": "https://example.invalid/openai/",
+        "summary_projection_embedding_api_key": "test-gemini-key",
     }
+    assert "PIFS_EMBEDDING_API_KEY" not in os.environ
+    assert "PIFS_EMBEDDING_BASE_URL" not in os.environ
 
 
 def test_browse_surfaces_projection_dimension_mismatch_lazily(tmp_path):
