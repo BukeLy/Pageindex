@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import os
 import sqlite3
 import struct
 import time
@@ -441,23 +440,11 @@ class EmbeddingClient:
             raise ValueError(f"unknown embedding provider: {provider}")
         from openai import OpenAI
 
-        resolved_api_key = (
-            api_key
-            or os.environ.get("PIFS_EMBEDDING_API_KEY")
-            or os.environ.get("OPENAI_API_KEY")
-        )
-        resolved_base_url = (
-            base_url
-            or os.environ.get("PIFS_EMBEDDING_BASE_URL")
-            or os.environ.get("OPENAI_BASE_URL")
-        )
-        if not resolved_api_key:
-            raise ValueError(
-                "PIFS_EMBEDDING_API_KEY or OPENAI_API_KEY is required for PIFS embeddings"
-            )
+        if not api_key:
+            raise ValueError("embedding_api_key is required for PIFS embeddings")
         self.client = OpenAI(
-            api_key=resolved_api_key,
-            base_url=resolved_base_url or None,
+            api_key=api_key,
+            base_url=base_url or None,
             timeout=timeout,
         )
 

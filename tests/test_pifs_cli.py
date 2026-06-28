@@ -9,7 +9,11 @@ import pytest
 
 @pytest.fixture(autouse=True)
 def isolate_pifs_config(monkeypatch, tmp_path):
-    monkeypatch.setenv("PIFS_CONFIG_FILE", str(tmp_path / "missing-pifs.json"))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "xdg-config"))
+
+
+def pifs_config_path(tmp_path):
+    return tmp_path / "xdg-config" / "pageindex" / "pifs.json"
 
 
 class FakeFileSystem:
@@ -63,8 +67,9 @@ def test_cli_workspace_without_projection_index_does_not_require_sqlite_vec(
 def test_cli_workspace_uses_embedding_config(monkeypatch, tmp_path):
     from pageindex.filesystem import cli
 
-    config_path = tmp_path / "pifs.json"
+    config_path = pifs_config_path(tmp_path)
     workspace = tmp_path / "workspace"
+    config_path.parent.mkdir(parents=True, exist_ok=True)
     config_path.write_text(
         json.dumps(
             {
@@ -85,9 +90,8 @@ def test_cli_workspace_uses_embedding_config(monkeypatch, tmp_path):
             self.workspace = Path(workspace)
             self.kwargs = kwargs
 
-    monkeypatch.setenv("PIFS_CONFIG_FILE", str(config_path))
-    monkeypatch.delenv("PIFS_EMBEDDING_API_KEY", raising=False)
-    monkeypatch.delenv("PIFS_EMBEDDING_BASE_URL", raising=False)
+    monkeypatch.setenv("PIFS_EMBEDDING_API_KEY", "ignored-env-key")
+    monkeypatch.setenv("PIFS_EMBEDDING_BASE_URL", "https://ignored.invalid/")
     monkeypatch.setattr(cli, "PageIndexFileSystem", ConfiguredFileSystem)
 
     filesystem = cli._filesystem_from_workspace(str(workspace))
@@ -101,8 +105,8 @@ def test_cli_workspace_uses_embedding_config(monkeypatch, tmp_path):
         "summary_projection_embedding_base_url": "https://example.invalid/openai/",
         "summary_projection_embedding_api_key": "test-gemini-key",
     }
-    assert "PIFS_EMBEDDING_API_KEY" not in os.environ
-    assert "PIFS_EMBEDDING_BASE_URL" not in os.environ
+    assert os.environ["PIFS_EMBEDDING_API_KEY"] == "ignored-env-key"
+    assert os.environ["PIFS_EMBEDDING_BASE_URL"] == "https://ignored.invalid/"
 
 
 def test_browse_surfaces_projection_dimension_mismatch_lazily(tmp_path):
@@ -201,9 +205,8 @@ def test_cli_passthrough_returns_nonzero_for_failed_json_envelope(monkeypatch, c
 def test_cli_set_workspace_persists_default(monkeypatch, capsys, tmp_path):
     from pageindex.filesystem import cli
 
-    config_path = tmp_path / "pifs.json"
+    config_path = pifs_config_path(tmp_path)
     workspace = tmp_path / "workspace"
-    monkeypatch.setenv("PIFS_CONFIG_FILE", str(config_path))
 
     status = cli.main(["set", "workspace", str(workspace)])
 
@@ -282,10 +285,9 @@ def test_cli_setmeta_clear_uses_empty_object(monkeypatch, capsys, tmp_path):
 def test_cli_passthrough_uses_configured_workspace(monkeypatch, capsys, tmp_path):
     from pageindex.filesystem import cli
 
-    config_path = tmp_path / "pifs.json"
+    config_path = pifs_config_path(tmp_path)
     workspace = tmp_path / "workspace"
     executor_instances = []
-    monkeypatch.setenv("PIFS_CONFIG_FILE", str(config_path))
     monkeypatch.delenv("PIFS_WORKSPACE", raising=False)
 
     class FakeExecutor:
