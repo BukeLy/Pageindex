@@ -16,6 +16,26 @@ def pifs_config_path(tmp_path):
     return tmp_path / "xdg-config" / "pageindex" / "pifs.json"
 
 
+def test_pifs_config_file_overrides_default_location(monkeypatch, tmp_path):
+    from pageindex.filesystem import cli
+
+    default_path = pifs_config_path(tmp_path)
+    override_path = tmp_path / "custom-pifs.json"
+    default_path.parent.mkdir(parents=True, exist_ok=True)
+    default_path.write_text(
+        json.dumps({"workspace": str(tmp_path / "default-workspace")}),
+        encoding="utf-8",
+    )
+    override_path.write_text(
+        json.dumps({"workspace": str(tmp_path / "override-workspace")}),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setenv("PIFS_CONFIG_FILE", str(override_path))
+
+    assert cli._configured_workspace() == str(tmp_path / "override-workspace")
+
+
 class FakeFileSystem:
     def __init__(self, workspace):
         self.workspace = Path(workspace)

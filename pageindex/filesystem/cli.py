@@ -24,10 +24,14 @@ AGENT_STREAM_MODE_CHOICES = ("off", "tools", "model", "all")
 DEFAULT_AGENT_MODEL = "gpt-5.4"
 EXIT_COMMANDS = {"exit", "quit", ":q"}
 ANSI_ESCAPE_RE = re.compile(r"\x1b(?:\[[0-?]*[ -/]*[@-~]|.)")
+PIFS_CONFIG_FILE_ENV = "PIFS_CONFIG_FILE"
 PIFS_WORKSPACE_ENV = "PIFS_WORKSPACE"
 
 
 def _config_path() -> Path:
+    override = os.environ.get(PIFS_CONFIG_FILE_ENV)
+    if override:
+        return Path(override).expanduser()
     config_home = os.environ.get("XDG_CONFIG_HOME")
     root = Path(config_home).expanduser() if config_home else Path.home() / ".config"
     return root / "pageindex" / "pifs.json"
