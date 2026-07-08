@@ -547,7 +547,7 @@ class PageIndexFileSystem:
         return rows[:page_size], has_more
 
     def scope_files(self, scope: PIFSQueryScope, *, limit: int) -> list[dict[str, Any]]:
-        leaf_items = self._scope_file_leaf_items(scope, limit=limit)
+        leaf_items = self._scope_file_leaf_items(scope, limit=self.scope_file_count(scope) + 1)
         leaf_counts = self._scope_leaf_counts(leaf_items)
         files = []
         for row, leaf in leaf_items:
@@ -563,7 +563,8 @@ class PageIndexFileSystem:
                     "metadata": row["metadata"],
                 }
             )
-        return sorted(files, key=lambda item: (str(item["name"]).lower(), item["path"], item["file_ref"]))
+        files = sorted(files, key=lambda item: (str(item["name"]).lower(), item["path"], item["file_ref"]))
+        return files[:limit]
 
     def scope_file_locator(self, scope: PIFSQueryScope, file_ref: str, leaf: str) -> str:
         leaf_items = self._scope_file_leaf_items(scope, limit=self.scope_file_count(scope) + 1)
@@ -1729,12 +1730,16 @@ class PageIndexFileSystem:
                 raise
         normalized = normalize_path(target)
         try:
+            return self._resolve_scope_file_locator(normalized)
+        except KeyError:
+            pass
+        try:
             scope = self.resolve_query_scope(normalized)
         except (KeyError, ValueError):
             pass
         else:
             raise ValueError(self._scope_file_required_message(scope.path))
-        return self._resolve_scope_file_locator(normalized)
+        raise KeyError(f"Unknown file target: {target}")
 
     def _resolve_scope_file_locator(self, target: str) -> str:
         prefix, _, leaf = target.rstrip("/").rpartition("/")

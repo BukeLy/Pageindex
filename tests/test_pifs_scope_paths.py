@@ -219,6 +219,42 @@ class PIFSScopePathTest(unittest.TestCase):
                 {"page": 2, "page_size": 50, "has_more": False, "next_page": None},
             )
 
+    def test_tree_file_pagination_sorts_full_scope_before_slicing(self):
+        from pageindex.filesystem import PIFSCommandExecutor, PageIndexFileSystem
+
+        with tempfile.TemporaryDirectory() as tmp:
+            from pathlib import Path
+
+            root = Path(tmp)
+            filesystem = PageIndexFileSystem(workspace=root / "workspace")
+            for index in range(55):
+                file_ref = register_markdown(
+                    filesystem,
+                    root,
+                    f"doc_{index:02d}",
+                    "/source",
+                    title=f"source-{54 - index:02d}.md",
+                    metadata={"company": "3M"},
+                )
+                filesystem.attach_file_to_folder(
+                    file_ref,
+                    "/docs",
+                    metadata={"display_name": f"report-{index:02d}.md"},
+                )
+            executor = PIFSCommandExecutor(filesystem)
+
+            first_page = _payload(executor.execute("tree /docs/@company/3M --page 1"))
+            second_page = _payload(executor.execute("tree /docs/@company/3M --page 2"))
+
+            self.assertTrue(first_page["success"])
+            self.assertTrue(second_page["success"])
+            first_names = [item["name"] for item in first_page["data"]["tree"]["files"]]
+            second_names = [item["name"] for item in second_page["data"]["tree"]["files"]]
+
+            self.assertEqual(first_names, [f"report-{index:02d}.md" for index in range(50)])
+            self.assertEqual(second_names, [f"report-{index:02d}.md" for index in range(50, 55)])
+            self.assertEqual(len(set(first_names + second_names)), 55)
+
     def test_duplicate_file_leaves_in_scope_return_disambiguated_locators(self):
         from pageindex.filesystem import PIFSCommandExecutor, PageIndexFileSystem
 
@@ -267,6 +303,43 @@ class PIFSScopePathTest(unittest.TestCase):
             browse_paths = [item["path"] for item in browse["data"]["documents"]]
             self.assertEqual(len(browse_paths), 2)
             self.assertEqual(len(set(browse_paths)), 2)
+
+    def test_metadata_scope_file_leaf_can_match_metadata_axis_name(self):
+        from pageindex.filesystem import PIFSCommandExecutor, PageIndexFileSystem
+
+        with tempfile.TemporaryDirectory() as tmp:
+            from pathlib import Path
+
+            root = Path(tmp)
+            filesystem = PageIndexFileSystem(workspace=root / "workspace")
+            register_markdown(
+                filesystem,
+                root,
+                "doc_axis_leaf",
+                "/docs",
+                title="@ticker",
+                text="axis leaf evidence",
+                metadata={"company": "3M", "ticker": "MMM"},
+            )
+            executor = PIFSCommandExecutor(filesystem)
+
+            tree = _payload(executor.execute("tree /docs/@company/3M"))
+            self.assertTrue(tree["success"])
+            locator = tree["data"]["tree"]["files"][0]["path"]
+            self.assertEqual(locator, "/docs/@company/3M/@ticker")
+
+            stat = _payload(executor.execute(f"stat {locator}"))
+            self.assertTrue(stat["success"])
+            self.assertEqual(stat["data"]["document"]["path"], locator)
+
+            structure = _payload(executor.execute(f"cat {locator} --structure"))
+            self.assertTrue(structure["success"])
+            self.assertEqual(structure["data"]["document"]["path"], locator)
+
+            grep = _payload(executor.execute(f"grep evidence {locator}"))
+            self.assertTrue(grep["success"])
+            self.assertEqual(grep["data"]["document"]["path"], locator)
+            self.assertEqual(grep["data"]["matches"][0]["line"], 1)
 
     def test_scope_paths_reject_duplicate_and_unknown_metadata_fields(self):
         from pageindex.filesystem import PIFSCommandExecutor, PageIndexFileSystem
