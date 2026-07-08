@@ -548,10 +548,10 @@ class PageIndexFileSystem:
 
     def scope_files(self, scope: PIFSQueryScope, *, limit: int) -> list[dict[str, Any]]:
         leaf_items = self._scope_file_leaf_items(scope, limit=self.scope_file_count(scope) + 1)
-        leaf_counts = self._scope_leaf_counts(leaf_items)
+        locator_leaf_by_file_ref = self._scope_locator_leaf_by_file_ref(leaf_items)
         files = []
         for row, leaf in leaf_items:
-            locator_leaf = self._disambiguated_scope_leaf(leaf, row["file_ref"], leaf_counts)
+            locator_leaf = locator_leaf_by_file_ref[row["file_ref"]]
             files.append(
                 {
                     "path": self._scope_file_locator(scope, locator_leaf),
@@ -568,10 +568,9 @@ class PageIndexFileSystem:
 
     def scope_file_locator(self, scope: PIFSQueryScope, file_ref: str, leaf: str) -> str:
         leaf_items = self._scope_file_leaf_items(scope, limit=self.scope_file_count(scope) + 1)
-        leaf_counts = self._scope_leaf_counts(leaf_items)
         return self._scope_file_locator(
             scope,
-            self._disambiguated_scope_leaf(leaf, file_ref, leaf_counts),
+            self._scope_locator_leaf_by_file_ref(leaf_items).get(file_ref, leaf),
         )
 
     def _scope_file_leaf_items(self, scope: PIFSQueryScope, *, limit: int) -> list[tuple[dict[str, Any], str]]:
@@ -609,6 +608,22 @@ class PageIndexFileSystem:
         if leaf_counts.get(leaf, 0) <= 1:
             return leaf
         return f"{leaf}~{file_ref}"
+
+    @classmethod
+    def _scope_locator_leaf_by_file_ref(cls, leaf_items: list[tuple[dict[str, Any], str]]) -> dict[str, str]:
+        leaf_counts = cls._scope_leaf_counts(leaf_items)
+        used: set[str] = set()
+        locator_leaf_by_file_ref: dict[str, str] = {}
+        for row, leaf in sorted(leaf_items, key=lambda item: (item[1].lower(), item[1], item[0]["file_ref"])):
+            base = cls._disambiguated_scope_leaf(leaf, row["file_ref"], leaf_counts)
+            locator_leaf = base
+            suffix = 2
+            while locator_leaf in used:
+                locator_leaf = f"{base}~{suffix}"
+                suffix += 1
+            used.add(locator_leaf)
+            locator_leaf_by_file_ref[row["file_ref"]] = locator_leaf
+        return locator_leaf_by_file_ref
 
     def scope_stat(self, path: str) -> dict[str, Any]:
         scope = self.resolve_query_scope(path)

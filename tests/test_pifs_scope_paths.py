@@ -304,6 +304,58 @@ class PIFSScopePathTest(unittest.TestCase):
             self.assertEqual(len(browse_paths), 2)
             self.assertEqual(len(set(browse_paths)), 2)
 
+    def test_disambiguated_file_leaf_does_not_collide_with_real_leaf(self):
+        from pageindex.filesystem import PIFSCommandExecutor, PageIndexFileSystem
+
+        with tempfile.TemporaryDirectory() as tmp:
+            from pathlib import Path
+
+            root = Path(tmp)
+            filesystem = PageIndexFileSystem(workspace=root / "workspace")
+            first_ref = register_markdown(
+                filesystem,
+                root,
+                "doc_first",
+                "/docs/a",
+                title="x.md",
+                text="first collision evidence",
+                metadata={"company": "3M"},
+            )
+            register_markdown(
+                filesystem,
+                root,
+                "doc_second",
+                "/docs/b",
+                title="x.md",
+                text="second collision evidence",
+                metadata={"company": "3M"},
+            )
+            register_markdown(
+                filesystem,
+                root,
+                "doc_real_suffix",
+                "/docs/c",
+                title=f"x.md~{first_ref}",
+                text="real suffix collision evidence",
+                metadata={"company": "3M"},
+            )
+            executor = PIFSCommandExecutor(filesystem)
+
+            tree = _payload(executor.execute("tree /docs/@company/3M"))
+            self.assertTrue(tree["success"])
+            paths = [item["path"] for item in tree["data"]["tree"]["files"]]
+            self.assertEqual(len(paths), 3)
+            self.assertEqual(len(set(paths)), 3)
+
+            for path in paths:
+                stat = _payload(executor.execute(f"stat {path}"))
+                self.assertTrue(stat["success"])
+                self.assertEqual(stat["data"]["document"]["path"], path)
+
+                grep = _payload(executor.execute(f"grep evidence {path}"))
+                self.assertTrue(grep["success"])
+                self.assertEqual(grep["data"]["document"]["path"], path)
+
     def test_metadata_scope_file_leaf_can_match_metadata_axis_name(self):
         from pageindex.filesystem import PIFSCommandExecutor, PageIndexFileSystem
 
