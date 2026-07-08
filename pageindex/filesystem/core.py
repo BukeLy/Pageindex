@@ -1745,6 +1745,7 @@ class PageIndexFileSystem:
         prefix, _, leaf = target.rstrip("/").rpartition("/")
         if not leaf:
             raise KeyError(f"Unknown file target: {target}")
+        leaf = unquote(leaf)
         scope_path = prefix or "/"
         scope = self.resolve_query_scope(scope_path)
         if scope.metadata_axis is not None:
@@ -1838,7 +1839,10 @@ class PageIndexFileSystem:
 
     @staticmethod
     def _scope_file_locator(scope: PIFSQueryScope, leaf: Any) -> str:
-        return PageIndexFileSystem._join_virtual_file_path(scope.path, str(leaf).strip("/"))
+        return PageIndexFileSystem._join_virtual_file_path(
+            scope.path,
+            PageIndexFileSystem.encode_scope_segment(str(leaf).strip("/")),
+        )
 
     @staticmethod
     def _build_descriptor(title: str, metadata: dict[str, Any]) -> str:

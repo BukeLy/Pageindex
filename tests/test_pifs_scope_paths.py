@@ -326,7 +326,49 @@ class PIFSScopePathTest(unittest.TestCase):
             tree = _payload(executor.execute("tree /docs/@company/3M"))
             self.assertTrue(tree["success"])
             locator = tree["data"]["tree"]["files"][0]["path"]
-            self.assertEqual(locator, "/docs/@company/3M/@ticker")
+            self.assertEqual(locator, "/docs/@company/3M/%40ticker")
+
+            stat = _payload(executor.execute(f"stat {locator}"))
+            self.assertTrue(stat["success"])
+            self.assertEqual(stat["data"]["document"]["path"], locator)
+
+            structure = _payload(executor.execute(f"cat {locator} --structure"))
+            self.assertTrue(structure["success"])
+            self.assertEqual(structure["data"]["document"]["path"], locator)
+
+            grep = _payload(executor.execute(f"grep evidence {locator}"))
+            self.assertTrue(grep["success"])
+            self.assertEqual(grep["data"]["document"]["path"], locator)
+            self.assertEqual(grep["data"]["matches"][0]["line"], 1)
+
+    def test_metadata_scope_file_leaf_with_slash_round_trips(self):
+        from pageindex.filesystem import PIFSCommandExecutor, PageIndexFileSystem
+
+        with tempfile.TemporaryDirectory() as tmp:
+            from pathlib import Path
+
+            root = Path(tmp)
+            filesystem = PageIndexFileSystem(workspace=root / "workspace")
+            file_ref = register_markdown(
+                filesystem,
+                root,
+                "doc_slash_leaf",
+                "/source",
+                title="source.md",
+                text="slash leaf evidence",
+                metadata={"company": "3M"},
+            )
+            filesystem.attach_file_to_folder(
+                file_ref,
+                "/docs",
+                metadata={"display_name": "2024/report.md"},
+            )
+            executor = PIFSCommandExecutor(filesystem)
+
+            tree = _payload(executor.execute("tree /docs/@company/3M"))
+            self.assertTrue(tree["success"])
+            locator = tree["data"]["tree"]["files"][0]["path"]
+            self.assertEqual(locator, "/docs/@company/3M/2024%2Freport.md")
 
             stat = _payload(executor.execute(f"stat {locator}"))
             self.assertTrue(stat["success"])
