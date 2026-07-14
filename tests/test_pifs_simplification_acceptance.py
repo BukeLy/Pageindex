@@ -1659,6 +1659,77 @@ def test_register_files_prepare_failure_restores_existing_owned_artifacts(
     assert structure["structure"][0]["title"] == existing.stem
 
 
+@pytest.mark.parametrize("raw_path_kind", ["canonical", "custom"])
+def test_register_files_rollback_follows_explicit_raw_artifact_management_policy(
+    raw_path_kind, tmp_path, monkeypatch
+):
+    import openai
+    from pageindex.filesystem.store import make_file_ref
+
+    install_network_fakes(monkeypatch)
+
+    class FailingSecondOpenAI(FakeOpenAI):
+        def __init__(self, **kwargs):
+            super().__init__(**kwargs)
+            self.calls = 0
+
+        def create(self, *, model, input, dimensions):
+            self.calls += 1
+            if self.calls == 2:
+                raise RuntimeError("embedding unavailable for second registration")
+            return super().create(model=model, input=input, dimensions=dimensions)
+
+    monkeypatch.setattr(openai, "OpenAI", FailingSecondOpenAI)
+    workspace = tmp_path / "workspace"
+    filesystem = open_test_filesystem(workspace)
+    first = tmp_path / "first.md"
+    second = tmp_path / "second.md"
+    first.write_text("alpha registration evidence", encoding="utf-8")
+    second.write_text("beta registration evidence", encoding="utf-8")
+    first_external_id = f"doc-{raw_path_kind}-raw"
+    first_file_ref = make_file_ref(first_external_id)
+    raw_dir = workspace / "artifacts" / "raw"
+    raw_dir.mkdir(parents=True, exist_ok=True)
+    raw_path = raw_dir / (
+        f"{first_file_ref}.json"
+        if raw_path_kind == "canonical"
+        else "custom-sentinel.json"
+    )
+    sentinel = f"{raw_path_kind} raw sentinel".encode()
+    raw_path.write_bytes(sentinel)
+    baseline = registration_logical_state(workspace)
+
+    with pytest.raises(RuntimeError, match="summary projection.*second registration"):
+        filesystem.register_files(
+            [
+                {
+                    "storage_uri": first.as_uri(),
+                    "external_id": first_external_id,
+                    "folder_path": "/documents/new",
+                    "title": first.name,
+                    "content_type": "text/markdown",
+                    "content": first.read_text(encoding="utf-8"),
+                    "metadata": {"year": 2024},
+                    "raw_artifact_path": str(raw_path),
+                },
+                {
+                    "storage_uri": second.as_uri(),
+                    "external_id": "doc-second-raw",
+                    "folder_path": "/documents/new",
+                    "title": second.name,
+                    "content_type": "text/markdown",
+                    "content": second.read_text(encoding="utf-8"),
+                    "metadata": {"year": 2025},
+                },
+            ]
+        )
+
+    assert raw_path.read_bytes() == sentinel
+    assert registration_logical_state(workspace) == baseline
+    reopened = open_test_filesystem(workspace)
+    assert reopened.store.file_refs_for_scope() == []
+
+
 def test_register_file_rejects_non_json_metadata_before_side_effects(
     tmp_path, monkeypatch
 ):
@@ -1696,7 +1767,7 @@ def test_register_file_rejects_non_json_metadata_before_side_effects(
     assert reopened.store.file_refs_for_scope() == []
 
 
-def test_register_files_rejects_second_non_json_metadata_and_rolls_back_batch(
+def test_register_files_preflights_all_metadata_before_preparing_batch(
     tmp_path, monkeypatch
 ):
     from pageindex import PageIndexClient
@@ -1741,7 +1812,7 @@ def test_register_files_rejects_second_non_json_metadata_and_rolls_back_batch(
         )
 
     assert registration_logical_state(workspace) == baseline
-    assert indexed_paths == [first.name]
+    assert indexed_paths == []
     reopened = open_test_filesystem(workspace)
     assert reopened.store.folder_info("/")["path"] == "/"
     assert reopened.store.file_refs_for_scope() == []

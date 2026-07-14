@@ -222,6 +222,13 @@ class PageIndexFileSystem:
         return info
 
     def register_files(self, files: list[dict[str, Any]]) -> list[str]:
+        files = [
+            {
+                **file,
+                "metadata": self._validated_register_metadata(file.get("metadata")),
+            }
+            for file in files
+        ]
         preexisting_pageindex_doc_ids = self._pageindex_cache_doc_ids()
         artifact_baselines: dict[Path, bytes | None] = {}
         records: list[dict[str, Any]] = []
@@ -1077,15 +1084,7 @@ class PageIndexFileSystem:
         artifact_baselines: dict[Path, bytes | None] | None = None,
     ) -> dict[str, Any]:
         storage_uri = file["storage_uri"]
-        metadata = file.get("metadata") or {}
-        if not isinstance(metadata, dict):
-            raise ValueError("metadata must be a JSON object")
-        metadata = dict(metadata)
-        try:
-            json.dumps(metadata, ensure_ascii=False)
-        except (TypeError, ValueError) as exc:
-            raise ValueError("metadata must be JSON serializable") from exc
-        self._validate_register_metadata(metadata)
+        metadata = self._validated_register_metadata(file.get("metadata"))
         external_id = file.get("external_id")
         content = file.get("content") or ""
         folder_path = normalize_path(file.get("folder_path") or "/")
@@ -1233,12 +1232,10 @@ class PageIndexFileSystem:
 
     def _sync_owned_raw_artifact(self, record: dict[str, Any]) -> None:
         raw_artifact_path = record.get("raw_artifact_path")
-        if not raw_artifact_path:
-            return
-        default_raw_artifact_path = self.store.raw_dir / f"{record['file_ref']}.json"
-        if Path(raw_artifact_path).expanduser().resolve(strict=False) != (
-            default_raw_artifact_path.resolve(strict=False)
-        ):
+        if self._managed_raw_artifact_path(
+            str(record["file_ref"]),
+            raw_artifact_path,
+        ) is None:
             return
         record["raw_artifact_path"] = str(
             self.store.write_raw_artifact(
@@ -1325,11 +1322,29 @@ class PageIndexFileSystem:
         paths = []
         if file.get("text_artifact_path") is None:
             paths.append(self.store.text_dir / f"{file_ref}.txt")
-        if file.get("raw_artifact_path") is None and file.get("write_raw_artifact", True):
-            paths.append(self.store.raw_dir / f"{file_ref}.json")
+        raw_artifact_path = file.get("raw_artifact_path")
+        if raw_artifact_path is None and file.get("write_raw_artifact", True):
+            raw_artifact_path = self.store.raw_dir / f"{file_ref}.json"
+        managed_raw_path = self._managed_raw_artifact_path(file_ref, raw_artifact_path)
+        if managed_raw_path is not None:
+            paths.append(managed_raw_path)
         for path in paths:
             if path not in baselines:
                 baselines[path] = path.read_bytes() if path.is_file() else None
+
+    def _managed_raw_artifact_path(
+        self,
+        file_ref: str,
+        raw_artifact_path: Any,
+    ) -> Path | None:
+        if not raw_artifact_path:
+            return None
+        default_path = self.store.raw_dir / f"{file_ref}.json"
+        if Path(raw_artifact_path).expanduser().resolve(strict=False) != (
+            default_path.resolve(strict=False)
+        ):
+            return None
+        return default_path
 
     def _restore_registration_artifact_baselines(
         self,
@@ -1613,9 +1628,20 @@ class PageIndexFileSystem:
         )
 
     @staticmethod
-    def _validate_register_metadata(metadata: dict[str, Any]) -> None:
-        if "summary" in metadata:
+    def _validated_register_metadata(metadata: Any) -> dict[str, Any]:
+        if metadata is None:
+            validated = {}
+        elif not isinstance(metadata, dict):
+            raise ValueError("metadata must be a JSON object")
+        else:
+            validated = dict(metadata)
+        try:
+            json.dumps(validated, ensure_ascii=False)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("metadata must be JSON serializable") from exc
+        if "summary" in validated:
             raise ValueError("summary is managed by PageIndex doc_description")
+        return validated
 
     def _register_custom_metadata_fields(self, records: list[dict[str, Any]]) -> None:
         fields = {
