@@ -5,13 +5,16 @@ import json
 import sqlite3
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any
 
 import sqlite_vec
 
 
 class SemanticIndexError(RuntimeError):
     pass
+
+
+SCHEMA_VERSION = 2
 
 
 @dataclass(frozen=True)
@@ -34,27 +37,6 @@ class SemanticSearchResult:
     title: str
     text_hash: str
     metadata: dict[str, Any]
-
-
-class RebuildableSemanticIndex(Protocol):
-    def reset(self, *, dimension: int, metadata: dict[str, Any] | None = None) -> None:
-        ...
-
-    def upsert_many(self, records: list[SemanticIndexRecord]) -> int:
-        ...
-
-    def search(
-        self,
-        vector: list[float],
-        *,
-        limit: int = 10,
-        filters: dict[str, Any] | None = None,
-        fetch_multiplier: int = 20,
-    ) -> list[SemanticSearchResult]:
-        ...
-
-    def info(self) -> dict[str, Any]:
-        ...
 
 
 class SQLiteVecSemanticIndex:
@@ -93,8 +75,6 @@ class SQLiteVecSemanticIndex:
                     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
                     updated_at TEXT DEFAULT CURRENT_TIMESTAMP
                 );
-                CREATE INDEX idx_semantic_index_docs_file_ref
-                  ON semantic_index_docs(file_ref);
                 CREATE INDEX idx_semantic_index_docs_external_id
                   ON semantic_index_docs(external_id);
                 CREATE INDEX idx_semantic_index_docs_source_type
@@ -115,7 +95,41 @@ class SQLiteVecSemanticIndex:
                 "INSERT INTO semantic_index_config(key, value) VALUES (?, ?)",
                 sorted(config.items()),
             )
+            conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
             conn.commit()
+
+    def validate(self, expected_identity: dict[str, Any]) -> dict[str, Any]:
+        with self.connect() as conn:
+            version = int(conn.execute("PRAGMA user_version").fetchone()[0])
+            tables = {
+                str(row[1])
+                for row in conn.execute("PRAGMA table_list")
+                if row[2] in {"table", "virtual"}
+                and not str(row[1]).startswith("sqlite_")
+                and not str(row[1]).startswith("semantic_index_vec_")
+            }
+        required = {
+            "semantic_index_config",
+            "semantic_index_docs",
+            "semantic_index_vec",
+        }
+        if version != SCHEMA_VERSION or tables != required:
+            raise SemanticIndexError(
+                "Incompatible PIFS Summary Projection schema; migrate this workspace "
+                "with pifs-data/scripts/migrate_pifs_workspace.py before opening it."
+            )
+        info = self.info()
+        if info["metadata"] != expected_identity:
+            raise SemanticIndexError(
+                "Incompatible PIFS Summary Embedding Profile; migrate the workspace or "
+                "use the base URL, model, and dimensions that created this projection."
+            )
+        if int(info["dimension"]) != int(expected_identity["dimensions"]):
+            raise SemanticIndexError(
+                "Incompatible PIFS Summary Projection dimensions; migrate the workspace "
+                "or use the matching embedding profile."
+            )
+        return info
 
     def upsert_many(self, records: list[SemanticIndexRecord]) -> int:
         if not records:

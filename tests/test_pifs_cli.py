@@ -37,16 +37,12 @@ def test_pifs_config_file_overrides_default_location(monkeypatch, tmp_path):
 
 
 class FakeFileSystem:
-    def __init__(self, workspace):
+    def __init__(self, workspace, **kwargs):
         self.workspace = Path(workspace)
-        self.projection_retrieval_configured = False
-
-    def configure_existing_projection_retrieval(self):
-        self.projection_retrieval_configured = True
-        return True
+        self.kwargs = kwargs
 
 
-def test_cli_workspace_does_not_eagerly_configure_projection_retrieval(monkeypatch, tmp_path):
+def test_cli_workspace_does_not_eagerly_open_projection(monkeypatch, tmp_path):
     from pageindex.filesystem import cli
 
     workspace = tmp_path / "workspace"
@@ -56,7 +52,7 @@ def test_cli_workspace_does_not_eagerly_configure_projection_retrieval(monkeypat
     filesystem = cli._filesystem_from_workspace(str(workspace))
 
     assert filesystem.workspace == workspace
-    assert filesystem.projection_retrieval_configured is False
+    assert filesystem.kwargs.get("summary_projection_embedding_model") is None
 
 
 def test_cli_workspace_without_projection_index_does_not_require_sqlite_vec(
@@ -81,7 +77,6 @@ def test_cli_workspace_without_projection_index_does_not_require_sqlite_vec(
     filesystem = cli._filesystem_from_workspace(str(workspace))
 
     assert filesystem.workspace == workspace
-    assert filesystem.semantic_retrieval_channels() == ()
 
 
 def test_cli_workspace_uses_embedding_config(monkeypatch, tmp_path):
@@ -94,12 +89,10 @@ def test_cli_workspace_uses_embedding_config(monkeypatch, tmp_path):
         json.dumps(
             {
                 "workspace": str(workspace),
-                "embedding_provider": "openai",
                 "embedding_model": "gemini-embedding-2-preview",
                 "embedding_dimensions": 3072,
                 "embedding_timeout": 12.5,
                 "embedding_base_url": "https://example.invalid/openai/",
-                "embedding_api_key": "test-gemini-key",
             }
         ),
         encoding="utf-8",
@@ -118,57 +111,14 @@ def test_cli_workspace_uses_embedding_config(monkeypatch, tmp_path):
 
     assert filesystem.workspace == workspace
     assert filesystem.kwargs == {
-        "summary_projection_embedding_provider": "openai",
         "summary_projection_embedding_model": "gemini-embedding-2-preview",
         "summary_projection_embedding_dimensions": 3072,
         "summary_projection_embedding_timeout": 12.5,
         "summary_projection_embedding_base_url": "https://example.invalid/openai/",
-        "summary_projection_embedding_api_key": "test-gemini-key",
+        "summary_projection_embedding_api_key": "ignored-env-key",
     }
     assert os.environ["PIFS_EMBEDDING_API_KEY"] == "ignored-env-key"
     assert os.environ["PIFS_EMBEDDING_BASE_URL"] == "https://ignored.invalid/"
-
-
-def test_browse_surfaces_projection_dimension_mismatch_lazily(tmp_path):
-    from pageindex.filesystem import cli
-    from pageindex.filesystem.commands import PIFSCommandExecutor
-    from pageindex.filesystem.semantic_index import SemanticIndexRecord, SQLiteVecSemanticIndex
-
-    workspace = tmp_path / "workspace"
-    index_dir = workspace / "artifacts" / "projection_indexes"
-    summary_index = SQLiteVecSemanticIndex(index_dir / "summary.sqlite")
-    summary_index.reset(
-        dimension=3,
-        metadata={
-            "channel": "summary",
-            "embedding_provider": "test",
-            "embedding_model": "fake",
-            "embedding_dimensions": 3,
-        },
-    )
-    summary_index.upsert_many(
-        [
-            SemanticIndexRecord(
-                file_ref="file_a",
-                external_id="doc_a",
-                source_type="documents",
-                title="A",
-                text="summary",
-                vector=[1.0, 0.0, 0.0],
-            )
-        ]
-    )
-
-    filesystem = cli._filesystem_from_workspace(str(workspace))
-
-    assert filesystem.semantic_retrieval_channels() == ()
-    result = json.loads(PIFSCommandExecutor(filesystem).execute('browse / "summary"'))
-
-    assert result["success"] is False
-    assert result["error"]["code"] == "invalid_command"
-    assert "summary projection index dimension mismatch" in result["error"]["message"]
-    assert "dimension 3" in result["error"]["message"]
-    assert "summary_projection_embedding_dimensions is 1024" in result["error"]["message"]
 
 
 def test_cli_passthrough_invokes_pifs_command_executor(monkeypatch, capsys, tmp_path):
@@ -190,13 +140,13 @@ def test_cli_passthrough_invokes_pifs_command_executor(monkeypatch, capsys, tmp_
     monkeypatch.setattr(cli, "PageIndexFileSystem", FakeFileSystem)
     monkeypatch.setattr(cli, "PIFSCommandExecutor", FakeExecutor)
 
-    status = cli.main(["--workspace", str(workspace), "ls", "/documents"])
+    status = cli.main(["--workspace", str(workspace), "tree", "/documents", "-L", "1"])
 
     assert status == 0
-    assert capsys.readouterr().out == "executed:ls /documents\n"
+    assert capsys.readouterr().out == "executed:tree /documents -L 1\n"
     assert len(executor_instances) == 1
     assert executor_instances[0].filesystem.workspace == workspace
-    assert executor_instances[0].commands == ["ls /documents"]
+    assert executor_instances[0].commands == ["tree /documents -L 1"]
 
 
 def test_cli_passthrough_returns_nonzero_for_failed_json_envelope(monkeypatch, capsys, tmp_path):
@@ -271,9 +221,12 @@ def test_cli_setmeta_replaces_document_metadata(monkeypatch, capsys, tmp_path):
         (workspace, "/documents/report.md", {"ticker": "AAPL"}, False)
     ]
     assert json.loads(capsys.readouterr().out) == {
-        "file_ref": "file_report",
+        "document_id": None,
         "metadata": {"ticker": "AAPL"},
+        "metadata_status": {},
         "path": "/documents/report.md",
+        "status": None,
+        "title": None,
     }
 
 
@@ -297,8 +250,12 @@ def test_cli_setmeta_clear_uses_empty_object(monkeypatch, capsys, tmp_path):
     assert status == 0
     assert calls == [(workspace, "/documents/report.md", {}, True)]
     assert json.loads(capsys.readouterr().out) == {
-        "file_ref": "file_report",
+        "document_id": None,
         "metadata": {},
+        "metadata_status": {},
+        "path": "/documents/report.md",
+        "status": None,
+        "title": None,
     }
 
 
@@ -326,10 +283,10 @@ def test_cli_passthrough_uses_configured_workspace(monkeypatch, capsys, tmp_path
     assert cli.main(["set", "workspace", str(workspace)]) == 0
     capsys.readouterr()
 
-    status = cli.main(["ls", "/documents"])
+    status = cli.main(["tree", "/documents", "-L", "1"])
 
     assert status == 0
-    assert capsys.readouterr().out == "executed:ls /documents\n"
+    assert capsys.readouterr().out == "executed:tree /documents -L 1\n"
     assert executor_instances[0].filesystem.workspace == workspace
 
 
