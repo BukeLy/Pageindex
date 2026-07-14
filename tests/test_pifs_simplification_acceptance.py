@@ -147,6 +147,16 @@ def create_projection_v2(workspace):
     return projection_dir
 
 
+def connect_summary_database(path):
+    import sqlite_vec
+
+    connection = sqlite3.connect(path)
+    connection.enable_load_extension(True)
+    sqlite_vec.load(connection)
+    connection.enable_load_extension(False)
+    return connection
+
+
 def catalog_file_count(workspace):
     with sqlite3.connect(Path(workspace) / "filesystem.sqlite") as connection:
         return connection.execute("SELECT COUNT(*) FROM files").fetchone()[0]
@@ -305,6 +315,29 @@ def test_cli_preflights_partial_projection_before_creating_catalog(tmp_path, cap
     assert not (workspace / "filesystem.sqlite").exists()
 
 
+@pytest.mark.parametrize("catalog_state", ["missing", "zero_byte"])
+def test_cli_rejects_projection_pair_without_valid_catalog_before_mutating_workspace(
+    catalog_state, tmp_path, capsys
+):
+    from pageindex.filesystem.cli import main
+
+    workspace = tmp_path / "workspace"
+    create_projection_v2(workspace)
+    if catalog_state == "zero_byte":
+        (workspace / "filesystem.sqlite").write_bytes(b"")
+    before = workspace_state(workspace)
+
+    status = main(["--workspace", str(workspace), "tree", "/", "-L", "1"])
+
+    assert status == 1
+    assert "migrate_pifs_workspace.py" in capsys.readouterr().err
+    assert workspace_state(workspace) == before
+    if catalog_state == "missing":
+        assert not (workspace / "filesystem.sqlite").exists()
+    else:
+        assert (workspace / "filesystem.sqlite").stat().st_size == 0
+
+
 @pytest.mark.parametrize(
     "mutation",
     [
@@ -411,6 +444,115 @@ def test_cli_rejects_pseudo_v2_projection_without_mutating_workspace(
     assert not (workspace / "filesystem.sqlite").exists()
 
 
+def test_cli_rejects_noncanonical_vec0_distance_without_mutating_workspace(
+    tmp_path, capsys
+):
+    from pageindex.filesystem.cli import main
+
+    workspace = tmp_path / "workspace"
+    assert main(["--workspace", str(workspace), "tree", "/", "-L", "1"]) == 0
+    capsys.readouterr()
+    projection_dir = create_projection_v2(workspace)
+    with connect_summary_database(projection_dir / "summary.sqlite") as connection:
+        connection.execute("DROP TABLE semantic_index_vec")
+        connection.execute(
+            "CREATE VIRTUAL TABLE semantic_index_vec USING "
+            "vec0(source_type TEXT partition key, "
+            "embedding float[3] distance_metric=cosine)"
+        )
+    before = workspace_state(workspace)
+
+    status = main(["--workspace", str(workspace), "tree", "/", "-L", "1"])
+
+    assert status == 1
+    assert "migrate_pifs_workspace.py" in capsys.readouterr().err
+    assert workspace_state(workspace) == before
+
+
+def test_cli_accepts_canonical_vec0_declaration_with_spacing_and_case_variation(
+    tmp_path, capsys
+):
+    from pageindex.filesystem.cli import main
+
+    workspace = tmp_path / "workspace"
+    assert main(["--workspace", str(workspace), "tree", "/", "-L", "1"]) == 0
+    capsys.readouterr()
+    projection_dir = create_projection_v2(workspace)
+    with connect_summary_database(projection_dir / "summary.sqlite") as connection:
+        connection.execute("DROP TABLE semantic_index_vec")
+        connection.execute(
+            "CREATE VIRTUAL TABLE semantic_index_vec USING "
+            "VEC0( source_type TEXT   PARTITION KEY , embedding FLOAT [ 3 ] )"
+        )
+    before = workspace_state(workspace)
+
+    status = main(["--workspace", str(workspace), "tree", "/", "-L", "1"])
+
+    assert status == 0
+    assert json.loads(capsys.readouterr().out)["success"] is True
+    assert workspace_state(workspace) == before
+
+
+@pytest.mark.parametrize(
+    "identity_case",
+    [
+        "summary_base_url",
+        "summary_model",
+        "cache_base_url",
+        "cache_model",
+    ],
+)
+def test_cli_rejects_noncanonical_persisted_embedding_identity_without_mutation(
+    identity_case, tmp_path, capsys
+):
+    from pageindex.filesystem.cli import main
+
+    workspace = tmp_path / "workspace"
+    assert main(["--workspace", str(workspace), "tree", "/", "-L", "1"]) == 0
+    capsys.readouterr()
+    projection_dir = create_projection_v2(workspace)
+    if identity_case.startswith("summary_"):
+        with sqlite3.connect(projection_dir / "summary.sqlite") as connection:
+            metadata = json.loads(
+                connection.execute(
+                    "SELECT value FROM semantic_index_config WHERE key = 'metadata'"
+                ).fetchone()[0]
+            )
+            if identity_case == "summary_base_url":
+                metadata["base_url"] = "HTTPS://EXAMPLE.INVALID/v1/"
+            else:
+                metadata["model"] = " test-embedding "
+            connection.execute(
+                "UPDATE semantic_index_config SET value = ? WHERE key = 'metadata'",
+                (json.dumps(metadata, sort_keys=True),),
+            )
+    else:
+        base_url = (
+            "HTTPS://EXAMPLE.INVALID/v1/"
+            if identity_case == "cache_base_url"
+            else "https://example.invalid/v1"
+        )
+        model = (
+            " test-embedding "
+            if identity_case == "cache_model"
+            else "test-embedding"
+        )
+        with sqlite3.connect(projection_dir / "embedding_cache.sqlite") as connection:
+            connection.execute(
+                "INSERT INTO embedding_cache("
+                "base_url, model, dimensions, text_hash, vector_blob"
+                ") VALUES (?, ?, 3, 'cache-hash', ?)",
+                (base_url, model, b"\0" * 12),
+            )
+    before = workspace_state(workspace)
+
+    status = main(["--workspace", str(workspace), "tree", "/", "-L", "1"])
+
+    assert status == 1
+    assert "migrate_pifs_workspace.py" in capsys.readouterr().err
+    assert workspace_state(workspace) == before
+
+
 def test_cli_allows_fresh_listing_when_projection_is_completely_absent(tmp_path, capsys):
     from pageindex.filesystem.cli import main
 
@@ -419,6 +561,10 @@ def test_cli_allows_fresh_listing_when_projection_is_completely_absent(tmp_path,
     assert main(["--workspace", str(workspace), "tree", "/", "-L", "1"]) == 0
     assert json.loads(capsys.readouterr().out)["success"] is True
     assert (workspace / "filesystem.sqlite").is_file()
+    assert not (workspace / "artifacts" / "projection_indexes").exists()
+
+    assert main(["--workspace", str(workspace), "tree", "/", "-L", "1"]) == 0
+    assert json.loads(capsys.readouterr().out)["success"] is True
     assert not (workspace / "artifacts" / "projection_indexes").exists()
 
 

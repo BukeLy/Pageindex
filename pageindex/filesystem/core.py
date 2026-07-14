@@ -8,6 +8,10 @@ from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, Any, Optional, Union
 from urllib.parse import quote, unquote, urlparse
 
+from ._projection_topology import (
+    projection_database_pair,
+    projection_database_paths,
+)
 from .metadata import MetadataQueryEngine
 from .store import (
     SQLiteFileSystemStore,
@@ -73,14 +77,15 @@ class PageIndexFileSystem:
             if summary_projection_index_dir is not None
             else self.workspace / "artifacts" / "projection_indexes"
         )
-        summary_path = self.summary_projection_index_dir / "summary.sqlite"
-        cache_path = self.summary_projection_index_dir / "embedding_cache.sqlite"
-        if summary_path.exists() != cache_path.exists():
-            raise RuntimeError(
-                "PIFS Summary Projection topology is incomplete; migrate this workspace with "
-                "pifs-data/scripts/migrate_pifs_workspace.py before opening it."
+        summary_path, cache_path = projection_database_paths(
+            self.summary_projection_index_dir
+        )
+        if summary_path.exists() or cache_path.exists():
+            SQLiteFileSystemStore.validate_existing_database(
+                self.workspace / "filesystem.sqlite"
             )
-        if summary_path.exists():
+        database_pair = projection_database_pair(self.summary_projection_index_dir)
+        if database_pair is not None:
             from .semantic_projection import validate_projection_topology
 
             validate_projection_topology(self.summary_projection_index_dir)

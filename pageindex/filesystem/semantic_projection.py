@@ -6,8 +6,18 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlsplit, urlunsplit
 
+from ._embedding_identity import (
+    DEFAULT_OPENAI_BASE_URL,
+    normalize_base_url,
+    normalize_model,
+)
+from ._projection_topology import projection_database_pair
+from ._sqlite_schema import (
+    normalized_table_sql,
+    regular_table_names,
+    sqlite_schema_signature,
+)
 from .core import DEFAULT_EMBEDDING_DIMENSIONS
 from .semantic_index import (
     SCHEMA_VERSION,
@@ -16,28 +26,7 @@ from .semantic_index import (
 )
 
 
-DEFAULT_OPENAI_BASE_URL = "https://api.openai.com/v1"
 SUMMARY_INDEX_NAME = "summary"
-
-
-def normalize_base_url(value: str | None) -> str:
-    raw = str(value or DEFAULT_OPENAI_BASE_URL).strip()
-    parsed = urlsplit(raw)
-    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
-        raise ValueError("embedding base URL must be an absolute HTTP(S) URL")
-    if parsed.username or parsed.password or parsed.query or parsed.fragment:
-        raise ValueError(
-            "embedding base URL must not contain credentials, query parameters, or a fragment"
-        )
-    return urlunsplit(
-        (
-            parsed.scheme.lower(),
-            parsed.netloc.lower(),
-            parsed.path.rstrip("/"),
-            "",
-            "",
-        )
-    )
 
 
 @dataclass(frozen=True)
@@ -49,9 +38,7 @@ class SummaryEmbeddingProfile:
     api_key: str | None = None
 
     def __post_init__(self) -> None:
-        model = str(self.model or "").strip()
-        if not model:
-            raise ValueError("embedding model must not be empty")
+        model = normalize_model(self.model)
         if int(self.dimensions) <= 0:
             raise ValueError("embedding dimensions must be positive")
         if float(self.timeout) <= 0:
@@ -102,17 +89,11 @@ class SummaryProjection:
         self.index = SQLiteVecSemanticIndex(
             self.index_dir / f"{SUMMARY_INDEX_NAME}.sqlite"
         )
-        summary_exists = self.index.db_path.exists()
         cache_path = self.index_dir / "embedding_cache.sqlite"
-        cache_exists = cache_path.exists()
-        if summary_exists and cache_exists:
+        database_pair = projection_database_pair(self.index_dir)
+        if database_pair is not None:
             self.index.validate(self.profile.identity)
             self.embedding_cache = EmbeddingCache(cache_path, create=False)
-        elif summary_exists or cache_exists:
-            raise RuntimeError(
-                "PIFS Summary Projection topology is incomplete; migrate this workspace with "
-                "pifs-data/scripts/migrate_pifs_workspace.py before opening it."
-            )
         elif create:
             self.index_dir.mkdir(parents=True, exist_ok=True)
             self.index.reset(
@@ -314,13 +295,26 @@ class EmbeddingCache:
                         "OR trim(base_url) = '' OR trim(model) = '' OR trim(text_hash) = ''"
                     ).fetchone()[0]
                 )
+                identities = connection.execute(
+                    "SELECT DISTINCT base_url, model FROM embedding_cache"
+                ).fetchall()
             with sqlite3.connect(":memory:") as expected_connection:
                 expected_connection.row_factory = sqlite3.Row
                 self._create_schema(expected_connection)
                 expected = self._schema_signature(expected_connection)
-        except sqlite3.Error as exc:
+            invalid_identity = any(
+                normalize_base_url(row["base_url"]) != row["base_url"]
+                or normalize_model(row["model"]) != row["model"]
+                for row in identities
+            )
+        except (sqlite3.Error, ValueError) as exc:
             raise self._incompatible_schema_error() from exc
-        if version != SCHEMA_VERSION or actual != expected or invalid_rows:
+        if (
+            version != SCHEMA_VERSION
+            or actual != expected
+            or invalid_rows
+            or invalid_identity
+        ):
             raise self._incompatible_schema_error()
 
     @staticmethod
@@ -342,62 +336,12 @@ class EmbeddingCache:
 
     @staticmethod
     def _schema_signature(connection: sqlite3.Connection) -> dict[str, Any]:
-        tables = {
-            str(row[0])
-            for row in connection.execute(
-                "SELECT name FROM sqlite_master "
-                "WHERE type = 'table' AND name NOT LIKE 'sqlite_%'"
-            )
-        }
+        tables = regular_table_names(connection)
         if tables != {"embedding_cache"}:
             return {"tables": tables}
-        columns = tuple(
-            tuple(row)
-            for row in connection.execute('PRAGMA table_xinfo("embedding_cache")')
-        )
-        indexes = []
-        for row in connection.execute('PRAGMA index_list("embedding_cache")'):
-            name = str(row[1])
-            origin = str(row[3])
-            index_columns = tuple(
-                str(column[2])
-                for column in connection.execute(f'PRAGMA index_info("{name}")')
-            )
-            indexes.append(
-                (
-                    name if origin == "c" else None,
-                    int(row[2]),
-                    origin,
-                    int(row[4]),
-                    index_columns,
-                )
-            )
-        foreign_keys = tuple(
-            sorted(
-                (
-                    str(row[2]),
-                    str(row[3]),
-                    str(row[4]),
-                    str(row[5]),
-                    str(row[6]),
-                    str(row[7]),
-                )
-                for row in connection.execute(
-                    'PRAGMA foreign_key_list("embedding_cache")'
-                )
-            )
-        )
-        sql = connection.execute(
-            "SELECT sql FROM sqlite_master WHERE type = 'table' "
-            "AND name = 'embedding_cache'"
-        ).fetchone()[0]
-        return {
-            "tables": tables,
-            "columns": columns,
-            "indexes": tuple(sorted(indexes, key=repr)),
-            "foreign_keys": foreign_keys,
-            "sql": " ".join(str(sql).lower().split()),
-        }
+        signature = sqlite_schema_signature(connection, tables)
+        signature["sql"] = normalized_table_sql(connection, "embedding_cache")
+        return signature
 
     @staticmethod
     def _incompatible_schema_error() -> RuntimeError:
@@ -409,17 +353,10 @@ class EmbeddingCache:
 
 def validate_projection_topology(index_dir: str | Path) -> bool:
     index_dir = Path(index_dir).expanduser()
-    summary_path = index_dir / f"{SUMMARY_INDEX_NAME}.sqlite"
-    cache_path = index_dir / "embedding_cache.sqlite"
-    summary_exists = summary_path.exists()
-    cache_exists = cache_path.exists()
-    if not summary_exists and not cache_exists:
+    database_pair = projection_database_pair(index_dir)
+    if database_pair is None:
         return False
-    if not summary_exists or not cache_exists:
-        raise RuntimeError(
-            "PIFS Summary Projection topology is incomplete; migrate this workspace with "
-            "pifs-data/scripts/migrate_pifs_workspace.py before opening it."
-        )
+    summary_path, cache_path = database_pair
     SQLiteVecSemanticIndex(summary_path).validate_schema()
     EmbeddingCache(cache_path, create=False)
     return True

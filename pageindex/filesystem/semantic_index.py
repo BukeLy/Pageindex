@@ -10,6 +10,9 @@ from typing import Any
 
 import sqlite_vec
 
+from ._embedding_identity import normalize_base_url, normalize_model
+from ._sqlite_schema import sqlite_schema_signature
+
 
 class SemanticIndexError(RuntimeError):
     pass
@@ -22,7 +25,17 @@ SUMMARY_TABLES = {
     "semantic_index_vec",
 }
 SUMMARY_CONFIG_KEYS = {"adapter", "adapter_version", "dimension", "metadata"}
-VEC_DIMENSION_RE = re.compile(r"\bembedding\s+float\[(\d+)\]", re.IGNORECASE)
+VEC0_DECLARATION_RE = re.compile(
+    r"""
+    ^\s*CREATE\s+VIRTUAL\s+TABLE\s+[\"`\[]?semantic_index_vec[\"`\]]?
+    \s+USING\s+vec0\s*\(\s*
+    source_type\s+TEXT\s+PARTITION\s+KEY\s*,\s*
+    embedding\s+FLOAT\s*\[\s*(\d+)\s*\]\s*
+    (?:distance_metric\s*=\s*([A-Za-z0-9_-]+)\s*)?
+    \)\s*$
+    """,
+    re.IGNORECASE | re.VERBOSE,
+)
 
 
 @dataclass(frozen=True)
@@ -98,11 +111,15 @@ class SQLiteVecSemanticIndex:
                 or set(metadata) != {"base_url", "model", "dimensions"}
                 or not isinstance(metadata["base_url"], str)
                 or not metadata["base_url"].strip()
+                or normalize_base_url(metadata["base_url"]) != metadata["base_url"]
                 or not isinstance(metadata["model"], str)
                 or not metadata["model"].strip()
+                or normalize_model(metadata["model"]) != metadata["model"]
                 or isinstance(metadata["dimensions"], bool)
                 or int(metadata["dimensions"]) != dimension
-                or actual["vec_dimension"] != dimension
+                or actual["vec0"] is None
+                or actual["vec0"]["dimension"] != dimension
+                or actual["vec0"]["distance_metric"] != "l2"
             ):
                 raise self._incompatible_schema_error()
             with self._memory_connection() as expected_conn:
@@ -437,59 +454,23 @@ class SQLiteVecSemanticIndex:
         conn: sqlite3.Connection,
         tables: set[str],
     ) -> dict[str, Any]:
-        columns = {
-            table: tuple(
-                tuple(row)
-                for row in conn.execute(f'PRAGMA table_xinfo("{table}")')
-            )
-            for table in sorted(tables)
-        }
-        indexes: dict[str, tuple[tuple[Any, ...], ...]] = {}
-        foreign_keys: dict[str, tuple[tuple[Any, ...], ...]] = {}
-        for table in sorted(tables):
-            table_indexes = []
-            for row in conn.execute(f'PRAGMA index_list("{table}")'):
-                name = str(row[1])
-                origin = str(row[3])
-                index_columns = tuple(
-                    str(column[2])
-                    for column in conn.execute(f'PRAGMA index_info("{name}")')
-                )
-                table_indexes.append(
-                    (
-                        name if origin == "c" else None,
-                        int(row[2]),
-                        origin,
-                        int(row[4]),
-                        index_columns,
-                    )
-                )
-            indexes[table] = tuple(sorted(table_indexes, key=repr))
-            foreign_keys[table] = tuple(
-                sorted(
-                    (
-                        str(row[2]),
-                        str(row[3]),
-                        str(row[4]),
-                        str(row[5]),
-                        str(row[6]),
-                        str(row[7]),
-                    )
-                    for row in conn.execute(f'PRAGMA foreign_key_list("{table}")')
-                )
-            )
+        signature = sqlite_schema_signature(conn, tables)
         vec_row = conn.execute(
             "SELECT sql FROM sqlite_master WHERE type = 'table' "
             "AND name = 'semantic_index_vec'"
         ).fetchone()
-        match = VEC_DIMENSION_RE.search(str(vec_row[0] if vec_row else ""))
-        return {
-            "tables": tables,
-            "columns": columns,
-            "indexes": indexes,
-            "foreign_keys": foreign_keys,
-            "vec_dimension": int(match.group(1)) if match else None,
-        }
+        match = VEC0_DECLARATION_RE.fullmatch(str(vec_row[0] if vec_row else ""))
+        signature["vec0"] = (
+            {
+                "partition_key": ("source_type", "text"),
+                "embedding_type": "float",
+                "dimension": int(match.group(1)),
+                "distance_metric": str(match.group(2) or "l2").lower(),
+            }
+            if match
+            else None
+        )
+        return signature
 
     @staticmethod
     def _incompatible_schema_error() -> SemanticIndexError:
