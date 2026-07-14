@@ -227,6 +227,8 @@ class PageIndexFileSystem:
             record for record in records if record["file_ref"] not in preexisting_file_refs
         ]
         try:
+            if records:
+                self._ensure_add_completion_defaults()
             self._register_custom_metadata_fields(records)
             self.store.insert_files(records)
             for record in records:
@@ -237,6 +239,7 @@ class PageIndexFileSystem:
                             metadata=record["metadata"],
                             metadata_status=record["metadata_status"],
                         )
+                    self._require_add_summary_projection_ready(record)
                     self._sync_owned_raw_artifact(record)
                 except KeyError:
                     continue
@@ -1217,19 +1220,18 @@ class PageIndexFileSystem:
         if not summary:
             return False
         if self.summary_projection is None:
-            self._refresh_record_metadata_status(record)
-            return True
+            raise RuntimeError("PIFS Summary Projection is not open")
         try:
             result = self.summary_projection.upsert_summary(record)
         except Exception as exc:
             summary_index["status"] = "failed"
             summary_index["error"] = str(exc)
             self._refresh_record_metadata_status(record)
-            return True
+            raise RuntimeError(
+                f"PIFS failed to build summary projection index: {exc}"
+            ) from exc
         summary_index.clear()
         summary_index.update({"requested": True, **result})
-        if summary_index.get("status") != "ready":
-            summary_index["status"] = "ready"
         self._refresh_record_metadata_status(record)
         return True
 

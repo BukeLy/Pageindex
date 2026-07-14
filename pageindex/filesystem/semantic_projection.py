@@ -12,7 +12,7 @@ from ._embedding_identity import (
     normalize_base_url,
     normalize_model,
 )
-from ._projection_topology import projection_database_pair
+from ._projection_topology import projection_database_pair, projection_database_paths
 from ._sqlite_schema import (
     normalized_table_sql,
     regular_table_names,
@@ -96,13 +96,25 @@ class SummaryProjection:
             self.embedding_cache = EmbeddingCache(cache_path, create=False)
         elif create:
             self.index_dir.mkdir(parents=True, exist_ok=True)
-            self.index.reset(
-                dimension=self.profile.dimensions,
-                metadata=self.profile.identity,
-            )
-            self.embedding_cache = EmbeddingCache(cache_path, create=True)
+            try:
+                self.index.reset(
+                    dimension=self.profile.dimensions,
+                    metadata=self.profile.identity,
+                )
+                self.embedding_cache = EmbeddingCache(cache_path, create=True)
+            except Exception:
+                self._cleanup_failed_create()
+                raise
         else:
             raise RuntimeError("PIFS Summary Projection is not available")
+
+    def _cleanup_failed_create(self) -> None:
+        for path in projection_database_paths(self.index_dir):
+            for suffix in ("", "-journal", "-shm", "-wal"):
+                try:
+                    Path(f"{path}{suffix}").unlink()
+                except FileNotFoundError:
+                    continue
 
     def upsert_summary(self, record: dict[str, Any]) -> dict[str, Any]:
         summary = str((record.get("metadata") or {}).get("summary") or "").strip()

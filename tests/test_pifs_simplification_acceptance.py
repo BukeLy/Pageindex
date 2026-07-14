@@ -185,6 +185,27 @@ def catalog_file_count(workspace):
         return connection.execute("SELECT COUNT(*) FROM files").fetchone()[0]
 
 
+def open_test_filesystem(workspace):
+    from pageindex.filesystem import PageIndexFileSystem
+
+    return PageIndexFileSystem(
+        workspace,
+        summary_projection_embedding_base_url="https://example.invalid/v1",
+        summary_projection_embedding_model="test-embedding",
+        summary_projection_embedding_dimensions=3,
+        summary_projection_embedding_api_key="runtime-secret",
+    )
+
+
+def nested_path_with_length(root, target_length):
+    path = Path(root)
+    while len(str(path)) < target_length:
+        component_length = min(200, target_length - len(str(path)) - 1)
+        path /= "x" * component_length
+    assert len(str(path)) == target_length
+    return path
+
+
 def test_cli_rejects_removed_ls_command_with_structured_error(tmp_path, capsys):
     from pageindex.filesystem.cli import main
 
@@ -1221,6 +1242,164 @@ def test_cli_add_rolls_back_when_summary_projection_fails(
         assert connection.execute(
             "SELECT COUNT(*) FROM semantic_index_docs"
         ).fetchone()[0] == 0
+
+
+def test_register_file_completes_summary_projection_for_immediate_and_reopen_browse(
+    tmp_path, monkeypatch
+):
+    install_network_fakes(monkeypatch)
+    workspace = tmp_path / "workspace"
+    source = tmp_path / "notes.md"
+    source.write_text("alpha registration evidence", encoding="utf-8")
+    filesystem = open_test_filesystem(workspace)
+
+    file_ref = filesystem.register_file(
+        storage_uri=source.as_uri(),
+        folder_path="/documents",
+        title=source.name,
+        content_type="text/markdown",
+        content=source.read_text(encoding="utf-8"),
+    )
+
+    projection_dir = workspace / "artifacts" / "projection_indexes"
+    assert (projection_dir / "summary.sqlite").is_file()
+    assert (projection_dir / "embedding_cache.sqlite").is_file()
+    assert filesystem.store.get_file(file_ref).metadata_status["summary_projection"]["status"] == "ready"
+    assert file_ref in {
+        row["file_ref"]
+        for row in filesystem.browse_semantic_files("/documents", "alpha")["data"]
+    }
+
+    reopened = open_test_filesystem(workspace)
+    assert file_ref in {
+        row["file_ref"]
+        for row in reopened.browse_semantic_files("/documents", "alpha")["data"]
+    }
+
+
+def test_register_file_opens_existing_projection_and_upserts_second_document(
+    tmp_path, monkeypatch
+):
+    install_network_fakes(monkeypatch)
+    workspace = tmp_path / "workspace"
+    first = tmp_path / "first.md"
+    second = tmp_path / "second.md"
+    first.write_text("alpha registration evidence", encoding="utf-8")
+    second.write_text("beta registration evidence", encoding="utf-8")
+    filesystem = open_test_filesystem(workspace)
+    first_ref = filesystem.register_file(
+        storage_uri=first.as_uri(),
+        folder_path="/documents",
+        title=first.name,
+        content_type="text/markdown",
+        content=first.read_text(encoding="utf-8"),
+    )
+
+    reopened = open_test_filesystem(workspace)
+    second_ref = reopened.register_file(
+        storage_uri=second.as_uri(),
+        folder_path="/documents",
+        title=second.name,
+        content_type="text/markdown",
+        content=second.read_text(encoding="utf-8"),
+    )
+
+    assert reopened.store.get_file(second_ref).metadata_status["summary_projection"]["status"] == "ready"
+    assert second_ref in {
+        row["file_ref"]
+        for row in reopened.browse_semantic_files("/documents", "beta")["data"]
+    }
+    with connect_summary_database(
+        workspace / "artifacts" / "projection_indexes" / "summary.sqlite"
+    ) as connection:
+        assert connection.execute("SELECT COUNT(*) FROM semantic_index_docs").fetchone()[0] == 2
+        assert connection.execute("SELECT COUNT(*) FROM semantic_index_vec").fetchone()[0] == 2
+    assert set(reopened.store.file_refs_for_scope()) == {first_ref, second_ref}
+
+
+def test_register_files_rolls_back_new_batch_when_second_projection_upsert_fails(
+    tmp_path, monkeypatch
+):
+    import openai
+
+    install_network_fakes(monkeypatch)
+
+    class FailingSecondOpenAI(FakeOpenAI):
+        def __init__(self, **kwargs):
+            super().__init__(**kwargs)
+            self.calls = 0
+
+        def create(self, *, model, input, dimensions):
+            self.calls += 1
+            if self.calls == 2:
+                raise RuntimeError("embedding unavailable for second registration")
+            return super().create(model=model, input=input, dimensions=dimensions)
+
+    monkeypatch.setattr(openai, "OpenAI", FailingSecondOpenAI)
+    workspace = tmp_path / "workspace"
+    filesystem = open_test_filesystem(workspace)
+    first = tmp_path / "first.md"
+    second = tmp_path / "second.md"
+    first.write_text("alpha registration evidence", encoding="utf-8")
+    second.write_text("beta registration evidence", encoding="utf-8")
+
+    with pytest.raises(RuntimeError, match="summary projection.*second registration"):
+        filesystem.register_files(
+            [
+                {
+                    "storage_uri": source.as_uri(),
+                    "folder_path": "/documents",
+                    "title": source.name,
+                    "content_type": "text/markdown",
+                    "content": source.read_text(encoding="utf-8"),
+                }
+                for source in (first, second)
+            ]
+        )
+
+    assert catalog_file_count(workspace) == 0
+    assert not list((workspace / "artifacts" / "text").glob("*"))
+    assert not list((workspace / "artifacts" / "raw").glob("*"))
+    with connect_summary_database(
+        workspace / "artifacts" / "projection_indexes" / "summary.sqlite"
+    ) as connection:
+        assert connection.execute("SELECT COUNT(*) FROM semantic_index_docs").fetchone()[0] == 0
+        assert connection.execute("SELECT COUNT(*) FROM semantic_index_vec").fetchone()[0] == 0
+
+    reopened = open_test_filesystem(workspace)
+    assert reopened.store.folder_info("/")["path"] == "/"
+    assert reopened.store.file_refs_for_scope() == []
+
+
+def test_register_file_rolls_back_partial_projection_creation_and_reopens(
+    tmp_path, monkeypatch
+):
+    install_network_fakes(monkeypatch)
+    # SQLite's Unix VFS accepts summary.sqlite at this path length but rejects
+    # the eight-character-longer embedding_cache.sqlite path.
+    workspace = nested_path_with_length(tmp_path / "long-workspace", 453)
+    filesystem = open_test_filesystem(workspace)
+    source = tmp_path / "notes.md"
+    source.write_text("alpha registration evidence", encoding="utf-8")
+
+    with pytest.raises(sqlite3.OperationalError, match="unable to open database file"):
+        filesystem.register_file(
+            storage_uri=source.as_uri(),
+            folder_path="/documents",
+            title=source.name,
+            content_type="text/markdown",
+            content=source.read_text(encoding="utf-8"),
+        )
+
+    projection_dir = workspace / "artifacts" / "projection_indexes"
+    assert not (projection_dir / "summary.sqlite").exists()
+    assert not (projection_dir / "embedding_cache.sqlite").exists()
+    assert catalog_file_count(workspace) == 0
+    assert not list((workspace / "artifacts" / "text").glob("*"))
+    assert not list((workspace / "artifacts" / "raw").glob("*"))
+
+    reopened = open_test_filesystem(workspace)
+    assert reopened.store.folder_info("/")["path"] == "/"
 
 
 def test_cli_add_rejects_duplicate_target_without_changing_owned_document(
