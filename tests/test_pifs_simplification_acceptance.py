@@ -1394,6 +1394,52 @@ def test_tree_metadata_values_keep_fixed_fifty_item_pagination(
     }
 
 
+def test_tree_metadata_dot_values_return_actionable_encoded_scope_paths(
+    tmp_path, monkeypatch, capsys
+):
+    from pageindex.filesystem.cli import main
+
+    install_network_fakes(monkeypatch)
+    write_embedding_config(tmp_path, monkeypatch)
+    source = tmp_path / "notes.md"
+    source.write_text("alpha dot value evidence", encoding="utf-8")
+    workspace = tmp_path / "workspace"
+    assert main(["--workspace", str(workspace), "add", str(source), "/documents"]) == 0
+    capsys.readouterr()
+    assert main(
+        [
+            "--workspace",
+            str(workspace),
+            "setmeta",
+            "/documents/notes.md",
+            json.dumps({"tag": [".", ".."]}),
+        ]
+    ) == 0
+    capsys.readouterr()
+
+    assert main(["--workspace", str(workspace), "tree", "/documents/@tag"]) == 0
+    values = json.loads(capsys.readouterr().out)["data"]["tree"]["folders"]
+    assert {row["value"]: row["path"] for row in values} == {
+        ".": "/documents/@tag/%2E",
+        "..": "/documents/@tag/%2E%2E",
+    }
+
+    for scope_path in (row["path"] for row in values):
+        assert main(
+            ["--workspace", str(workspace), "tree", scope_path, "-L", "1"]
+        ) == 0
+        file_path = json.loads(capsys.readouterr().out)["data"]["tree"]["files"][0][
+            "path"
+        ]
+        assert main(
+            ["--workspace", str(workspace), "browse", scope_path, "alpha"]
+        ) == 0
+        document = json.loads(capsys.readouterr().out)["data"]["documents"][0]
+        assert document["path"] == file_path
+        assert main(["--workspace", str(workspace), "stat", file_path]) == 0
+        capsys.readouterr()
+
+
 def test_metadata_virtual_paths_use_alternating_encoded_field_value_segments(
     tmp_path, monkeypatch, capsys
 ):

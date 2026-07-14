@@ -613,7 +613,10 @@ class PageIndexFileSystem:
 
     @staticmethod
     def encode_scope_segment(segment: Any) -> str:
-        return quote(str(segment), safe="")
+        value = str(segment)
+        if value in {".", ".."}:
+            return value.replace(".", "%2E")
+        return quote(value, safe="")
 
     def browse_semantic_files(
         self,
