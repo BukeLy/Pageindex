@@ -156,7 +156,7 @@ class PageIndexFileSystem:
         )
         if self.store.file_basename_exists_in_folder(folder_path, filename):
             raise FileExistsError(f"File already exists at {virtual_path}")
-        self._ensure_add_completion_defaults()
+        self._ensure_summary_projection()
         add_created_folder_paths = self._add_created_folder_paths(folder_path)
         file_ref = make_file_ref(virtual_path.strip("/"))
         uploads_dir = self.workspace / "artifacts" / "uploads"
@@ -202,7 +202,7 @@ class PageIndexFileSystem:
                         metadata=record["metadata"],
                         metadata_status=record["metadata_status"],
                     )
-                self._require_add_summary_projection_ready(record)
+                self._require_summary_projection_ready(record, operation="add")
                 self._sync_owned_raw_artifact(record)
                 self._ensure_add_semantic_retrieval_ready()
             except Exception:
@@ -226,9 +226,26 @@ class PageIndexFileSystem:
         new_records = [
             record for record in records if record["file_ref"] not in preexisting_file_refs
         ]
+        created_folder_paths = sorted(
+            {
+                path
+                for record in new_records
+                for path in self._add_created_folder_paths(record["folder_path"])
+            },
+            key=lambda path: (path.count("/"), path),
+        )
+        new_metadata_fields = {
+            name
+            for name in self._custom_metadata_field_names(records)
+            if not self.store.metadata_field_exists(name)
+        }
+        batch_cache_keys: set[Any] = set()
+        preexisting_cache_keys: set[Any] = set()
         try:
             if records:
-                self._ensure_add_completion_defaults()
+                projection = self._ensure_summary_projection()
+                batch_cache_keys = projection.cache_keys_for_records(new_records)
+                preexisting_cache_keys = projection.existing_cache_keys(batch_cache_keys)
             self._register_custom_metadata_fields(records)
             self.store.insert_files(records)
             for record in records:
@@ -239,20 +256,28 @@ class PageIndexFileSystem:
                             metadata=record["metadata"],
                             metadata_status=record["metadata_status"],
                         )
-                    self._require_add_summary_projection_ready(record)
+                    self._require_summary_projection_ready(
+                        record,
+                        operation="registration",
+                    )
                     self._sync_owned_raw_artifact(record)
                 except KeyError:
                     continue
         except Exception:
             self._cleanup_add_summary_projection(new_records)
+            self._cleanup_summary_projection_cache(
+                batch_cache_keys - preexisting_cache_keys
+            )
             for record in new_records:
                 self._cleanup_add_catalog_record(str(record["file_ref"]))
+            self._cleanup_add_created_folders(created_folder_paths)
+            self._cleanup_new_metadata_fields(new_metadata_fields)
             self._cleanup_failed_register_artifacts(records)
             raise
         return [record["file_ref"] for record in records]
 
-    def _ensure_add_completion_defaults(self) -> None:
-        self._open_summary_projection(create=True)
+    def _ensure_summary_projection(self) -> Any:
+        return self._open_summary_projection(create=True)
 
     def _ensure_add_semantic_retrieval_ready(self) -> None:
         projection = self._open_summary_projection(create=False)
@@ -1009,14 +1034,21 @@ class PageIndexFileSystem:
         )
         raise RuntimeError(f"pifs add failed to build PageIndex tree: {message}")
 
-    def _require_add_summary_projection_ready(self, record: dict[str, Any]) -> None:
+    def _require_summary_projection_ready(
+        self,
+        record: dict[str, Any],
+        *,
+        operation: str,
+    ) -> None:
         summary_projection = (record.get("metadata_status") or {}).get("summary_projection")
         if not summary_projection or not summary_projection.get("requested"):
-            raise RuntimeError("pifs add requires a requested summary projection index")
+            raise RuntimeError(
+                f"PIFS {operation} requires a requested summary projection index"
+            )
         if summary_projection.get("status") != "ready":
             detail = summary_projection.get("error") or summary_projection.get("status")
             raise RuntimeError(
-                f"pifs add failed to build summary projection index: {detail}"
+                f"PIFS {operation} failed to build summary projection index: {detail}"
             )
 
     def _prepare_file_record(self, file: dict[str, Any]) -> dict[str, Any]:
@@ -1281,10 +1313,25 @@ class PageIndexFileSystem:
             except Exception:
                 continue
 
+    def _cleanup_summary_projection_cache(self, keys: set[Any]) -> None:
+        if not keys or self.summary_projection is None:
+            return
+        try:
+            self.summary_projection.delete_cache_keys(keys)
+        except Exception:
+            return
+
     def _cleanup_add_created_folders(self, folder_paths: list[str]) -> None:
         for folder_path in reversed(folder_paths):
             try:
                 self.store.delete_empty_folder(folder_path)
+            except Exception:
+                continue
+
+    def _cleanup_new_metadata_fields(self, names: set[str]) -> None:
+        for name in sorted(names):
+            try:
+                self.store.delete_metadata_field_if_unreferenced(name)
             except Exception:
                 continue
 
@@ -1504,15 +1551,23 @@ class PageIndexFileSystem:
             raise ValueError("summary is managed by PageIndex doc_description")
 
     def _register_custom_metadata_fields(self, records: list[dict[str, Any]]) -> None:
-        fields = {}
+        fields = {
+            name: {}
+            for name in self._custom_metadata_field_names(records)
+            if not self.store.metadata_field_exists(name)
+        }
+        if fields:
+            self.metadata.register_schema({"fields": fields}, source="user")
+
+    def _custom_metadata_field_names(self, records: list[dict[str, Any]]) -> set[str]:
+        fields = set()
         for record in records:
             for name in SQLiteFileSystemStore.indexed_metadata_values(
                 record.get("metadata", {})
             ):
                 if self.metadata.FIELD_RE.match(str(name)):
-                    fields[str(name)] = {}
-        if fields:
-            self.metadata.register_schema({"fields": fields}, source="user")
+                    fields.add(str(name))
+        return fields
 
     @staticmethod
     def _metadata_status_state(*, metadata: dict[str, Any]) -> dict[str, Any]:

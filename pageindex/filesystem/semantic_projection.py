@@ -27,6 +27,7 @@ from .semantic_index import (
 
 
 SUMMARY_INDEX_NAME = "summary"
+EmbeddingCacheKey = tuple[str, str, int, str]
 
 
 @dataclass(frozen=True)
@@ -148,6 +149,28 @@ class SummaryProjection:
 
     def delete_summary(self, file_ref: str) -> int:
         return self.index.delete_file_refs([file_ref])
+
+    def cache_keys_for_records(
+        self,
+        records: list[dict[str, Any]],
+    ) -> set[EmbeddingCacheKey]:
+        summaries = [
+            str((record.get("metadata") or {}).get("summary") or "").strip()
+            for record in records
+        ]
+        return self.embedding_cache.keys_for_texts(
+            [summary for summary in summaries if summary],
+            profile=self.profile,
+        )
+
+    def existing_cache_keys(
+        self,
+        keys: set[EmbeddingCacheKey],
+    ) -> set[EmbeddingCacheKey]:
+        return self.embedding_cache.existing_keys(keys)
+
+    def delete_cache_keys(self, keys: set[EmbeddingCacheKey]) -> int:
+        return self.embedding_cache.delete_keys(keys)
 
     def search(
         self,
@@ -294,6 +317,54 @@ class EmbeddingCache:
             for index, vector in zip(positions, vectors):
                 cached[hashes[index]] = vector
         return [cached[text_hash] for text_hash in hashes]
+
+    @staticmethod
+    def keys_for_texts(
+        texts: list[str],
+        *,
+        profile: SummaryEmbeddingProfile,
+    ) -> set[EmbeddingCacheKey]:
+        return {
+            (
+                str(profile.base_url),
+                profile.model,
+                profile.dimensions,
+                SQLiteVecSemanticIndex.text_hash(text),
+            )
+            for text in texts
+        }
+
+    def existing_keys(
+        self,
+        keys: set[EmbeddingCacheKey],
+    ) -> set[EmbeddingCacheKey]:
+        existing: set[EmbeddingCacheKey] = set()
+        with self.connect(read_only=True) as connection:
+            for key in sorted(keys):
+                if connection.execute(
+                    """
+                    SELECT 1
+                    FROM embedding_cache
+                    WHERE base_url = ? AND model = ? AND dimensions = ? AND text_hash = ?
+                    """,
+                    key,
+                ).fetchone() is not None:
+                    existing.add(key)
+        return existing
+
+    def delete_keys(self, keys: set[EmbeddingCacheKey]) -> int:
+        if not keys:
+            return 0
+        with self.connect() as connection:
+            before = connection.total_changes
+            connection.executemany(
+                """
+                DELETE FROM embedding_cache
+                WHERE base_url = ? AND model = ? AND dimensions = ? AND text_hash = ?
+                """,
+                sorted(keys),
+            )
+            return connection.total_changes - before
 
     def _validate(self) -> None:
         try:

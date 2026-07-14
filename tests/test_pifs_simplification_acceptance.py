@@ -185,6 +185,102 @@ def catalog_file_count(workspace):
         return connection.execute("SELECT COUNT(*) FROM files").fetchone()[0]
 
 
+def registration_logical_state(workspace):
+    workspace = Path(workspace)
+    catalog_path = workspace / "filesystem.sqlite"
+    projection_dir = workspace / "artifacts" / "projection_indexes"
+    summary_path = projection_dir / "summary.sqlite"
+    cache_path = projection_dir / "embedding_cache.sqlite"
+
+    with sqlite3.connect(catalog_path) as connection:
+        catalog = {
+            "files": connection.execute(
+                """
+                SELECT file_ref, external_id, storage_uri, title, descriptor,
+                       content_type, source_type, fingerprint, text_artifact_path,
+                       raw_artifact_path, pageindex_doc_id, pageindex_tree_status,
+                       metadata_json, metadata_status_json, deleted_at
+                FROM files
+                ORDER BY file_ref
+                """
+            ).fetchall(),
+            "folders": connection.execute(
+                """
+                SELECT folder_id, parent_id, name, path, description, kind, metadata_json
+                FROM folders
+                ORDER BY path
+                """
+            ).fetchall(),
+            "metadata_fields": connection.execute(
+                """
+                SELECT field_id, name, description, source
+                FROM metadata_fields
+                ORDER BY name
+                """
+            ).fetchall(),
+            "metadata_values": connection.execute(
+                """
+                SELECT file_ref, field_id, value_text
+                FROM metadata_values
+                ORDER BY file_ref, field_id, value_text
+                """
+            ).fetchall(),
+        }
+
+    summary = {"docs": [], "vec": []}
+    if summary_path.is_file():
+        with connect_summary_database(summary_path) as connection:
+            summary = {
+                "docs": connection.execute(
+                    """
+                    SELECT rowid, file_ref, external_id, source_type, title,
+                           text_hash, text_chars, metadata_json
+                    FROM semantic_index_docs
+                    ORDER BY rowid
+                    """
+                ).fetchall(),
+                "vec": connection.execute(
+                    """
+                    SELECT rowid, source_type, hex(embedding)
+                    FROM semantic_index_vec
+                    ORDER BY rowid
+                    """
+                ).fetchall(),
+            }
+
+    cache = []
+    if cache_path.is_file():
+        with sqlite3.connect(cache_path) as connection:
+            cache = connection.execute(
+                """
+                SELECT base_url, model, dimensions, text_hash, hex(vector_blob)
+                FROM embedding_cache
+                ORDER BY base_url, model, dimensions, text_hash
+                """
+            ).fetchall()
+
+    artifacts = {}
+    for artifact_kind in ("text", "raw"):
+        artifact_dir = workspace / "artifacts" / artifact_kind
+        if artifact_dir.is_dir():
+            artifacts[artifact_kind] = {
+                path.relative_to(artifact_dir).as_posix(): hashlib.sha256(
+                    path.read_bytes()
+                ).hexdigest()
+                for path in sorted(artifact_dir.rglob("*"))
+                if path.is_file()
+            }
+        else:
+            artifacts[artifact_kind] = {}
+
+    return {
+        "catalog": catalog,
+        "summary": summary,
+        "cache": cache,
+        "artifacts": artifacts,
+    }
+
+
 def open_test_filesystem(workspace):
     from pageindex.filesystem import PageIndexFileSystem
 
@@ -1342,33 +1438,89 @@ def test_register_files_rolls_back_new_batch_when_second_projection_upsert_fails
     second = tmp_path / "second.md"
     first.write_text("alpha registration evidence", encoding="utf-8")
     second.write_text("beta registration evidence", encoding="utf-8")
+    baseline = registration_logical_state(workspace)
 
     with pytest.raises(RuntimeError, match="summary projection.*second registration"):
         filesystem.register_files(
             [
                 {
                     "storage_uri": source.as_uri(),
-                    "folder_path": "/documents",
+                    "folder_path": "/documents/new",
                     "title": source.name,
                     "content_type": "text/markdown",
                     "content": source.read_text(encoding="utf-8"),
+                    "metadata": {"year": 2024},
                 }
                 for source in (first, second)
             ]
         )
 
-    assert catalog_file_count(workspace) == 0
-    assert not list((workspace / "artifacts" / "text").glob("*"))
-    assert not list((workspace / "artifacts" / "raw").glob("*"))
-    with connect_summary_database(
-        workspace / "artifacts" / "projection_indexes" / "summary.sqlite"
-    ) as connection:
-        assert connection.execute("SELECT COUNT(*) FROM semantic_index_docs").fetchone()[0] == 0
-        assert connection.execute("SELECT COUNT(*) FROM semantic_index_vec").fetchone()[0] == 0
+    assert registration_logical_state(workspace) == baseline
 
     reopened = open_test_filesystem(workspace)
     assert reopened.store.folder_info("/")["path"] == "/"
     assert reopened.store.file_refs_for_scope() == []
+
+
+def test_register_files_rollback_preserves_preexisting_catalog_projection_and_cache(
+    tmp_path, monkeypatch
+):
+    import openai
+
+    install_network_fakes(monkeypatch)
+    workspace = tmp_path / "workspace"
+    existing_dir = tmp_path / "existing"
+    batch_dir = tmp_path / "batch"
+    existing_dir.mkdir()
+    batch_dir.mkdir()
+    existing = existing_dir / "shared.md"
+    shared = batch_dir / "shared.md"
+    second = batch_dir / "second.md"
+    existing.write_text("alpha registration evidence", encoding="utf-8")
+    shared.write_text(existing.read_text(encoding="utf-8"), encoding="utf-8")
+    second.write_text("beta registration evidence", encoding="utf-8")
+
+    filesystem = open_test_filesystem(workspace)
+    existing_ref = filesystem.register_file(
+        storage_uri=existing.as_uri(),
+        folder_path="/documents",
+        title=existing.name,
+        content_type="text/markdown",
+        content=existing.read_text(encoding="utf-8"),
+        metadata={"year": 2023},
+    )
+    filesystem.metadata.register_schema(
+        {"fields": {"year": {"description": "preexisting definition"}}},
+        source="manual",
+    )
+    baseline = registration_logical_state(workspace)
+
+    class FailingBetaOpenAI(FakeOpenAI):
+        def create(self, *, model, input, dimensions):
+            if any("beta" in str(text).lower() for text in input):
+                raise RuntimeError("embedding unavailable for second registration")
+            return super().create(model=model, input=input, dimensions=dimensions)
+
+    monkeypatch.setattr(openai, "OpenAI", FailingBetaOpenAI)
+    reopened = open_test_filesystem(workspace)
+    with pytest.raises(RuntimeError, match="summary projection.*second registration"):
+        reopened.register_files(
+            [
+                {
+                    "storage_uri": source.as_uri(),
+                    "folder_path": "/documents/new",
+                    "title": source.name,
+                    "content_type": "text/markdown",
+                    "content": source.read_text(encoding="utf-8"),
+                    "metadata": {"year": 2024, "batch_only": "new"},
+                }
+                for source in (shared, second)
+            ]
+        )
+
+    assert registration_logical_state(workspace) == baseline
+    strict_reopen = open_test_filesystem(workspace)
+    assert strict_reopen.store.get_file(existing_ref).metadata["year"] == 2023
 
 
 def test_register_file_rolls_back_partial_projection_creation_and_reopens(

@@ -555,6 +555,26 @@ class SQLiteFileSystemStore:
             ).fetchone()
         return row is not None
 
+    def delete_metadata_field_if_unreferenced(self, name: str) -> bool:
+        with self.connect() as conn:
+            row = conn.execute(
+                "SELECT field_id FROM metadata_fields WHERE name = ?",
+                (name,),
+            ).fetchone()
+            if row is None:
+                return False
+            referenced = conn.execute(
+                "SELECT 1 FROM metadata_values WHERE field_id = ? LIMIT 1",
+                (row["field_id"],),
+            ).fetchone()
+            if referenced is not None:
+                return False
+            cursor = conn.execute(
+                "DELETE FROM metadata_fields WHERE field_id = ?",
+                (row["field_id"],),
+            )
+            return cursor.rowcount > 0
+
     def list_metadata_fields(self) -> list[MetadataField]:
         with self.connect() as conn:
             rows = conn.execute(
