@@ -119,7 +119,9 @@ def workspace_state(workspace):
         return {}
     return {
         path.relative_to(workspace).as_posix(): (
-            "directory"
+            f"symlink:{path.readlink()}"
+            if path.is_symlink()
+            else "directory"
             if path.is_dir()
             else hashlib.sha256(path.read_bytes()).hexdigest()
         )
@@ -357,6 +359,38 @@ def test_cli_rejects_projection_pair_without_valid_catalog_before_mutating_works
         assert not (workspace / "filesystem.sqlite").exists()
     else:
         assert (workspace / "filesystem.sqlite").stat().st_size == 0
+
+
+@pytest.mark.parametrize(
+    "projection_state",
+    ["both_broken", "broken_summary_only", "broken_summary_with_valid_cache"],
+)
+def test_cli_rejects_broken_projection_symlinks_without_mutating_workspace(
+    projection_state, tmp_path, capsys
+):
+    from pageindex.filesystem.cli import main
+
+    workspace = tmp_path / "workspace"
+    assert main(["--workspace", str(workspace), "tree", "/", "-L", "1"]) == 0
+    capsys.readouterr()
+    projection_dir = workspace / "artifacts" / "projection_indexes"
+    if projection_state == "broken_summary_with_valid_cache":
+        create_projection_v2(workspace)
+        (projection_dir / "summary.sqlite").unlink()
+    else:
+        projection_dir.mkdir(parents=True)
+    (projection_dir / "summary.sqlite").symlink_to("missing-summary.sqlite")
+    if projection_state == "both_broken":
+        (projection_dir / "embedding_cache.sqlite").symlink_to(
+            "missing-cache.sqlite"
+        )
+    before = workspace_state(workspace)
+
+    status = main(["--workspace", str(workspace), "tree", "/", "-L", "1"])
+
+    assert status == 1
+    assert "migrate_pifs_workspace.py" in capsys.readouterr().err
+    assert workspace_state(workspace) == before
 
 
 def test_cli_rejects_existing_zero_byte_catalog_without_projection_or_mutation(

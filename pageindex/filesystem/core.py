@@ -10,6 +10,7 @@ from urllib.parse import quote, unquote, urlparse
 
 from ._projection_topology import (
     projection_database_pair,
+    projection_database_path_present,
     projection_database_paths,
 )
 from .metadata import MetadataQueryEngine
@@ -80,7 +81,9 @@ class PageIndexFileSystem:
         summary_path, cache_path = projection_database_paths(
             self.summary_projection_index_dir
         )
-        if summary_path.exists() or cache_path.exists():
+        summary_present = projection_database_path_present(summary_path)
+        cache_present = projection_database_path_present(cache_path)
+        if summary_present or cache_present:
             SQLiteFileSystemStore.validate_existing_database(
                 self.workspace / "filesystem.sqlite"
             )
