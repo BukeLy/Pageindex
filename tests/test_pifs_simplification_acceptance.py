@@ -157,6 +157,27 @@ def connect_summary_database(path):
     return connection
 
 
+def insert_projection_document(summary_path, *, file_ref="orphan_projection_ref"):
+    import sqlite_vec
+
+    with connect_summary_database(summary_path) as connection:
+        connection.execute(
+            """
+            INSERT INTO semantic_index_docs(
+                rowid, file_ref, external_id, source_type, title,
+                text_hash, text_chars, metadata_json
+            ) VALUES (1, ?, 'orphan-doc', 'markdown', 'orphan.md',
+                      'orphan-hash', 14, '{}')
+            """,
+            (file_ref,),
+        )
+        connection.execute(
+            "INSERT INTO semantic_index_vec(rowid, source_type, embedding) "
+            "VALUES (1, 'markdown', ?)",
+            (sqlite_vec.serialize_float32([1.0, 0.0, 0.0]),),
+        )
+
+
 def catalog_file_count(workspace):
     with sqlite3.connect(Path(workspace) / "filesystem.sqlite") as connection:
         return connection.execute("SELECT COUNT(*) FROM files").fetchone()[0]
@@ -336,6 +357,48 @@ def test_cli_rejects_projection_pair_without_valid_catalog_before_mutating_works
         assert not (workspace / "filesystem.sqlite").exists()
     else:
         assert (workspace / "filesystem.sqlite").stat().st_size == 0
+
+
+def test_cli_rejects_existing_zero_byte_catalog_without_projection_or_mutation(
+    tmp_path, capsys
+):
+    from pageindex.filesystem.cli import main
+
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    catalog = workspace / "filesystem.sqlite"
+    catalog.write_bytes(b"")
+    before = workspace_state(workspace)
+
+    status = main(["--workspace", str(workspace), "tree", "/", "-L", "1"])
+
+    assert status == 1
+    assert "migrate_pifs_workspace.py" in capsys.readouterr().err
+    assert workspace_state(workspace) == before
+    assert catalog.stat().st_size == 0
+
+
+@pytest.mark.parametrize("mutation", ["orphan_projection", "missing_root"])
+def test_cli_rejects_inconsistent_catalog_projection_relationships_without_mutation(
+    mutation, tmp_path, capsys
+):
+    from pageindex.filesystem.cli import main
+
+    workspace = tmp_path / "workspace"
+    assert main(["--workspace", str(workspace), "tree", "/", "-L", "1"]) == 0
+    capsys.readouterr()
+    projection_dir = create_projection_v2(workspace)
+    insert_projection_document(projection_dir / "summary.sqlite")
+    if mutation == "missing_root":
+        with sqlite3.connect(workspace / "filesystem.sqlite") as connection:
+            connection.execute("DELETE FROM folders WHERE path = '/'")
+    before = workspace_state(workspace)
+
+    status = main(["--workspace", str(workspace), "tree", "/", "-L", "1"])
+
+    assert status == 1
+    assert "migrate_pifs_workspace.py" in capsys.readouterr().err
+    assert workspace_state(workspace) == before
 
 
 @pytest.mark.parametrize(

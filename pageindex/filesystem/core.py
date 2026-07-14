@@ -87,8 +87,13 @@ class PageIndexFileSystem:
         database_pair = projection_database_pair(self.summary_projection_index_dir)
         if database_pair is not None:
             from .semantic_projection import validate_projection_topology
+            from ._workspace_consistency import validate_workspace_consistency
 
             validate_projection_topology(self.summary_projection_index_dir)
+            validate_workspace_consistency(
+                self.workspace / "filesystem.sqlite",
+                database_pair[0],
+            )
         self.store = SQLiteFileSystemStore(self.workspace)
         self.metadata = MetadataQueryEngine(self.store)
         self.summary_projection: Any | None = None

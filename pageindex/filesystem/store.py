@@ -39,7 +39,7 @@ class SQLiteFileSystemStore:
         return conn
 
     def initialize_schema(self) -> None:
-        if self.db_path.exists() and self.db_path.stat().st_size > 0:
+        if self.db_path.exists() or self.db_path.is_symlink():
             self.validate_existing_database(self.db_path)
             return
         with self.connect() as conn:
@@ -64,6 +64,9 @@ class SQLiteFileSystemStore:
             raise cls._incompatible_schema_error() from exc
         if version != SCHEMA_VERSION or actual != expected:
             raise cls._incompatible_schema_error()
+        from ._workspace_consistency import validate_catalog_root
+
+        validate_catalog_root(db_path)
 
     @staticmethod
     def _create_current_schema(conn: sqlite3.Connection) -> None:
