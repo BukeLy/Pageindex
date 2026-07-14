@@ -4,6 +4,7 @@ import json
 import os
 import shutil
 import tempfile
+from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, Any, Optional, Union
 from urllib.parse import quote, unquote, urlparse
@@ -47,6 +48,24 @@ ADD_FILE_CONTENT_TYPES = {
     ".md": "text/markdown",
     ".markdown": "text/markdown",
 }
+
+
+@dataclass
+class _RegistrationRollbackSnapshot:
+    preexisting_pageindex_doc_ids: set[str]
+    artifact_baselines: dict[Path, bytes | None] = field(default_factory=dict)
+    records: list[dict[str, Any]] = field(default_factory=list)
+    new_records: list[dict[str, Any]] = field(default_factory=list)
+    created_folder_paths: list[str] = field(default_factory=list)
+    new_metadata_fields: set[str] = field(default_factory=set)
+    new_cache_keys: set[_EmbeddingCacheKey] = field(default_factory=set)
+    catalog_rows: dict[str, dict[str, Any]] = field(default_factory=dict)
+    membership_rows: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
+    metadata_value_rows: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
+    projection_rows: dict[
+        str,
+        tuple[dict[str, Any], dict[str, Any]],
+    ] = field(default_factory=dict)
 
 
 def strip_pageindex_text_fields(value: Any) -> Any:
@@ -161,7 +180,7 @@ class PageIndexFileSystem:
         )
         if self.store.file_basename_exists_in_folder(folder_path, filename):
             raise FileExistsError(f"File already exists at {virtual_path}")
-        self._ensure_summary_projection()
+        projection = self._ensure_summary_projection()
         add_created_folder_paths = self._add_created_folder_paths(folder_path)
         file_ref = make_file_ref(virtual_path.strip("/"))
         uploads_dir = self.workspace / "artifacts" / "uploads"
@@ -170,6 +189,8 @@ class PageIndexFileSystem:
         final_dir_created = False
         catalog_inserted = False
         records: list[dict[str, Any]] = []
+        cache_keys: set[_EmbeddingCacheKey] = set()
+        preexisting_cache_keys: set[_EmbeddingCacheKey] = set()
         preexisting_pageindex_doc_ids = self._pageindex_cache_doc_ids()
 
         uploads_dir.mkdir(parents=True, exist_ok=True)
@@ -197,6 +218,8 @@ class PageIndexFileSystem:
                     }
                 )
                 records = [record]
+                cache_keys = projection.cache_keys_for_records(records)
+                preexisting_cache_keys = projection.existing_cache_keys(cache_keys)
                 self._require_add_pageindex_ready(record)
                 self._register_custom_metadata_fields(records)
                 self.store.insert_files(records)
@@ -214,6 +237,9 @@ class PageIndexFileSystem:
                 if catalog_inserted:
                     self._cleanup_catalog_record(file_ref)
                 self._cleanup_summary_projection_records(records)
+                self._cleanup_summary_projection_cache(
+                    cache_keys - preexisting_cache_keys
+                )
                 self._cleanup_failed_register_artifacts(records)
                 self._cleanup_pageindex_cache(records, preexisting_pageindex_doc_ids)
                 self._cleanup_created_folders(add_created_folder_paths)
@@ -233,48 +259,45 @@ class PageIndexFileSystem:
             }
             for file in files
         ]
-        preexisting_pageindex_doc_ids = self._pageindex_cache_doc_ids()
-        artifact_baselines: dict[Path, bytes | None] = {}
-        records: list[dict[str, Any]] = []
-        new_records: list[dict[str, Any]] = []
-        created_folder_paths: list[str] = []
-        new_metadata_fields: set[str] = set()
-        batch_cache_keys: set[_EmbeddingCacheKey] = set()
-        preexisting_cache_keys: set[_EmbeddingCacheKey] = set()
+        rollback = _RegistrationRollbackSnapshot(
+            preexisting_pageindex_doc_ids=self._pageindex_cache_doc_ids()
+        )
         try:
             for file in files:
-                records.append(
+                rollback.records.append(
                     self._prepare_file_record(
                         file,
-                        artifact_baselines=artifact_baselines,
+                        artifact_baselines=rollback.artifact_baselines,
                     )
                 )
-            preexisting_file_refs = self._existing_file_refs(records)
-            new_records = [
+            projection = self._ensure_summary_projection() if rollback.records else None
+            self._capture_existing_registration_rows(rollback, projection)
+            rollback.new_records = [
                 record
-                for record in records
-                if record["file_ref"] not in preexisting_file_refs
+                for record in rollback.records
+                if record["file_ref"] not in rollback.catalog_rows
             ]
-            created_folder_paths = sorted(
+            rollback.created_folder_paths = sorted(
                 {
                     path
-                    for record in new_records
+                    for record in rollback.records
                     for path in self._add_created_folder_paths(record["folder_path"])
                 },
                 key=lambda path: (path.count("/"), path),
             )
-            new_metadata_fields = {
+            rollback.new_metadata_fields = {
                 name
-                for name in self._custom_metadata_field_names(records)
+                for name in self._custom_metadata_field_names(rollback.records)
                 if not self.store.metadata_field_exists(name)
             }
-            if records:
-                projection = self._ensure_summary_projection()
-                batch_cache_keys = projection.cache_keys_for_records(new_records)
-                preexisting_cache_keys = projection.existing_cache_keys(batch_cache_keys)
-            self._register_custom_metadata_fields(records)
-            self.store.insert_files(records)
-            for record in records:
+            if projection is not None:
+                batch_cache_keys = projection.cache_keys_for_records(rollback.records)
+                rollback.new_cache_keys = (
+                    batch_cache_keys - projection.existing_cache_keys(batch_cache_keys)
+                )
+            self._register_custom_metadata_fields(rollback.records)
+            self.store.insert_files(rollback.records)
+            for record in rollback.records:
                 try:
                     if self._complete_summary_projection_index(record):
                         self.store.update_file_metadata_status(
@@ -290,21 +313,23 @@ class PageIndexFileSystem:
                 except KeyError:
                     continue
         except Exception:
-            self._cleanup_summary_projection_records(new_records)
-            self._cleanup_summary_projection_cache(
-                batch_cache_keys - preexisting_cache_keys
-            )
-            for record in new_records:
+            self._cleanup_summary_projection_records(rollback.new_records)
+            self._restore_existing_registration_projection(rollback)
+            self._cleanup_summary_projection_cache(rollback.new_cache_keys)
+            for record in rollback.new_records:
                 self._cleanup_catalog_record(str(record["file_ref"]))
-            self._cleanup_created_folders(created_folder_paths)
-            self._cleanup_new_metadata_fields(new_metadata_fields)
+            self._restore_existing_registration_catalog(rollback)
+            self._cleanup_created_folders(rollback.created_folder_paths)
+            self._cleanup_new_metadata_fields(rollback.new_metadata_fields)
             self._cleanup_pageindex_cache(
-                records,
-                preexisting_pageindex_doc_ids,
+                rollback.records,
+                rollback.preexisting_pageindex_doc_ids,
             )
-            self._restore_registration_artifact_baselines(artifact_baselines)
+            self._restore_registration_artifact_baselines(
+                rollback.artifact_baselines
+            )
             raise
-        return [record["file_ref"] for record in records]
+        return [record["file_ref"] for record in rollback.records]
 
     def _ensure_summary_projection(self) -> Any:
         return self._open_summary_projection(create=True)
@@ -378,12 +403,16 @@ class PageIndexFileSystem:
                     raise KeyError(f"Unknown folder path: {normalized}")
                 raise ValueError(
                     "Metadata axes must come after the physical folder prefix; "
-                    "inspect the physical folder first, then append @field=value buckets. "
+                    "inspect the physical folder first, then append @field/value segments. "
                     "Use the path returned by tree for values containing '/'."
                 )
             axis_segment = segment[1:]
-            encoded_field, separator, encoded_value = axis_segment.partition("=")
-            field = unquote(encoded_field)
+            if "=" in axis_segment:
+                raise ValueError(
+                    "Metadata virtual paths use @field/value; run tree <scope>/@field "
+                    "and copy the returned path."
+                )
+            field = unquote(axis_segment)
             self.metadata.validate_field_name(field)
             if not self.store.metadata_field_exists(field):
                 raise ValueError("Unknown metadata axis; run tree <scope> to inspect available @field axes.")
@@ -392,24 +421,22 @@ class PageIndexFileSystem:
                     "A metadata field can appear only once in a scope path; "
                     "choose one value or use browse --where for advanced predicates."
                 )
-            if not separator:
-                if index + 1 != len(remainder):
-                    raise ValueError(
-                        "Metadata axis inspection must be the final path segment; "
-                        "choose a value with @field=value before appending another axis."
-                    )
+            value_index = index + 1
+            if value_index == len(remainder):
                 return PIFSQueryScope(
                     path=normalized,
                     folder_path=folder_path,
                     metadata_filter=metadata_filter,
                     metadata_axis=field,
                 )
-            if not encoded_value:
+            encoded_value = remainder[value_index]
+            if encoded_value.startswith("@"):
                 raise ValueError(
-                    "Metadata value cannot be empty; run tree <scope>/@field to inspect values."
+                    "Metadata axis inspection must be the final path segment; "
+                    "choose a value with @field/value before appending another axis."
                 )
             metadata_filter[field] = unquote(encoded_value)
-            index += 1
+            index += 2
 
         return PIFSQueryScope(
             path=normalized,
@@ -425,7 +452,7 @@ class PageIndexFileSystem:
         parsed = self.metadata.parse_filter(metadata_filter)
         if scope.metadata_axis is not None:
             raise ValueError(
-                "Metadata axis paths require @field=value; run tree <scope>/@field to inspect values."
+                "Metadata axis paths require @field/value; run tree <scope>/@field to inspect values."
             )
         if not parsed:
             return dict(scope.metadata_filter) or None
@@ -1332,6 +1359,18 @@ class PageIndexFileSystem:
         managed_raw_path = self._managed_raw_artifact_path(file_ref, raw_artifact_path)
         if managed_raw_path is not None:
             paths.append(managed_raw_path)
+        try:
+            existing = self.store.get_file(file_ref)
+        except KeyError:
+            existing = None
+        if existing is not None and existing.pageindex_doc_id:
+            paths.extend(
+                [
+                    self.pageindex_client_workspace / "_meta.json",
+                    self.pageindex_client_workspace
+                    / f"{existing.pageindex_doc_id}.json",
+                ]
+            )
         for path in paths:
             if path not in baselines:
                 baselines[path] = path.read_bytes() if path.is_file() else None
@@ -1367,18 +1406,154 @@ class PageIndexFileSystem:
         except Exception:
             return
 
-    def _existing_file_refs(self, records: list[dict[str, Any]]) -> set[str]:
-        existing: set[str] = set()
-        for record in records:
-            file_ref = str(record.get("file_ref") or "")
-            if not file_ref:
-                continue
-            try:
-                self.store.get_file(file_ref)
-            except KeyError:
-                continue
-            existing.add(file_ref)
-        return existing
+    def _capture_existing_registration_rows(
+        self,
+        snapshot: _RegistrationRollbackSnapshot,
+        projection: Any | None,
+    ) -> None:
+        file_refs = sorted(
+            {
+                str(record.get("file_ref") or "")
+                for record in snapshot.records
+                if str(record.get("file_ref") or "")
+            }
+        )
+        with self.store.connect() as connection:
+            for file_ref in file_refs:
+                file_row = connection.execute(
+                    "SELECT * FROM files WHERE file_ref = ?",
+                    (file_ref,),
+                ).fetchone()
+                if file_row is None:
+                    continue
+                snapshot.catalog_rows[file_ref] = dict(file_row)
+                snapshot.membership_rows[file_ref] = [
+                    dict(row)
+                    for row in connection.execute(
+                        "SELECT * FROM file_folders WHERE file_ref = ? ORDER BY folder_id",
+                        (file_ref,),
+                    )
+                ]
+                snapshot.metadata_value_rows[file_ref] = [
+                    dict(row)
+                    for row in connection.execute(
+                        "SELECT * FROM metadata_values WHERE file_ref = ? "
+                        "ORDER BY field_id, value_text, created_at",
+                        (file_ref,),
+                    )
+                ]
+        if not snapshot.catalog_rows:
+            return
+        if projection is None:
+            raise RuntimeError(
+                "PIFS registration cannot snapshot existing files without a Summary Projection"
+            )
+        with projection.index.connect(read_only=True) as connection:
+            for file_ref in sorted(snapshot.catalog_rows):
+                doc = connection.execute(
+                    "SELECT * FROM semantic_index_docs WHERE file_ref = ?",
+                    (file_ref,),
+                ).fetchone()
+                vector = (
+                    None
+                    if doc is None
+                    else connection.execute(
+                        "SELECT rowid, source_type, embedding "
+                        "FROM semantic_index_vec WHERE rowid = ?",
+                        (doc["rowid"],),
+                    ).fetchone()
+                )
+                if doc is None or vector is None:
+                    raise RuntimeError(
+                        "PIFS registration found an incomplete existing Summary Projection; "
+                        "migrate this workspace before retrying."
+                    )
+                vector_row = dict(vector)
+                vector_row["embedding"] = bytes(vector_row["embedding"])
+                snapshot.projection_rows[file_ref] = (dict(doc), vector_row)
+
+    def _restore_existing_registration_catalog(
+        self,
+        snapshot: _RegistrationRollbackSnapshot,
+    ) -> None:
+        if not snapshot.catalog_rows:
+            return
+        with self.store.connect() as connection:
+            for file_ref in sorted(snapshot.catalog_rows):
+                connection.execute(
+                    "DELETE FROM metadata_values WHERE file_ref = ?", (file_ref,)
+                )
+                connection.execute(
+                    "DELETE FROM file_folders WHERE file_ref = ?", (file_ref,)
+                )
+                connection.execute("DELETE FROM files WHERE file_ref = ?", (file_ref,))
+                self._insert_registration_snapshot_row(
+                    connection,
+                    "files",
+                    snapshot.catalog_rows[file_ref],
+                )
+                for row in snapshot.membership_rows[file_ref]:
+                    self._insert_registration_snapshot_row(
+                        connection,
+                        "file_folders",
+                        row,
+                    )
+                for row in snapshot.metadata_value_rows[file_ref]:
+                    self._insert_registration_snapshot_row(
+                        connection,
+                        "metadata_values",
+                        row,
+                    )
+
+    def _restore_existing_registration_projection(
+        self,
+        snapshot: _RegistrationRollbackSnapshot,
+    ) -> None:
+        if not snapshot.projection_rows:
+            return
+        if self.summary_projection is None:
+            raise RuntimeError(
+                "PIFS registration cannot restore an unopened Summary Projection"
+            )
+        with self.summary_projection.index.connect() as connection:
+            for file_ref in sorted(snapshot.projection_rows):
+                current = connection.execute(
+                    "SELECT rowid FROM semantic_index_docs WHERE file_ref = ?",
+                    (file_ref,),
+                ).fetchall()
+                for row in current:
+                    connection.execute(
+                        "DELETE FROM semantic_index_vec WHERE rowid = ?",
+                        (row["rowid"],),
+                    )
+                connection.execute(
+                    "DELETE FROM semantic_index_docs WHERE file_ref = ?",
+                    (file_ref,),
+                )
+                doc, vector = snapshot.projection_rows[file_ref]
+                self._insert_registration_snapshot_row(
+                    connection,
+                    "semantic_index_docs",
+                    doc,
+                )
+                self._insert_registration_snapshot_row(
+                    connection,
+                    "semantic_index_vec",
+                    vector,
+                )
+
+    @staticmethod
+    def _insert_registration_snapshot_row(
+        connection: Any,
+        table: str,
+        row: dict[str, Any],
+    ) -> None:
+        columns = list(row)
+        placeholders = ", ".join("?" for _ in columns)
+        connection.execute(
+            f"INSERT INTO {table}({', '.join(columns)}) VALUES ({placeholders})",
+            [row[column] for column in columns],
+        )
 
     def _cleanup_summary_projection_records(
         self,

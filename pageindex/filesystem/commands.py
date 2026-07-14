@@ -95,12 +95,10 @@ class PIFSCommandExecutor:
             root = self._scope_root(scope, file_count=self.filesystem.scope_file_count(scope))
             root["folders"] = [
                 {
-                    "path": self._join_scope_path(
+                    "path": self._metadata_value_path(
                         scope.path.rsplit("/", 1)[0] or "/",
-                        (
-                            f"@{self.filesystem.encode_scope_segment(scope.metadata_axis)}="
-                            f"{self.filesystem.encode_scope_segment(row['value'])}"
-                        ),
+                        scope.metadata_axis,
+                        row["value"],
                     ),
                     "name": str(row["value"]),
                     "type": "metadata_value",
@@ -124,7 +122,7 @@ class PIFSCommandExecutor:
                 },
             }
             next_steps = [
-                f'browse {shlex.quote(scope.path)}=<value> "<query>"'
+                f'browse {shlex.quote(scope.path)}/<value> "<query>"'
             ]
             return data, next_steps
         page_size = self.TREE_VALUE_PAGE_SIZE
@@ -197,7 +195,7 @@ class PIFSCommandExecutor:
         scope = self.filesystem.resolve_query_scope(path)
         if scope.metadata_axis is not None:
             raise PIFSCommandError(
-                "Metadata axis paths require @field=value; run tree <scope>/@field to inspect values."
+                "Metadata axis paths require @field/value; run tree <scope>/@field to inspect values."
             )
         merged_filter = self.filesystem.merge_scope_filter(scope, where)
         effective_recursive = recursive or bool(scope.metadata_filter)
@@ -544,14 +542,18 @@ class PIFSCommandExecutor:
     def _scoped_folder_path(self, scope: Any, folder_path: str) -> str:
         path = self._normalize_folder_path(folder_path)
         for field, value in getattr(scope, "metadata_filter", {}).items():
-            path = self._join_scope_path(
-                path,
-                (
-                    f"@{self.filesystem.encode_scope_segment(field)}="
-                    f"{self.filesystem.encode_scope_segment(value)}"
-                ),
-            )
+            path = self._metadata_value_path(path, field, value)
         return path
+
+    def _metadata_value_path(self, base: str, field: object, value: object) -> str:
+        axis_path = self._join_scope_path(
+            base,
+            f"@{self.filesystem.encode_scope_segment(field)}",
+        )
+        return self._join_scope_path(
+            axis_path,
+            self.filesystem.encode_scope_segment(value),
+        )
 
     @staticmethod
     def _join_scope_path(base: str, segment: str) -> str:

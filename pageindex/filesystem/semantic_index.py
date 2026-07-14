@@ -99,7 +99,8 @@ class SQLiteVecSemanticIndex:
                 config = self._config(conn)
                 info = self._info_from_connection(conn, config)
                 actual = self._schema_signature(conn, tables)
-            dimension = int(info["dimension"])
+                dimension = int(info["dimension"])
+                self._validate_projection_rows(conn, dimension=dimension)
             metadata = info["metadata"]
             if (
                 version != SCHEMA_VERSION
@@ -471,6 +472,31 @@ class SQLiteVecSemanticIndex:
             else None
         )
         return signature
+
+    @classmethod
+    def _validate_projection_rows(
+        cls,
+        conn: sqlite3.Connection,
+        *,
+        dimension: int,
+    ) -> None:
+        docs = {
+            int(row["rowid"]): str(row["source_type"])
+            for row in conn.execute(
+                "SELECT rowid, source_type FROM semantic_index_docs"
+            )
+        }
+        vectors: dict[int, str] = {}
+        expected_bytes = dimension * 4
+        for row in conn.execute(
+            "SELECT rowid, source_type, embedding FROM semantic_index_vec"
+        ):
+            rowid = int(row["rowid"])
+            if len(bytes(row["embedding"])) != expected_bytes:
+                raise cls._incompatible_schema_error()
+            vectors[rowid] = str(row["source_type"])
+        if docs != vectors:
+            raise cls._incompatible_schema_error()
 
     @staticmethod
     def _incompatible_schema_error() -> SemanticIndexError:

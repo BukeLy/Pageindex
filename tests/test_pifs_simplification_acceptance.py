@@ -656,6 +656,64 @@ def test_runtime_requires_projection_pair_when_catalog_only_has_active_files(
 
 @pytest.mark.parametrize(
     "mutation",
+    ["missing_vector", "extra_vector", "source_type_mismatch", "wrong_blob_length"],
+)
+def test_runtime_rejects_projection_document_vector_mismatches_without_mutation(
+    mutation, tmp_path, monkeypatch
+):
+    import sqlite_vec
+
+    install_network_fakes(monkeypatch)
+    workspace = tmp_path / "workspace"
+    source = tmp_path / "notes.md"
+    source.write_text("alpha vector consistency evidence", encoding="utf-8")
+    filesystem = open_test_filesystem(workspace)
+    filesystem.register_file(
+        storage_uri=source.as_uri(),
+        folder_path="/documents",
+        title=source.name,
+        content_type="text/markdown",
+        content=source.read_text(encoding="utf-8"),
+    )
+    summary_path = workspace / "artifacts" / "projection_indexes" / "summary.sqlite"
+    with connect_summary_database(summary_path) as connection:
+        row = connection.execute(
+            "SELECT rowid, source_type, embedding FROM semantic_index_vec"
+        ).fetchone()
+        assert row is not None
+        if mutation == "missing_vector":
+            connection.execute(
+                "DELETE FROM semantic_index_vec WHERE rowid = ?", (row[0],)
+            )
+        elif mutation == "extra_vector":
+            connection.execute(
+                "INSERT INTO semantic_index_vec(rowid, source_type, embedding) "
+                "VALUES (999, 'markdown', ?)",
+                (sqlite_vec.serialize_float32([0.0, 0.0, 1.0]),),
+            )
+        elif mutation == "source_type_mismatch":
+            connection.execute(
+                "DELETE FROM semantic_index_vec WHERE rowid = ?", (row[0],)
+            )
+            connection.execute(
+                "INSERT INTO semantic_index_vec(rowid, source_type, embedding) "
+                "VALUES (?, 'pdf', ?)",
+                (row[0], row[2]),
+            )
+        else:
+            connection.execute(
+                "UPDATE semantic_index_vec_vector_chunks00 SET vectors = zeroblob(4)"
+            )
+    before = workspace_state(workspace)
+
+    with pytest.raises(RuntimeError, match="migrate this workspace"):
+        open_test_filesystem(workspace)
+
+    assert workspace_state(workspace) == before
+
+
+@pytest.mark.parametrize(
+    "mutation",
     [
         "summary_extra_column",
         "summary_missing_primary_and_unique",
@@ -909,13 +967,18 @@ def test_cli_add_creates_migration_compatible_summary_and_cache_v2(
     from pageindex.filesystem.cli import main
 
     install_network_fakes(monkeypatch)
-    write_embedding_config(tmp_path, monkeypatch)
+    config = write_embedding_config(tmp_path, monkeypatch)
+    config_values = json.loads(config.read_text(encoding="utf-8"))
+    config_values["embedding_api_key"] = "config-secret"
+    config.write_text(json.dumps(config_values), encoding="utf-8")
+    monkeypatch.delenv("PIFS_EMBEDDING_API_KEY")
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     source = tmp_path / "notes.md"
     source.write_text("alpha evidence", encoding="utf-8")
     workspace = tmp_path / "workspace"
 
     assert main(["--workspace", str(workspace), "add", str(source), "/documents"]) == 0
-    capsys.readouterr()
+    output = capsys.readouterr().out
 
     projection_dir = workspace / "artifacts" / "projection_indexes"
     with sqlite3.connect(projection_dir / "summary.sqlite") as summary:
@@ -958,7 +1021,8 @@ def test_cli_add_creates_migration_compatible_summary_and_cache_v2(
         projection_dir / "summary.sqlite",
         projection_dir / "embedding_cache.sqlite",
     ):
-        assert b"runtime-secret" not in database.read_bytes()
+        assert b"config-secret" not in database.read_bytes()
+    assert "config-secret" not in output
 
 
 def test_cli_add_reports_path_without_persistence_identity(tmp_path, monkeypatch, capsys):
@@ -1108,7 +1172,229 @@ def test_cli_cat_reads_structure_without_internal_identity(tmp_path, monkeypatch
     ]
 
 
-def test_tree_virtual_value_uses_one_axis_equals_value_segment(
+def create_metadata_scope_cli_fixture(tmp_path, monkeypatch, capsys):
+    from pageindex.filesystem.cli import main
+
+    install_network_fakes(monkeypatch)
+    write_embedding_config(tmp_path, monkeypatch)
+    workspace = tmp_path / "workspace"
+    records = [
+        (
+            "current.md",
+            "alpha current evidence",
+            "/documents",
+            {"year": 2024, "ticker": "AAPL", "sector": "finance/tech"},
+        ),
+        (
+            "filing.md",
+            "alpha filing evidence",
+            "/documents/sec-filings",
+            {"year": 2024, "ticker": "AAPL", "doc_type": "10-K"},
+        ),
+        (
+            "prior.md",
+            "alpha prior evidence",
+            "/documents",
+            {"year": 2023, "ticker": "MSFT"},
+        ),
+        ("archive.md", "archive evidence", "/archive", {"region": "EMEA"}),
+    ]
+    for filename, content, folder, metadata in records:
+        source = tmp_path / filename
+        source.write_text(content, encoding="utf-8")
+        assert main(["--workspace", str(workspace), "add", str(source), folder]) == 0
+        capsys.readouterr()
+        assert main(
+            [
+                "--workspace",
+                str(workspace),
+                "setmeta",
+                f"{folder}/{filename}",
+                json.dumps(metadata),
+            ]
+        ) == 0
+        capsys.readouterr()
+    return workspace
+
+
+def test_tree_folder_trailing_slash_lists_scope_local_metadata_axes(
+    tmp_path, monkeypatch, capsys
+):
+    from pageindex.filesystem.cli import main
+
+    workspace = create_metadata_scope_cli_fixture(tmp_path, monkeypatch, capsys)
+
+    payloads = []
+    for folder_path in ("/documents", "/documents/"):
+        assert main(
+            ["--workspace", str(workspace), "tree", folder_path, "-L", "1"]
+        ) == 0
+        payloads.append(json.loads(capsys.readouterr().out))
+
+    assert payloads[1]["data"] == payloads[0]["data"]
+    tree = payloads[0]["data"]["tree"]
+    assert tree["path"] == "/documents"
+    axes = {
+        row["name"]: row
+        for row in tree["folders"]
+        if row["type"] == "metadata_axis"
+    }
+
+    assert set(axes) == {"@doc_type", "@sector", "@ticker", "@year"}
+    assert {name: row["path"] for name, row in axes.items()} == {
+        "@doc_type": "/documents/@doc_type",
+        "@sector": "/documents/@sector",
+        "@ticker": "/documents/@ticker",
+        "@year": "/documents/@year",
+    }
+    assert {row["type"] for row in axes.values()} == {"metadata_axis"}
+    physical = [row for row in tree["folders"] if row["type"] == "folder"]
+    assert [(row["name"], row["path"]) for row in physical] == [
+        ("sec-filings", "/documents/sec-filings")
+    ]
+    assert all(row["type"] != "file" for row in tree["folders"])
+    assert "@region" not in axes
+
+
+def test_tree_metadata_axis_trailing_slash_lists_actionable_paginated_values(
+    tmp_path, monkeypatch, capsys
+):
+    from pageindex.filesystem.cli import main
+
+    workspace = create_metadata_scope_cli_fixture(tmp_path, monkeypatch, capsys)
+
+    payloads = []
+    for axis_path in ("/documents/@year", "/documents/@year/"):
+        assert main(
+            ["--workspace", str(workspace), "tree", axis_path, "-L", "1"]
+        ) == 0
+        payloads.append(json.loads(capsys.readouterr().out))
+
+    values = payloads[0]["data"]["tree"]["folders"]
+    assert payloads[1]["data"] == payloads[0]["data"]
+    assert [(row["name"], row["type"], row["path"]) for row in values] == [
+        ("2024", "metadata_value", "/documents/@year/2024"),
+        ("2023", "metadata_value", "/documents/@year/2023"),
+    ]
+    assert payloads[0]["data"]["pagination"] == {
+        "page": 1,
+        "page_size": 50,
+        "has_more": False,
+        "next_page": None,
+    }
+
+    selected = values[0]["path"]
+    scoped_payloads = []
+    for value_path in (selected, f"{selected}/"):
+        assert main(
+            ["--workspace", str(workspace), "tree", value_path, "-L", "1"]
+        ) == 0
+        scoped_payloads.append(json.loads(capsys.readouterr().out))
+    assert scoped_payloads[1]["data"] == scoped_payloads[0]["data"]
+    selected_tree = scoped_payloads[0]["data"]["tree"]
+    assert selected_tree["path"] == selected
+    assert {row["title"] for row in selected_tree["files"]} == {
+        "current.md",
+        "filing.md",
+    }
+    selected_folders = {
+        (row["type"], row["name"]): row["path"]
+        for row in selected_tree["folders"]
+    }
+    assert selected_folders == {
+        ("folder", "sec-filings"): "/documents/sec-filings/@year/2024",
+        ("metadata_axis", "@doc_type"): "/documents/@year/2024/@doc_type",
+        ("metadata_axis", "@sector"): "/documents/@year/2024/@sector",
+        ("metadata_axis", "@ticker"): "/documents/@year/2024/@ticker",
+    }
+    assert main(
+        ["--workspace", str(workspace), "browse", selected, "alpha"]
+    ) == 0
+    documents = json.loads(capsys.readouterr().out)["data"]["documents"]
+    assert {row["title"] for row in documents} == {"current.md", "filing.md"}
+
+    locator = selected_tree["files"][0]["path"]
+    for command in (
+        ["stat", locator],
+        ["cat", locator, "--structure"],
+        ["grep", "alpha", locator],
+    ):
+        assert main(["--workspace", str(workspace), *command]) == 0
+        capsys.readouterr()
+
+    child_scope = selected_folders[("folder", "sec-filings")]
+    assert main(["--workspace", str(workspace), "tree", child_scope, "-L", "1"]) == 0
+    child_tree = json.loads(capsys.readouterr().out)["data"]["tree"]
+    assert [row["title"] for row in child_tree["files"]] == ["filing.md"]
+
+    assert main(
+        ["--workspace", str(workspace), "tree", "/documents/@sector/", "-L", "1"]
+    ) == 0
+    encoded = json.loads(capsys.readouterr().out)["data"]["tree"]["folders"][0]
+    assert encoded["path"] == "/documents/@sector/finance%2Ftech"
+    assert main(
+        ["--workspace", str(workspace), "tree", encoded["path"], "-L", "1"]
+    ) == 0
+    capsys.readouterr()
+
+
+def test_tree_metadata_values_keep_fixed_fifty_item_pagination(
+    tmp_path, monkeypatch, capsys
+):
+    from pageindex.filesystem.cli import main
+
+    install_network_fakes(monkeypatch)
+    write_embedding_config(tmp_path, monkeypatch)
+    source = tmp_path / "tickers.md"
+    source.write_text("alpha ticker evidence", encoding="utf-8")
+    workspace = tmp_path / "workspace"
+    assert main(["--workspace", str(workspace), "add", str(source), "/documents"]) == 0
+    capsys.readouterr()
+    tickers = [f"T{index:02d}" for index in range(55)]
+    assert main(
+        [
+            "--workspace",
+            str(workspace),
+            "setmeta",
+            "/documents/tickers.md",
+            json.dumps({"ticker": tickers}),
+        ]
+    ) == 0
+    capsys.readouterr()
+
+    assert main(
+        ["--workspace", str(workspace), "tree", "/documents/@ticker/", "-L", "1"]
+    ) == 0
+    first = json.loads(capsys.readouterr().out)["data"]
+    assert [row["value"] for row in first["tree"]["folders"]] == tickers[:50]
+    assert first["pagination"] == {
+        "page": 1,
+        "page_size": 50,
+        "has_more": True,
+        "next_page": 2,
+    }
+
+    assert main(
+        [
+            "--workspace",
+            str(workspace),
+            "tree",
+            "/documents/@ticker",
+            "--page",
+            "2",
+        ]
+    ) == 0
+    second = json.loads(capsys.readouterr().out)["data"]
+    assert [row["value"] for row in second["tree"]["folders"]] == tickers[50:]
+    assert second["pagination"] == {
+        "page": 2,
+        "page_size": 50,
+        "has_more": False,
+        "next_page": None,
+    }
+
+
+def test_metadata_virtual_paths_use_alternating_encoded_field_value_segments(
     tmp_path, monkeypatch, capsys
 ):
     from pageindex.filesystem.cli import main
@@ -1127,7 +1413,7 @@ def test_tree_virtual_value_uses_one_axis_equals_value_segment(
                 str(workspace),
                 "setmeta",
                 "/documents/notes.md",
-                '{"year": 2024}',
+                '{"year": 2024, "sector": "finance/tech"}',
             ]
         )
         == 0
@@ -1135,8 +1421,12 @@ def test_tree_virtual_value_uses_one_axis_equals_value_segment(
     capsys.readouterr()
 
     assert main(["--workspace", str(workspace), "tree", "/documents/@year"]) == 0
-    values = json.loads(capsys.readouterr().out)["data"]["tree"]["folders"]
-    assert values[0]["path"] == "/documents/@year=2024"
+    year_payload = json.loads(capsys.readouterr().out)
+    values = year_payload["data"]["tree"]["folders"]
+    assert values[0]["path"] == "/documents/@year/2024"
+    assert year_payload["next_steps"] == [
+        'browse /documents/@year/<value> "<query>"'
+    ]
 
     assert (
         main(
@@ -1144,15 +1434,44 @@ def test_tree_virtual_value_uses_one_axis_equals_value_segment(
                 "--workspace",
                 str(workspace),
                 "tree",
-                "/documents/@year=2024",
+                "/documents/@year/2024",
                 "-L",
                 "1",
             ]
         )
         == 0
     )
-    files = json.loads(capsys.readouterr().out)["data"]["tree"]["files"]
-    assert files[0]["path"] == "/documents/@year=2024/notes.md"
+    scoped_tree = json.loads(capsys.readouterr().out)["data"]["tree"]
+    assert scoped_tree["files"][0]["path"] == "/documents/@year/2024/notes.md"
+    assert [folder["path"] for folder in scoped_tree["folders"]] == [
+        "/documents/@year/2024/@sector"
+    ]
+
+    assert main(
+        [
+            "--workspace",
+            str(workspace),
+            "tree",
+            "/documents/@year/2024/@sector",
+        ]
+    ) == 0
+    sector = json.loads(capsys.readouterr().out)["data"]["tree"]["folders"][0]
+    assert sector["path"] == "/documents/@year/2024/@sector/finance%2Ftech"
+
+    locator = f"{sector['path']}/notes.md"
+    for command in (
+        ["stat", locator],
+        ["cat", locator, "--structure"],
+        ["grep", "alpha", locator],
+    ):
+        assert main(["--workspace", str(workspace), *command]) == 0
+        capsys.readouterr()
+
+    assert main(
+        ["--workspace", str(workspace), "tree", "/documents/@year=2024"]
+    ) == 2
+    error = json.loads(capsys.readouterr().out)["error"]
+    assert "@field/value" in error["message"]
 
 
 def test_setmeta_translates_identity_at_the_cli_boundary(
@@ -1248,7 +1567,7 @@ def test_metadata_scoped_setmeta_returns_the_post_update_actionable_path(
         ]
     ) == 0
     capsys.readouterr()
-    old_path = "/documents/@year=2024/notes.md"
+    old_path = "/documents/@year/2024/notes.md"
     command = ["--workspace", str(workspace), "setmeta"]
     if operation == "clear":
         command.extend(["--clear", old_path])
@@ -1323,7 +1642,7 @@ def test_duplicate_virtual_leaves_use_actionable_paths_without_internal_ids(
         capsys.readouterr()
 
     assert main(
-        ["--workspace", str(workspace), "tree", "/documents/@year=2024", "-L", "1"]
+        ["--workspace", str(workspace), "tree", "/documents/@year/2024", "-L", "1"]
     ) == 0
     files = json.loads(capsys.readouterr().out)["data"]["tree"]["files"]
     paths = [row["path"] for row in files]
@@ -1440,6 +1759,63 @@ def test_cli_add_rolls_back_when_summary_projection_fails(
         assert connection.execute(
             "SELECT COUNT(*) FROM semantic_index_docs"
         ).fetchone()[0] == 0
+
+
+@pytest.mark.parametrize("cache_state", ["fresh", "preexisting_shared_key"])
+def test_add_restores_embedding_cache_when_vec_upsert_fails(
+    cache_state, tmp_path, monkeypatch
+):
+    from pageindex.filesystem.semantic_index import SQLiteVecSemanticIndex
+
+    install_network_fakes(monkeypatch)
+    workspace = tmp_path / "workspace"
+    filesystem = open_test_filesystem(workspace)
+    source_dir = tmp_path / "add"
+    source_dir.mkdir()
+    source = source_dir / "notes.md"
+    source.write_text("alpha shared cache evidence", encoding="utf-8")
+
+    if cache_state == "preexisting_shared_key":
+        existing_dir = tmp_path / "existing"
+        existing_dir.mkdir()
+        existing = existing_dir / "notes.md"
+        existing.write_text(source.read_text(encoding="utf-8"), encoding="utf-8")
+        filesystem.register_file(
+            storage_uri=existing.as_uri(),
+            folder_path="/documents/existing",
+            title=existing.name,
+            content_type="text/markdown",
+            content=existing.read_text(encoding="utf-8"),
+        )
+    else:
+        create_projection_v2(workspace)
+        filesystem = open_test_filesystem(workspace)
+
+    baseline = registration_logical_state(workspace)
+    baseline_uploads = sorted(
+        path.relative_to(workspace).as_posix()
+        for path in workspace.glob("artifacts/uploads/**/*")
+    )
+
+    def fail_vec_upsert(self, records):
+        raise RuntimeError("vec upsert unavailable after cache write")
+
+    monkeypatch.setattr(SQLiteVecSemanticIndex, "upsert_many", fail_vec_upsert)
+
+    with pytest.raises(RuntimeError, match="vec upsert unavailable after cache write"):
+        filesystem.add_file(source, "/documents/new")
+
+    assert registration_logical_state(workspace) == baseline
+    assert sorted(
+        path.relative_to(workspace).as_posix()
+        for path in workspace.glob("artifacts/uploads/**/*")
+    ) == baseline_uploads
+    reopened = open_test_filesystem(workspace)
+    assert registration_logical_state(workspace) == baseline
+    if cache_state == "preexisting_shared_key":
+        assert reopened.store.file_refs_for_scope() == filesystem.store.file_refs_for_scope()
+    else:
+        assert reopened.store.file_refs_for_scope() == []
 
 
 def test_register_file_completes_summary_projection_for_immediate_and_reopen_browse(
@@ -1569,6 +1945,84 @@ def test_register_files_rolls_back_new_batch_when_second_projection_upsert_fails
     reopened = open_test_filesystem(workspace)
     assert reopened.store.folder_info("/")["path"] == "/"
     assert reopened.store.file_refs_for_scope() == []
+
+
+def test_register_files_restores_existing_document_when_later_projection_upsert_fails(
+    tmp_path, monkeypatch, capsys
+):
+    import openai
+    from pageindex.filesystem.cli import main
+
+    install_network_fakes(monkeypatch)
+    write_embedding_config(tmp_path, monkeypatch)
+    workspace = tmp_path / "workspace"
+    original = tmp_path / "original.md"
+    replacement = tmp_path / "replacement.md"
+    failing = tmp_path / "failing.md"
+    original.write_text("alpha original evidence", encoding="utf-8")
+    replacement.write_text("alpha replacement evidence", encoding="utf-8")
+    failing.write_text("beta second evidence", encoding="utf-8")
+
+    filesystem = open_test_filesystem(workspace)
+    existing_ref = filesystem.register_file(
+        storage_uri=original.as_uri(),
+        external_id="doc-existing",
+        folder_path="/documents",
+        title=original.name,
+        content_type="text/markdown",
+        content=original.read_text(encoding="utf-8"),
+        metadata={"year": 2023},
+    )
+    baseline = registration_logical_state(workspace)
+
+    class FailingBetaOpenAI(FakeOpenAI):
+        def create(self, *, model, input, dimensions):
+            if any("beta" in str(text).lower() for text in input):
+                raise RuntimeError("embedding unavailable for second registration")
+            return super().create(model=model, input=input, dimensions=dimensions)
+
+    monkeypatch.setattr(openai, "OpenAI", FailingBetaOpenAI)
+    reopened = open_test_filesystem(workspace)
+    with pytest.raises(RuntimeError, match="summary projection.*second registration"):
+        reopened.register_files(
+            [
+                {
+                    "storage_uri": replacement.as_uri(),
+                    "external_id": "doc-existing",
+                    "folder_path": "/documents/replacement",
+                    "title": replacement.name,
+                    "content_type": "text/markdown",
+                    "content": replacement.read_text(encoding="utf-8"),
+                    "metadata": {"year": 2024},
+                },
+                {
+                    "storage_uri": failing.as_uri(),
+                    "external_id": "doc-failing",
+                    "folder_path": "/documents/new",
+                    "title": failing.name,
+                    "content_type": "text/markdown",
+                    "content": failing.read_text(encoding="utf-8"),
+                    "metadata": {"year": 2025},
+                },
+            ]
+        )
+
+    assert registration_logical_state(workspace) == baseline
+    strict_reopen = open_test_filesystem(workspace)
+    assert strict_reopen.store.file_refs_for_scope() == [existing_ref]
+    entry = strict_reopen.store.get_file(existing_ref)
+    assert entry.metadata["year"] == 2023
+    assert entry.storage_uri == original.as_uri()
+    assert strict_reopen.pageindex_structure(existing_ref)["available"] is True
+    for command in (
+        ["stat", "/documents/original.md"],
+        ["cat", "/documents/original.md", "--structure"],
+        ["grep", "original", "/documents/original.md"],
+        ["browse", "/documents", "original"],
+    ):
+        assert main(["--workspace", str(workspace), *command]) == 0
+        output = json.loads(capsys.readouterr().out)
+        assert output["success"] is True
 
 
 def test_register_files_rollback_preserves_preexisting_catalog_projection_and_cache(
@@ -2123,13 +2577,13 @@ def test_browse_respects_physical_and_virtual_scope(
             "--workspace",
             str(workspace),
             "browse",
-            "/documents/@year=2024",
+            "/documents/@year/2024",
             "alpha",
         ]
     ) == 0
     virtual = json.loads(capsys.readouterr().out)["data"]["documents"]
     assert [row["title"] for row in virtual] == ["current.md"]
-    assert virtual[0]["path"] == "/documents/@year=2024/current.md"
+    assert virtual[0]["path"] == "/documents/@year/2024/current.md"
 
 
 def test_browse_requires_query_and_an_existing_summary_projection(
@@ -2285,7 +2739,7 @@ def test_retired_command_forms_return_structured_errors(command, tmp_path, capsy
     assert payload["error"]["code"] == "invalid_command"
 
 
-def test_set_workspace_persists_runtime_config_without_credentials_or_provider(
+def test_set_workspace_preserves_embedding_api_key_without_exposing_or_persisting_it_elsewhere(
     tmp_path, monkeypatch, capsys
 ):
     from pageindex.filesystem.cli import main
@@ -2298,7 +2752,7 @@ def test_set_workspace_persists_runtime_config_without_credentials_or_provider(
                 "embedding_model": "test-embedding",
                 "embedding_dimensions": 3,
                 "embedding_timeout": 12,
-                "embedding_api_key": "must-not-survive",
+                "embedding_api_key": "config-secret",
                 "embedding_provider": "legacy-provider",
             }
         ),
@@ -2308,15 +2762,17 @@ def test_set_workspace_persists_runtime_config_without_credentials_or_provider(
     workspace = tmp_path / "workspace"
 
     assert main(["set", "workspace", str(workspace)]) == 0
-    capsys.readouterr()
+    output = capsys.readouterr().out
 
     assert json.loads(config.read_text(encoding="utf-8")) == {
+        "embedding_api_key": "config-secret",
         "embedding_base_url": "https://example.invalid/v1",
         "embedding_dimensions": "3",
         "embedding_model": "test-embedding",
         "embedding_timeout": "12",
         "workspace": str(workspace),
     }
+    assert "config-secret" not in output
 
 
 def test_public_example_is_a_short_supported_cli_walkthrough():

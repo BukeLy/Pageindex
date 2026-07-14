@@ -28,6 +28,7 @@ PIFS_CONFIG_FILE_ENV = "PIFS_CONFIG_FILE"
 PIFS_WORKSPACE_ENV = "PIFS_WORKSPACE"
 PERSISTED_CONFIG_KEYS = {
     "workspace",
+    "embedding_api_key",
     "embedding_base_url",
     "embedding_model",
     "embedding_dimensions",
@@ -198,7 +199,11 @@ def _filesystem_embedding_config() -> dict[str, object]:
     config_values = _read_config()
     config: dict[str, object] = {}
     base_url = config_values.get("embedding_base_url")
-    api_key = os.environ.get("PIFS_EMBEDDING_API_KEY") or os.environ.get("OPENAI_API_KEY")
+    api_key = (
+        os.environ.get("PIFS_EMBEDDING_API_KEY")
+        or config_values.get("embedding_api_key")
+        or os.environ.get("OPENAI_API_KEY")
+    )
     model = config_values.get("embedding_model")
     dimensions = _optional_int(
         "embedding_dimensions",

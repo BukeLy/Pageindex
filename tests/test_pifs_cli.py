@@ -93,6 +93,7 @@ def test_cli_workspace_uses_embedding_config(monkeypatch, tmp_path):
                 "embedding_dimensions": 3072,
                 "embedding_timeout": 12.5,
                 "embedding_base_url": "https://example.invalid/openai/",
+                "embedding_api_key": "config-key",
             }
         ),
         encoding="utf-8",
@@ -104,6 +105,7 @@ def test_cli_workspace_uses_embedding_config(monkeypatch, tmp_path):
             self.kwargs = kwargs
 
     monkeypatch.setenv("PIFS_EMBEDDING_API_KEY", "ignored-env-key")
+    monkeypatch.setenv("OPENAI_API_KEY", "ignored-openai-key")
     monkeypatch.setenv("PIFS_EMBEDDING_BASE_URL", "https://ignored.invalid/")
     monkeypatch.setattr(cli, "PageIndexFileSystem", ConfiguredFileSystem)
 
@@ -119,6 +121,41 @@ def test_cli_workspace_uses_embedding_config(monkeypatch, tmp_path):
     }
     assert os.environ["PIFS_EMBEDDING_API_KEY"] == "ignored-env-key"
     assert os.environ["PIFS_EMBEDDING_BASE_URL"] == "https://ignored.invalid/"
+
+
+@pytest.mark.parametrize(
+    ("config_key", "pifs_key", "openai_key", "expected"),
+    [
+        ("config-key", None, None, "config-key"),
+        ("config-key", "pifs-key", "openai-key", "pifs-key"),
+        ("config-key", None, "openai-key", "config-key"),
+        (None, None, "openai-key", "openai-key"),
+    ],
+)
+def test_cli_embedding_api_key_precedence(
+    config_key, pifs_key, openai_key, expected, monkeypatch, tmp_path
+):
+    from pageindex.filesystem import cli
+
+    config_path = pifs_config_path(tmp_path)
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    config = {"workspace": str(tmp_path / "workspace")}
+    if config_key is not None:
+        config["embedding_api_key"] = config_key
+    config_path.write_text(json.dumps(config), encoding="utf-8")
+    if pifs_key is None:
+        monkeypatch.delenv("PIFS_EMBEDDING_API_KEY", raising=False)
+    else:
+        monkeypatch.setenv("PIFS_EMBEDDING_API_KEY", pifs_key)
+    if openai_key is None:
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    else:
+        monkeypatch.setenv("OPENAI_API_KEY", openai_key)
+    monkeypatch.setattr(cli, "PageIndexFileSystem", FakeFileSystem)
+
+    filesystem = cli._filesystem_from_workspace(str(tmp_path / "workspace"))
+
+    assert filesystem.kwargs["summary_projection_embedding_api_key"] == expected
 
 
 def test_cli_passthrough_invokes_pifs_command_executor(monkeypatch, capsys, tmp_path):
