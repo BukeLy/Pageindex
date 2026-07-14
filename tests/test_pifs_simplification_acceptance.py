@@ -1,8 +1,6 @@
 import json
 import hashlib
 import sqlite3
-import subprocess
-import sys
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -115,6 +113,40 @@ def logical_tables(connection):
     }
 
 
+def workspace_state(workspace):
+    workspace = Path(workspace)
+    if not workspace.exists():
+        return {}
+    return {
+        path.relative_to(workspace).as_posix(): (
+            "directory"
+            if path.is_dir()
+            else hashlib.sha256(path.read_bytes()).hexdigest()
+        )
+        for path in sorted(workspace.rglob("*"))
+    }
+
+
+def create_projection_v2(workspace):
+    from pageindex.filesystem.semantic_projection import (
+        SummaryEmbeddingProfile,
+        SummaryProjection,
+    )
+
+    projection_dir = Path(workspace) / "artifacts" / "projection_indexes"
+    SummaryProjection(
+        projection_dir,
+        profile=SummaryEmbeddingProfile(
+            base_url="https://example.invalid/v1",
+            model="test-embedding",
+            dimensions=3,
+            api_key="runtime-only",
+        ),
+        create=True,
+    )
+    return projection_dir
+
+
 def catalog_file_count(workspace):
     with sqlite3.connect(Path(workspace) / "filesystem.sqlite") as connection:
         return connection.execute("SELECT COUNT(*) FROM files").fetchone()[0]
@@ -180,6 +212,47 @@ def test_cli_rejects_legacy_catalog_without_mutating_it(tmp_path, capsys):
     assert hashlib.sha256(database.read_bytes()).hexdigest() == before
 
 
+@pytest.mark.parametrize(
+    "mutation",
+    ["extra_column", "missing_index", "missing_primary_and_foreign_keys"],
+)
+def test_cli_rejects_pseudo_v2_catalog_without_mutating_workspace(
+    mutation, tmp_path, capsys
+):
+    from pageindex.filesystem.cli import main
+
+    workspace = tmp_path / "workspace"
+    assert main(["--workspace", str(workspace), "tree", "/", "-L", "1"]) == 0
+    capsys.readouterr()
+    database = workspace / "filesystem.sqlite"
+    with sqlite3.connect(database) as connection:
+        if mutation == "extra_column":
+            connection.execute("ALTER TABLE files ADD COLUMN legacy_provider TEXT")
+        elif mutation == "missing_index":
+            connection.execute("DROP INDEX idx_files_external_id")
+        else:
+            connection.executescript(
+                """
+                ALTER TABLE file_folders RENAME TO legacy_file_folders;
+                CREATE TABLE file_folders (
+                    file_ref TEXT NOT NULL,
+                    folder_id TEXT NOT NULL,
+                    metadata_json TEXT NOT NULL DEFAULT '{}',
+                    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+                );
+                DROP TABLE legacy_file_folders;
+                CREATE INDEX idx_file_folders_folder ON file_folders(folder_id);
+                """
+            )
+    before = workspace_state(workspace)
+
+    status = main(["--workspace", str(workspace), "tree", "/", "-L", "1"])
+
+    assert status == 1
+    assert "migrate_pifs_workspace.py" in capsys.readouterr().err
+    assert workspace_state(workspace) == before
+
+
 def test_cli_rejects_partial_legacy_projection_without_creating_summary(
     tmp_path, monkeypatch, capsys
 ):
@@ -208,6 +281,145 @@ def test_cli_rejects_partial_legacy_projection_without_creating_summary(
     assert hashlib.sha256(cache_path.read_bytes()).hexdigest() == before
     assert not (projection_dir / "summary.sqlite").exists()
     assert catalog_file_count(workspace) == 0
+
+
+def test_cli_preflights_partial_projection_before_creating_catalog(tmp_path, capsys):
+    from pageindex.filesystem.cli import main
+
+    workspace = tmp_path / "workspace"
+    projection_dir = workspace / "artifacts" / "projection_indexes"
+    projection_dir.mkdir(parents=True)
+    cache_path = projection_dir / "embedding_cache.sqlite"
+    with sqlite3.connect(cache_path) as connection:
+        connection.execute(
+            "CREATE TABLE embedding_cache(provider TEXT, model TEXT, text_hash TEXT)"
+        )
+        connection.execute("PRAGMA user_version = 1")
+    before = workspace_state(workspace)
+
+    status = main(["--workspace", str(workspace), "tree", "/", "-L", "1"])
+
+    assert status == 1
+    assert "migrate_pifs_workspace.py" in capsys.readouterr().err
+    assert workspace_state(workspace) == before
+    assert not (workspace / "filesystem.sqlite").exists()
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        "summary_extra_column",
+        "summary_missing_primary_and_unique",
+        "summary_missing_index",
+        "summary_extra_config_key",
+        "summary_vec_dimension_mismatch",
+        "cache_extra_column",
+        "cache_missing_primary_key",
+    ],
+)
+def test_cli_rejects_pseudo_v2_projection_without_mutating_workspace(
+    mutation, tmp_path, capsys
+):
+    from pageindex.filesystem.cli import main
+
+    workspace = tmp_path / "workspace"
+    projection_dir = create_projection_v2(workspace)
+    summary_path = projection_dir / "summary.sqlite"
+    cache_path = projection_dir / "embedding_cache.sqlite"
+    if mutation.startswith("summary_"):
+        with sqlite3.connect(summary_path) as connection:
+            if mutation == "summary_extra_column":
+                connection.execute(
+                    "ALTER TABLE semantic_index_docs ADD COLUMN legacy_provider TEXT"
+                )
+            elif mutation == "summary_missing_primary_and_unique":
+                connection.executescript(
+                    """
+                    DROP INDEX idx_semantic_index_docs_external_id;
+                    DROP INDEX idx_semantic_index_docs_source_type;
+                    ALTER TABLE semantic_index_docs RENAME TO legacy_semantic_index_docs;
+                    CREATE TABLE semantic_index_docs (
+                        rowid INTEGER,
+                        file_ref TEXT NOT NULL,
+                        external_id TEXT,
+                        source_type TEXT NOT NULL DEFAULT '',
+                        title TEXT NOT NULL DEFAULT '',
+                        text_hash TEXT NOT NULL,
+                        text_chars INTEGER NOT NULL DEFAULT 0,
+                        metadata_json TEXT NOT NULL DEFAULT '{}',
+                        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+                    );
+                    DROP TABLE legacy_semantic_index_docs;
+                    CREATE INDEX idx_semantic_index_docs_external_id
+                      ON semantic_index_docs(external_id);
+                    CREATE INDEX idx_semantic_index_docs_source_type
+                      ON semantic_index_docs(source_type);
+                    """
+                )
+            elif mutation == "summary_missing_index":
+                connection.execute("DROP INDEX idx_semantic_index_docs_external_id")
+            elif mutation == "summary_extra_config_key":
+                connection.execute(
+                    "INSERT INTO semantic_index_config(key, value) "
+                    "VALUES ('legacy_provider', 'openai')"
+                )
+            else:
+                connection.execute(
+                    "UPDATE semantic_index_config SET value = '4' WHERE key = 'dimension'"
+                )
+                connection.execute(
+                    "UPDATE semantic_index_config SET value = ? WHERE key = 'metadata'",
+                    (
+                        json.dumps(
+                            {
+                                "base_url": "https://example.invalid/v1",
+                                "model": "test-embedding",
+                                "dimensions": 4,
+                            }
+                        ),
+                    ),
+                )
+    else:
+        with sqlite3.connect(cache_path) as connection:
+            if mutation == "cache_extra_column":
+                connection.execute(
+                    "ALTER TABLE embedding_cache ADD COLUMN provider TEXT"
+                )
+            else:
+                connection.executescript(
+                    """
+                    ALTER TABLE embedding_cache RENAME TO legacy_embedding_cache;
+                    CREATE TABLE embedding_cache (
+                        base_url TEXT NOT NULL,
+                        model TEXT NOT NULL,
+                        dimensions INTEGER NOT NULL CHECK(dimensions > 0),
+                        text_hash TEXT NOT NULL,
+                        vector_blob BLOB NOT NULL,
+                        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+                    );
+                    DROP TABLE legacy_embedding_cache;
+                    """
+                )
+    before = workspace_state(workspace)
+
+    status = main(["--workspace", str(workspace), "tree", "/", "-L", "1"])
+
+    assert status == 1
+    assert "migrate_pifs_workspace.py" in capsys.readouterr().err
+    assert workspace_state(workspace) == before
+    assert not (workspace / "filesystem.sqlite").exists()
+
+
+def test_cli_allows_fresh_listing_when_projection_is_completely_absent(tmp_path, capsys):
+    from pageindex.filesystem.cli import main
+
+    workspace = tmp_path / "workspace"
+
+    assert main(["--workspace", str(workspace), "tree", "/", "-L", "1"]) == 0
+    assert json.loads(capsys.readouterr().out)["success"] is True
+    assert (workspace / "filesystem.sqlite").is_file()
+    assert not (workspace / "artifacts" / "projection_indexes").exists()
 
 
 def test_pageindex_is_the_only_public_python_entry_point_for_pifs():
@@ -1014,164 +1226,6 @@ def test_set_workspace_persists_runtime_config_without_credentials_or_provider(
         "embedding_timeout": "12",
         "workspace": str(workspace),
     }
-
-
-def test_external_migration_fixture_reopens_without_reembedding(
-    tmp_path, monkeypatch, capsys
-):
-    from pageindex.filesystem.cli import main
-
-    install_network_fakes(monkeypatch)
-    write_embedding_config(tmp_path, monkeypatch)
-    workspace = tmp_path / "legacy-workspace"
-    source = tmp_path / "notes.md"
-    source.write_text("alpha evidence", encoding="utf-8")
-    assert main(["--workspace", str(workspace), "add", str(source), "/documents"]) == 0
-    capsys.readouterr()
-    assert main(
-        [
-            "--workspace",
-            str(workspace),
-            "setmeta",
-            "/documents/notes.md",
-            '{"year": 2024}',
-        ]
-    ) == 0
-    capsys.readouterr()
-
-    projection_dir = workspace / "artifacts" / "projection_indexes"
-    with sqlite3.connect(workspace / "filesystem.sqlite") as connection:
-        connection.execute("CREATE TABLE metadata_schema(name TEXT)")
-        connection.execute("CREATE TABLE semantic_folders(folder_id TEXT)")
-        connection.execute("CREATE TABLE file_fts(file_ref TEXT, body TEXT)")
-        connection.execute("PRAGMA user_version = 1")
-    with sqlite3.connect(projection_dir / "summary.sqlite") as connection:
-        connection.execute(
-            "UPDATE semantic_index_config SET value = ? WHERE key = 'metadata'",
-            (
-                json.dumps(
-                    {
-                        "embedding_provider": "openai",
-                        "embedding_model": "test-embedding",
-                        "embedding_dimensions": 3,
-                    }
-                ),
-            ),
-        )
-        connection.execute(
-            "CREATE INDEX idx_semantic_index_docs_file_ref "
-            "ON semantic_index_docs(file_ref)"
-        )
-        connection.execute("PRAGMA user_version = 1")
-    with sqlite3.connect(projection_dir / "embedding_cache.sqlite") as connection:
-        connection.executescript(
-            """
-            ALTER TABLE embedding_cache RENAME TO embedding_cache_v2;
-            CREATE TABLE embedding_cache (
-                provider TEXT NOT NULL,
-                model TEXT NOT NULL,
-                text_hash TEXT NOT NULL,
-                dimension INTEGER NOT NULL,
-                vector_blob BLOB,
-                vector_json TEXT,
-                created_at TEXT,
-                PRIMARY KEY(provider, model, text_hash)
-            );
-            INSERT INTO embedding_cache(
-                provider, model, text_hash, dimension,
-                vector_blob, vector_json, created_at
-            )
-            SELECT
-                'openai', model || ':dimensions=' || dimensions,
-                text_hash, dimensions, vector_blob, NULL, created_at
-            FROM embedding_cache_v2;
-            DROP TABLE embedding_cache_v2;
-            PRAGMA user_version = 1;
-            """
-        )
-
-    script = Path(
-        "/Users/chengjie/Projects/pifs-data/scripts/migrate_pifs_workspace.py"
-    )
-    migration_command = [
-        sys.executable,
-        str(script),
-        "--workspace",
-        str(workspace),
-        "--embedding-base-url",
-        "https://EXAMPLE.invalid/v1/",
-        "--embedding-model",
-        "test-embedding",
-    ]
-    migrated = subprocess.run(
-        migration_command,
-        check=False,
-        capture_output=True,
-        text=True,
-    )
-    assert migrated.returncode == 0, migrated.stderr
-    report = json.loads(migrated.stdout)
-    assert report["status"] == "complete"
-    assert report["filesystem"]["files"] == 1
-    assert report["summary"] == {"documents": 1, "vectors": 1, "dimensions": 3}
-    assert report["embedding_cache"] == {"rows": 1}
-
-    databases = [
-        workspace / "filesystem.sqlite",
-        projection_dir / "summary.sqlite",
-        projection_dir / "embedding_cache.sqlite",
-    ]
-    hashes = {path: hashlib.sha256(path.read_bytes()).hexdigest() for path in databases}
-    repeated = subprocess.run(
-        migration_command,
-        check=False,
-        capture_output=True,
-        text=True,
-    )
-    assert repeated.returncode == 0, repeated.stderr
-    assert json.loads(repeated.stdout)["status"] == "already_migrated"
-    assert {
-        path: hashlib.sha256(path.read_bytes()).hexdigest() for path in databases
-    } == hashes
-
-    with sqlite3.connect(databases[0]) as catalog:
-        assert logical_tables(catalog) == {
-            "files",
-            "folders",
-            "file_folders",
-            "metadata_fields",
-            "metadata_values",
-        }
-    with sqlite3.connect(databases[1]) as summary:
-        assert summary.execute("PRAGMA user_version").fetchone()[0] == 2
-        metadata = json.loads(
-            summary.execute(
-                "SELECT value FROM semantic_index_config WHERE key = 'metadata'"
-            ).fetchone()[0]
-        )
-        assert metadata == {
-            "base_url": "https://example.invalid/v1",
-            "model": "test-embedding",
-            "dimensions": 3,
-        }
-    with sqlite3.connect(databases[2]) as cache:
-        assert logical_tables(cache) == {"embedding_cache"}
-        assert cache.execute("SELECT COUNT(*) FROM embedding_cache").fetchone()[0] == 1
-
-    backup_roots = list((workspace / ".pifs-migration-backups").iterdir())
-    assert len(backup_roots) == 1
-    assert json.loads(
-        (backup_roots[0] / "migration.json").read_text(encoding="utf-8")
-    )["status"] == "complete"
-    assert not list(workspace.rglob("*.migrating-*"))
-    assert not list(workspace.rglob("*.rollback-*"))
-
-    assert main(["--workspace", str(workspace), "tree", "/documents/@year=2024"]) == 0
-    tree = json.loads(capsys.readouterr().out)["data"]["tree"]
-    assert tree["files"][0]["path"] == "/documents/@year=2024/notes.md"
-    assert main(["--workspace", str(workspace), "browse", "/documents", "alpha"]) == 0
-    documents = json.loads(capsys.readouterr().out)["data"]["documents"]
-    assert [document["title"] for document in documents] == ["notes.md"]
 
 
 def test_public_example_is_a_short_supported_cli_walkthrough():

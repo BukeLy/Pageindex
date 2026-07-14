@@ -39,30 +39,26 @@ class SQLiteFileSystemStore:
 
     def initialize_schema(self) -> None:
         if self.db_path.exists() and self.db_path.stat().st_size > 0:
-            with self.connect() as conn:
-                version = int(conn.execute("PRAGMA user_version").fetchone()[0])
-                tables = {
-                    str(row[0])
-                    for row in conn.execute(
-                        "SELECT name FROM sqlite_master "
-                        "WHERE type = 'table' AND name NOT LIKE 'sqlite_%'"
-                    )
-                }
-            if version != SCHEMA_VERSION or tables != CATALOG_TABLES:
-                raise RuntimeError(
-                    "Incompatible PIFS catalog schema; migrate this workspace with "
-                    "pifs-data/scripts/migrate_pifs_workspace.py before opening it "
-                    f"(expected version {SCHEMA_VERSION} and tables "
-                    f"{sorted(CATALOG_TABLES)}, found version {version} and tables "
-                    f"{sorted(tables)})."
-                )
+            try:
+                with self._readonly_connection(self.db_path) as conn:
+                    version = int(conn.execute("PRAGMA user_version").fetchone()[0])
+                    actual = self._schema_signature(conn)
+                with sqlite3.connect(":memory:") as expected_conn:
+                    expected_conn.row_factory = sqlite3.Row
+                    self._create_current_schema(expected_conn)
+                    expected = self._schema_signature(expected_conn)
+            except sqlite3.Error as exc:
+                raise self._incompatible_schema_error() from exc
+            if version != SCHEMA_VERSION or actual != expected:
+                raise self._incompatible_schema_error()
             return
         with self.connect() as conn:
             self._create_current_schema(conn)
             self.ensure_folder(conn, "/")
             conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
 
-    def _create_current_schema(self, conn: sqlite3.Connection) -> None:
+    @staticmethod
+    def _create_current_schema(conn: sqlite3.Connection) -> None:
         conn.executescript(
             """
             CREATE TABLE IF NOT EXISTS files (
@@ -133,6 +129,82 @@ class SQLiteFileSystemStore:
             CREATE INDEX IF NOT EXISTS idx_file_folders_folder ON file_folders(folder_id);
             CREATE INDEX IF NOT EXISTS idx_metadata_values_field_text ON metadata_values(field_id, value_text);
             """
+        )
+
+    @staticmethod
+    def _readonly_connection(path: Path) -> sqlite3.Connection:
+        connection = sqlite3.connect(
+            f"{path.resolve().as_uri()}?mode=ro",
+            uri=True,
+        )
+        connection.row_factory = sqlite3.Row
+        connection.execute("PRAGMA foreign_keys = ON")
+        return connection
+
+    @staticmethod
+    def _schema_signature(conn: sqlite3.Connection) -> dict[str, Any]:
+        tables = {
+            str(row[0])
+            for row in conn.execute(
+                "SELECT name FROM sqlite_master "
+                "WHERE type = 'table' AND name NOT LIKE 'sqlite_%'"
+            )
+        }
+        columns = {
+            table: tuple(
+                tuple(row)
+                for row in conn.execute(f'PRAGMA table_xinfo("{table}")')
+            )
+            for table in sorted(tables)
+        }
+        indexes: dict[str, tuple[tuple[Any, ...], ...]] = {}
+        foreign_keys: dict[str, tuple[tuple[Any, ...], ...]] = {}
+        for table in sorted(tables):
+            table_indexes = []
+            for row in conn.execute(f'PRAGMA index_list("{table}")'):
+                name = str(row[1])
+                origin = str(row[3])
+                index_columns = tuple(
+                    str(column[2])
+                    for column in conn.execute(f'PRAGMA index_info("{name}")')
+                )
+                table_indexes.append(
+                    (
+                        name if origin == "c" else None,
+                        int(row[2]),
+                        origin,
+                        int(row[4]),
+                        index_columns,
+                    )
+                )
+            indexes[table] = tuple(sorted(table_indexes, key=repr))
+            foreign_keys[table] = tuple(
+                sorted(
+                    (
+                        str(row[2]),
+                        str(row[3]),
+                        str(row[4]),
+                        str(row[5]),
+                        str(row[6]),
+                        str(row[7]),
+                    )
+                    for row in conn.execute(f'PRAGMA foreign_key_list("{table}")')
+                )
+            )
+        return {
+            "tables": tables,
+            "columns": columns,
+            "indexes": indexes,
+            "foreign_keys": foreign_keys,
+        }
+
+    @staticmethod
+    def _incompatible_schema_error() -> RuntimeError:
+        return RuntimeError(
+            "Incompatible PIFS catalog schema; migrate this workspace with "
+            "pifs-data/scripts/migrate_pifs_workspace.py before opening it "
+            f"(expected exact schema version {SCHEMA_VERSION} with tables "
+            f"{sorted(CATALOG_TABLES)})."
         )
 
     @staticmethod

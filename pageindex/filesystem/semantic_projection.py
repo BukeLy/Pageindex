@@ -102,16 +102,15 @@ class SummaryProjection:
         self.index = SQLiteVecSemanticIndex(
             self.index_dir / f"{SUMMARY_INDEX_NAME}.sqlite"
         )
-        summary_exists = self.index.db_path.exists() and self.index.db_path.stat().st_size > 0
+        summary_exists = self.index.db_path.exists()
         cache_path = self.index_dir / "embedding_cache.sqlite"
-        cache_exists = cache_path.exists() and cache_path.stat().st_size > 0
-        if summary_exists:
+        cache_exists = cache_path.exists()
+        if summary_exists and cache_exists:
             self.index.validate(self.profile.identity)
             self.embedding_cache = EmbeddingCache(cache_path, create=False)
-        elif cache_exists:
-            self.embedding_cache = EmbeddingCache(cache_path, create=False)
+        elif summary_exists or cache_exists:
             raise RuntimeError(
-                "PIFS Summary Projection is missing; migrate this workspace with "
+                "PIFS Summary Projection topology is incomplete; migrate this workspace with "
                 "pifs-data/scripts/migrate_pifs_workspace.py before opening it."
             )
         elif create:
@@ -208,45 +207,29 @@ class SummaryProjection:
 
 
 class EmbeddingCache:
-    COLUMNS = {
-        "base_url",
-        "model",
-        "dimensions",
-        "text_hash",
-        "vector_blob",
-        "created_at",
-    }
-
     def __init__(self, db_path: Path, *, create: bool) -> None:
         self.db_path = db_path
-        exists = self.db_path.exists() and self.db_path.stat().st_size > 0
+        exists = self.db_path.exists()
         if exists:
             self._validate()
         elif create:
             self.db_path.parent.mkdir(parents=True, exist_ok=True)
             with self.connect() as connection:
-                connection.executescript(
-                    f"""
-                    CREATE TABLE embedding_cache (
-                        base_url TEXT NOT NULL,
-                        model TEXT NOT NULL,
-                        dimensions INTEGER NOT NULL CHECK(dimensions > 0),
-                        text_hash TEXT NOT NULL,
-                        vector_blob BLOB NOT NULL,
-                        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-                        PRIMARY KEY(base_url, model, dimensions, text_hash)
-                    );
-                    PRAGMA user_version = {SCHEMA_VERSION};
-                    """
-                )
+                self._create_schema(connection)
         else:
             raise RuntimeError(
                 "PIFS embedding cache is missing; migrate this workspace with "
                 "pifs-data/scripts/migrate_pifs_workspace.py before opening it."
             )
 
-    def connect(self) -> sqlite3.Connection:
-        connection = sqlite3.connect(self.db_path)
+    def connect(self, *, read_only: bool = False) -> sqlite3.Connection:
+        if read_only:
+            connection = sqlite3.connect(
+                f"{self.db_path.resolve().as_uri()}?mode=ro",
+                uri=True,
+            )
+        else:
+            connection = sqlite3.connect(self.db_path)
         connection.row_factory = sqlite3.Row
         return connection
 
@@ -320,24 +303,126 @@ class EmbeddingCache:
         return [cached[text_hash] for text_hash in hashes]
 
     def _validate(self) -> None:
-        with self.connect() as connection:
-            version = int(connection.execute("PRAGMA user_version").fetchone()[0])
-            tables = {
-                str(row[0])
-                for row in connection.execute(
-                    "SELECT name FROM sqlite_master "
-                    "WHERE type = 'table' AND name NOT LIKE 'sqlite_%'"
+        try:
+            with self.connect(read_only=True) as connection:
+                version = int(connection.execute("PRAGMA user_version").fetchone()[0])
+                actual = self._schema_signature(connection)
+                invalid_rows = int(
+                    connection.execute(
+                        "SELECT COUNT(*) FROM embedding_cache "
+                        "WHERE dimensions <= 0 OR length(vector_blob) != dimensions * 4 "
+                        "OR trim(base_url) = '' OR trim(model) = '' OR trim(text_hash) = ''"
+                    ).fetchone()[0]
                 )
-            }
-            columns = {
-                str(row[1])
-                for row in connection.execute("PRAGMA table_info(embedding_cache)")
-            }
-        if version != SCHEMA_VERSION or tables != {"embedding_cache"} or columns != self.COLUMNS:
-            raise RuntimeError(
-                "Incompatible PIFS embedding cache schema; migrate this workspace with "
-                "pifs-data/scripts/migrate_pifs_workspace.py before opening it."
+            with sqlite3.connect(":memory:") as expected_connection:
+                expected_connection.row_factory = sqlite3.Row
+                self._create_schema(expected_connection)
+                expected = self._schema_signature(expected_connection)
+        except sqlite3.Error as exc:
+            raise self._incompatible_schema_error() from exc
+        if version != SCHEMA_VERSION or actual != expected or invalid_rows:
+            raise self._incompatible_schema_error()
+
+    @staticmethod
+    def _create_schema(connection: sqlite3.Connection) -> None:
+        connection.executescript(
+            f"""
+            CREATE TABLE embedding_cache (
+                base_url TEXT NOT NULL,
+                model TEXT NOT NULL,
+                dimensions INTEGER NOT NULL CHECK(dimensions > 0),
+                text_hash TEXT NOT NULL,
+                vector_blob BLOB NOT NULL,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY(base_url, model, dimensions, text_hash)
+            );
+            PRAGMA user_version = {SCHEMA_VERSION};
+            """
+        )
+
+    @staticmethod
+    def _schema_signature(connection: sqlite3.Connection) -> dict[str, Any]:
+        tables = {
+            str(row[0])
+            for row in connection.execute(
+                "SELECT name FROM sqlite_master "
+                "WHERE type = 'table' AND name NOT LIKE 'sqlite_%'"
             )
+        }
+        if tables != {"embedding_cache"}:
+            return {"tables": tables}
+        columns = tuple(
+            tuple(row)
+            for row in connection.execute('PRAGMA table_xinfo("embedding_cache")')
+        )
+        indexes = []
+        for row in connection.execute('PRAGMA index_list("embedding_cache")'):
+            name = str(row[1])
+            origin = str(row[3])
+            index_columns = tuple(
+                str(column[2])
+                for column in connection.execute(f'PRAGMA index_info("{name}")')
+            )
+            indexes.append(
+                (
+                    name if origin == "c" else None,
+                    int(row[2]),
+                    origin,
+                    int(row[4]),
+                    index_columns,
+                )
+            )
+        foreign_keys = tuple(
+            sorted(
+                (
+                    str(row[2]),
+                    str(row[3]),
+                    str(row[4]),
+                    str(row[5]),
+                    str(row[6]),
+                    str(row[7]),
+                )
+                for row in connection.execute(
+                    'PRAGMA foreign_key_list("embedding_cache")'
+                )
+            )
+        )
+        sql = connection.execute(
+            "SELECT sql FROM sqlite_master WHERE type = 'table' "
+            "AND name = 'embedding_cache'"
+        ).fetchone()[0]
+        return {
+            "tables": tables,
+            "columns": columns,
+            "indexes": tuple(sorted(indexes, key=repr)),
+            "foreign_keys": foreign_keys,
+            "sql": " ".join(str(sql).lower().split()),
+        }
+
+    @staticmethod
+    def _incompatible_schema_error() -> RuntimeError:
+        return RuntimeError(
+            "Incompatible PIFS embedding cache schema; migrate this workspace with "
+            "pifs-data/scripts/migrate_pifs_workspace.py before opening it."
+        )
+
+
+def validate_projection_topology(index_dir: str | Path) -> bool:
+    index_dir = Path(index_dir).expanduser()
+    summary_path = index_dir / f"{SUMMARY_INDEX_NAME}.sqlite"
+    cache_path = index_dir / "embedding_cache.sqlite"
+    summary_exists = summary_path.exists()
+    cache_exists = cache_path.exists()
+    if not summary_exists and not cache_exists:
+        return False
+    if not summary_exists or not cache_exists:
+        raise RuntimeError(
+            "PIFS Summary Projection topology is incomplete; migrate this workspace with "
+            "pifs-data/scripts/migrate_pifs_workspace.py before opening it."
+        )
+    SQLiteVecSemanticIndex(summary_path).validate_schema()
+    EmbeddingCache(cache_path, create=False)
+    return True
 
 
 class EmbeddingClient:

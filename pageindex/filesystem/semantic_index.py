@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import sqlite3
 from dataclasses import dataclass
 from pathlib import Path
@@ -15,6 +16,13 @@ class SemanticIndexError(RuntimeError):
 
 
 SCHEMA_VERSION = 2
+SUMMARY_TABLES = {
+    "semantic_index_config",
+    "semantic_index_docs",
+    "semantic_index_vec",
+}
+SUMMARY_CONFIG_KEYS = {"adapter", "adapter_version", "dimension", "metadata"}
+VEC_DIMENSION_RE = re.compile(r"\bembedding\s+float\[(\d+)\]", re.IGNORECASE)
 
 
 @dataclass(frozen=True)
@@ -48,77 +56,16 @@ class SQLiteVecSemanticIndex:
 
     def __init__(self, db_path: str | Path):
         self.db_path = Path(db_path).expanduser()
-        self.db_path.parent.mkdir(parents=True, exist_ok=True)
 
     def reset(self, *, dimension: int, metadata: dict[str, Any] | None = None) -> None:
         if dimension <= 0:
             raise SemanticIndexError("semantic index dimension must be positive")
+        self.db_path.parent.mkdir(parents=True, exist_ok=True)
         with self.connect() as conn:
-            conn.executescript(
-                """
-                DROP TABLE IF EXISTS semantic_index_vec;
-                DROP TABLE IF EXISTS semantic_index_docs;
-                DROP TABLE IF EXISTS semantic_index_config;
-                CREATE TABLE semantic_index_config (
-                    key TEXT PRIMARY KEY,
-                    value TEXT NOT NULL
-                );
-                CREATE TABLE semantic_index_docs (
-                    rowid INTEGER PRIMARY KEY,
-                    file_ref TEXT NOT NULL UNIQUE,
-                    external_id TEXT,
-                    source_type TEXT NOT NULL DEFAULT '',
-                    title TEXT NOT NULL DEFAULT '',
-                    text_hash TEXT NOT NULL,
-                    text_chars INTEGER NOT NULL DEFAULT 0,
-                    metadata_json TEXT NOT NULL DEFAULT '{}',
-                    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TEXT DEFAULT CURRENT_TIMESTAMP
-                );
-                CREATE INDEX idx_semantic_index_docs_external_id
-                  ON semantic_index_docs(external_id);
-                CREATE INDEX idx_semantic_index_docs_source_type
-                  ON semantic_index_docs(source_type);
-                """
-            )
-            conn.execute(
-                "CREATE VIRTUAL TABLE semantic_index_vec USING "
-                f"vec0(source_type TEXT partition key, embedding float[{dimension}])"
-            )
-            config = {
-                "dimension": str(dimension),
-                "adapter": "sqlite-vec",
-                "adapter_version": sqlite_vec.__version__,
-                "metadata": json.dumps(metadata or {}, ensure_ascii=False, sort_keys=True),
-            }
-            conn.executemany(
-                "INSERT INTO semantic_index_config(key, value) VALUES (?, ?)",
-                sorted(config.items()),
-            )
-            conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
-            conn.commit()
+            self._create_schema(conn, dimension=dimension, metadata=metadata or {})
 
     def validate(self, expected_identity: dict[str, Any]) -> dict[str, Any]:
-        with self.connect() as conn:
-            version = int(conn.execute("PRAGMA user_version").fetchone()[0])
-            tables = {
-                str(row[1])
-                for row in conn.execute("PRAGMA table_list")
-                if row[2] in {"table", "virtual"}
-                and not str(row[1]).startswith("sqlite_")
-                and not str(row[1]).startswith("semantic_index_vec_")
-            }
-        required = {
-            "semantic_index_config",
-            "semantic_index_docs",
-            "semantic_index_vec",
-        }
-        if version != SCHEMA_VERSION or tables != required:
-            raise SemanticIndexError(
-                "Incompatible PIFS Summary Projection schema; migrate this workspace "
-                "with pifs-data/scripts/migrate_pifs_workspace.py before opening it."
-            )
-        info = self.info()
+        info = self.validate_schema()
         if info["metadata"] != expected_identity:
             raise SemanticIndexError(
                 "Incompatible PIFS Summary Embedding Profile; migrate the workspace or "
@@ -129,6 +76,51 @@ class SQLiteVecSemanticIndex:
                 "Incompatible PIFS Summary Projection dimensions; migrate the workspace "
                 "or use the matching embedding profile."
             )
+        return info
+
+    def validate_schema(self) -> dict[str, Any]:
+        try:
+            with self.connect(read_only=True) as conn:
+                version = int(conn.execute("PRAGMA user_version").fetchone()[0])
+                tables = self._logical_tables(conn)
+                config = self._config(conn)
+                info = self._info_from_connection(conn, config)
+                actual = self._schema_signature(conn, tables)
+            dimension = int(info["dimension"])
+            metadata = info["metadata"]
+            if (
+                version != SCHEMA_VERSION
+                or tables != SUMMARY_TABLES
+                or set(config) != SUMMARY_CONFIG_KEYS
+                or config["adapter"] != "sqlite-vec"
+                or not config["adapter_version"]
+                or dimension <= 0
+                or set(metadata) != {"base_url", "model", "dimensions"}
+                or not isinstance(metadata["base_url"], str)
+                or not metadata["base_url"].strip()
+                or not isinstance(metadata["model"], str)
+                or not metadata["model"].strip()
+                or isinstance(metadata["dimensions"], bool)
+                or int(metadata["dimensions"]) != dimension
+                or actual["vec_dimension"] != dimension
+            ):
+                raise self._incompatible_schema_error()
+            with self._memory_connection() as expected_conn:
+                self._create_schema(
+                    expected_conn,
+                    dimension=dimension,
+                    metadata=metadata,
+                )
+                expected = self._schema_signature(
+                    expected_conn,
+                    self._logical_tables(expected_conn),
+                )
+            if actual != expected:
+                raise self._incompatible_schema_error()
+        except SemanticIndexError:
+            raise
+        except (json.JSONDecodeError, sqlite3.Error, TypeError, ValueError) as exc:
+            raise self._incompatible_schema_error() from exc
         return info
 
     def upsert_many(self, records: list[SemanticIndexRecord]) -> int:
@@ -312,27 +304,8 @@ class SQLiteVecSemanticIndex:
         return min(4096, max(limit, limit * max(fetch_multiplier, 1)))
 
     def info(self) -> dict[str, Any]:
-        with self.connect() as conn:
-            config = {
-                row["key"]: row["value"]
-                for row in conn.execute(
-                    "SELECT key, value FROM semantic_index_config ORDER BY key"
-                ).fetchall()
-            }
-            count = conn.execute("SELECT COUNT(*) FROM semantic_index_docs").fetchone()[0]
-        parsed_metadata: dict[str, Any]
-        try:
-            parsed_metadata = json.loads(config.get("metadata", "{}"))
-        except json.JSONDecodeError:
-            parsed_metadata = {}
-        return {
-            "db_path": str(self.db_path),
-            "adapter": config.get("adapter", "sqlite-vec"),
-            "adapter_version": config.get("adapter_version", ""),
-            "dimension": int(config.get("dimension", "0") or 0),
-            "document_count": count,
-            "metadata": parsed_metadata,
-        }
+        with self.connect(read_only=True) as conn:
+            return self._info_from_connection(conn, self._config(conn))
 
     def dimension(self) -> int:
         with self.connect() as conn:
@@ -345,13 +318,185 @@ class SQLiteVecSemanticIndex:
             )
         return int(row["value"])
 
-    def connect(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(self.db_path)
+    def connect(self, *, read_only: bool = False) -> sqlite3.Connection:
+        if read_only:
+            conn = sqlite3.connect(
+                f"{self.db_path.resolve().as_uri()}?mode=ro",
+                uri=True,
+            )
+        else:
+            conn = sqlite3.connect(self.db_path)
         conn.row_factory = sqlite3.Row
+        self._load_extension(conn)
+        return conn
+
+    @staticmethod
+    def _load_extension(conn: sqlite3.Connection) -> None:
         conn.enable_load_extension(True)
         sqlite_vec.load(conn)
         conn.enable_load_extension(False)
+
+    @classmethod
+    def _memory_connection(cls) -> sqlite3.Connection:
+        conn = sqlite3.connect(":memory:")
+        conn.row_factory = sqlite3.Row
+        cls._load_extension(conn)
         return conn
+
+    @staticmethod
+    def _create_schema(
+        conn: sqlite3.Connection,
+        *,
+        dimension: int,
+        metadata: dict[str, Any],
+    ) -> None:
+        conn.executescript(
+            """
+            DROP TABLE IF EXISTS semantic_index_vec;
+            DROP TABLE IF EXISTS semantic_index_docs;
+            DROP TABLE IF EXISTS semantic_index_config;
+            CREATE TABLE semantic_index_config (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL
+            );
+            CREATE TABLE semantic_index_docs (
+                rowid INTEGER PRIMARY KEY,
+                file_ref TEXT NOT NULL UNIQUE,
+                external_id TEXT,
+                source_type TEXT NOT NULL DEFAULT '',
+                title TEXT NOT NULL DEFAULT '',
+                text_hash TEXT NOT NULL,
+                text_chars INTEGER NOT NULL DEFAULT 0,
+                metadata_json TEXT NOT NULL DEFAULT '{}',
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE INDEX idx_semantic_index_docs_external_id
+              ON semantic_index_docs(external_id);
+            CREATE INDEX idx_semantic_index_docs_source_type
+              ON semantic_index_docs(source_type);
+            """
+        )
+        conn.execute(
+            "CREATE VIRTUAL TABLE semantic_index_vec USING "
+            f"vec0(source_type TEXT partition key, embedding float[{dimension}])"
+        )
+        config = {
+            "dimension": str(dimension),
+            "adapter": "sqlite-vec",
+            "adapter_version": sqlite_vec.__version__,
+            "metadata": json.dumps(metadata, ensure_ascii=False, sort_keys=True),
+        }
+        conn.executemany(
+            "INSERT INTO semantic_index_config(key, value) VALUES (?, ?)",
+            sorted(config.items()),
+        )
+        conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
+        conn.commit()
+
+    @staticmethod
+    def _logical_tables(conn: sqlite3.Connection) -> set[str]:
+        return {
+            str(row[1])
+            for row in conn.execute("PRAGMA table_list")
+            if row[2] in {"table", "virtual"}
+            and not str(row[1]).startswith("sqlite_")
+            and not str(row[1]).startswith("semantic_index_vec_")
+        }
+
+    @staticmethod
+    def _config(conn: sqlite3.Connection) -> dict[str, str]:
+        return {
+            str(row["key"]): str(row["value"])
+            for row in conn.execute(
+                "SELECT key, value FROM semantic_index_config ORDER BY key"
+            )
+        }
+
+    def _info_from_connection(
+        self,
+        conn: sqlite3.Connection,
+        config: dict[str, str],
+    ) -> dict[str, Any]:
+        metadata = json.loads(config.get("metadata", "{}"))
+        if not isinstance(metadata, dict):
+            raise self._incompatible_schema_error()
+        return {
+            "db_path": str(self.db_path),
+            "adapter": config.get("adapter", ""),
+            "adapter_version": config.get("adapter_version", ""),
+            "dimension": int(config.get("dimension", "0") or 0),
+            "document_count": int(
+                conn.execute("SELECT COUNT(*) FROM semantic_index_docs").fetchone()[0]
+            ),
+            "metadata": metadata,
+        }
+
+    @staticmethod
+    def _schema_signature(
+        conn: sqlite3.Connection,
+        tables: set[str],
+    ) -> dict[str, Any]:
+        columns = {
+            table: tuple(
+                tuple(row)
+                for row in conn.execute(f'PRAGMA table_xinfo("{table}")')
+            )
+            for table in sorted(tables)
+        }
+        indexes: dict[str, tuple[tuple[Any, ...], ...]] = {}
+        foreign_keys: dict[str, tuple[tuple[Any, ...], ...]] = {}
+        for table in sorted(tables):
+            table_indexes = []
+            for row in conn.execute(f'PRAGMA index_list("{table}")'):
+                name = str(row[1])
+                origin = str(row[3])
+                index_columns = tuple(
+                    str(column[2])
+                    for column in conn.execute(f'PRAGMA index_info("{name}")')
+                )
+                table_indexes.append(
+                    (
+                        name if origin == "c" else None,
+                        int(row[2]),
+                        origin,
+                        int(row[4]),
+                        index_columns,
+                    )
+                )
+            indexes[table] = tuple(sorted(table_indexes, key=repr))
+            foreign_keys[table] = tuple(
+                sorted(
+                    (
+                        str(row[2]),
+                        str(row[3]),
+                        str(row[4]),
+                        str(row[5]),
+                        str(row[6]),
+                        str(row[7]),
+                    )
+                    for row in conn.execute(f'PRAGMA foreign_key_list("{table}")')
+                )
+            )
+        vec_row = conn.execute(
+            "SELECT sql FROM sqlite_master WHERE type = 'table' "
+            "AND name = 'semantic_index_vec'"
+        ).fetchone()
+        match = VEC_DIMENSION_RE.search(str(vec_row[0] if vec_row else ""))
+        return {
+            "tables": tables,
+            "columns": columns,
+            "indexes": indexes,
+            "foreign_keys": foreign_keys,
+            "vec_dimension": int(match.group(1)) if match else None,
+        }
+
+    @staticmethod
+    def _incompatible_schema_error() -> SemanticIndexError:
+        return SemanticIndexError(
+            "Incompatible PIFS Summary Projection schema; migrate this workspace "
+            "with pifs-data/scripts/migrate_pifs_workspace.py before opening it."
+        )
 
     @staticmethod
     def text_hash(text: str) -> str:

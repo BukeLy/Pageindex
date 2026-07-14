@@ -68,14 +68,25 @@ class PageIndexFileSystem:
         summary_projection_embedding_base_url: str | None = None,
     ):
         self.workspace = Path(workspace).expanduser()
-        self.store = SQLiteFileSystemStore(self.workspace)
-        self.metadata = MetadataQueryEngine(self.store)
-        self.summary_projection: Any | None = None
         self.summary_projection_index_dir = (
             Path(summary_projection_index_dir).expanduser()
             if summary_projection_index_dir is not None
             else self.workspace / "artifacts" / "projection_indexes"
         )
+        summary_path = self.summary_projection_index_dir / "summary.sqlite"
+        cache_path = self.summary_projection_index_dir / "embedding_cache.sqlite"
+        if summary_path.exists() != cache_path.exists():
+            raise RuntimeError(
+                "PIFS Summary Projection topology is incomplete; migrate this workspace with "
+                "pifs-data/scripts/migrate_pifs_workspace.py before opening it."
+            )
+        if summary_path.exists():
+            from .semantic_projection import validate_projection_topology
+
+            validate_projection_topology(self.summary_projection_index_dir)
+        self.store = SQLiteFileSystemStore(self.workspace)
+        self.metadata = MetadataQueryEngine(self.store)
+        self.summary_projection: Any | None = None
         self.summary_projection_embedding_model = summary_projection_embedding_model
         self.summary_projection_embedding_dimensions = summary_projection_embedding_dimensions
         self.summary_projection_embedding_timeout = summary_projection_embedding_timeout
