@@ -223,6 +223,7 @@ class PageIndexFileSystem:
 
     def register_files(self, files: list[dict[str, Any]]) -> list[str]:
         preexisting_pageindex_doc_ids = self._pageindex_cache_doc_ids()
+        artifact_baselines: dict[Path, bytes | None] = {}
         records: list[dict[str, Any]] = []
         new_records: list[dict[str, Any]] = []
         created_folder_paths: list[str] = []
@@ -231,7 +232,12 @@ class PageIndexFileSystem:
         preexisting_cache_keys: set[_EmbeddingCacheKey] = set()
         try:
             for file in files:
-                records.append(self._prepare_file_record(file))
+                records.append(
+                    self._prepare_file_record(
+                        file,
+                        artifact_baselines=artifact_baselines,
+                    )
+                )
             preexisting_file_refs = self._existing_file_refs(records)
             new_records = [
                 record
@@ -281,11 +287,11 @@ class PageIndexFileSystem:
                 self._cleanup_catalog_record(str(record["file_ref"]))
             self._cleanup_created_folders(created_folder_paths)
             self._cleanup_new_metadata_fields(new_metadata_fields)
-            self._cleanup_failed_register_artifacts(records)
             self._cleanup_pageindex_cache(
                 records,
                 preexisting_pageindex_doc_ids,
             )
+            self._restore_registration_artifact_baselines(artifact_baselines)
             raise
         return [record["file_ref"] for record in records]
 
@@ -1064,11 +1070,21 @@ class PageIndexFileSystem:
                 f"PIFS {operation} failed to build summary projection index: {detail}"
             )
 
-    def _prepare_file_record(self, file: dict[str, Any]) -> dict[str, Any]:
+    def _prepare_file_record(
+        self,
+        file: dict[str, Any],
+        *,
+        artifact_baselines: dict[Path, bytes | None] | None = None,
+    ) -> dict[str, Any]:
         storage_uri = file["storage_uri"]
         metadata = file.get("metadata") or {}
         if not isinstance(metadata, dict):
             raise ValueError("metadata must be a JSON object")
+        metadata = dict(metadata)
+        try:
+            json.dumps(metadata, ensure_ascii=False)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("metadata must be JSON serializable") from exc
         self._validate_register_metadata(metadata)
         external_id = file.get("external_id")
         content = file.get("content") or ""
@@ -1091,6 +1107,12 @@ class PageIndexFileSystem:
         file_ref = make_file_ref(
             str(external_id or self._join_virtual_file_path(folder_path, title).strip("/"))
         )
+        if artifact_baselines is not None:
+            self._capture_registration_artifact_baselines(
+                file_ref,
+                file,
+                artifact_baselines,
+            )
         (
             pageindex_doc_id,
             pageindex_tree_status,
@@ -1293,6 +1315,32 @@ class PageIndexFileSystem:
                 self._unlink_artifact(record["text_artifact_path"])
             if record.get("_pifs_owned_raw_artifact") and record.get("raw_artifact_path"):
                 self._unlink_artifact(record["raw_artifact_path"])
+
+    def _capture_registration_artifact_baselines(
+        self,
+        file_ref: str,
+        file: dict[str, Any],
+        baselines: dict[Path, bytes | None],
+    ) -> None:
+        paths = []
+        if file.get("text_artifact_path") is None:
+            paths.append(self.store.text_dir / f"{file_ref}.txt")
+        if file.get("raw_artifact_path") is None and file.get("write_raw_artifact", True):
+            paths.append(self.store.raw_dir / f"{file_ref}.json")
+        for path in paths:
+            if path not in baselines:
+                baselines[path] = path.read_bytes() if path.is_file() else None
+
+    def _restore_registration_artifact_baselines(
+        self,
+        baselines: dict[Path, bytes | None],
+    ) -> None:
+        for path, content in baselines.items():
+            if content is None:
+                self._unlink_artifact(path)
+                continue
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(content)
 
     def _cleanup_catalog_record(self, file_ref: str) -> None:
         try:

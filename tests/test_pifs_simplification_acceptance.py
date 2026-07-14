@@ -1349,6 +1349,8 @@ def test_register_file_completes_summary_projection_for_immediate_and_reopen_bro
     source = tmp_path / "notes.md"
     source.write_text("alpha registration evidence", encoding="utf-8")
     filesystem = open_test_filesystem(workspace)
+    caller_metadata = {"year": 2024, "labels": {"team": "alpha"}}
+    caller_metadata_baseline = json.loads(json.dumps(caller_metadata))
 
     file_ref = filesystem.register_file(
         storage_uri=source.as_uri(),
@@ -1356,12 +1358,17 @@ def test_register_file_completes_summary_projection_for_immediate_and_reopen_bro
         title=source.name,
         content_type="text/markdown",
         content=source.read_text(encoding="utf-8"),
+        metadata=caller_metadata,
     )
 
     projection_dir = workspace / "artifacts" / "projection_indexes"
     assert (projection_dir / "summary.sqlite").is_file()
     assert (projection_dir / "embedding_cache.sqlite").is_file()
-    assert filesystem.store.get_file(file_ref).metadata_status["summary_projection"]["status"] == "ready"
+    stored = filesystem.store.get_file(file_ref)
+    assert caller_metadata == caller_metadata_baseline
+    assert "summary" not in caller_metadata
+    assert stored.metadata["summary"].startswith("Summary for notes.md:")
+    assert stored.metadata_status["summary_projection"]["status"] == "ready"
     assert file_ref in {
         row["file_ref"]
         for row in filesystem.browse_semantic_files("/documents", "alpha")["data"]
@@ -1572,6 +1579,169 @@ def test_register_files_rolls_back_partial_pageindex_preparation(
         )
 
     assert registration_logical_state(workspace) == baseline
+    reopened = open_test_filesystem(workspace)
+    assert reopened.store.folder_info("/")["path"] == "/"
+    assert reopened.store.file_refs_for_scope() == []
+
+
+def test_register_files_prepare_failure_restores_existing_owned_artifacts(
+    tmp_path, monkeypatch
+):
+    from pageindex.filesystem.commands import PIFSCommandExecutor
+
+    install_network_fakes(monkeypatch)
+    workspace = tmp_path / "workspace"
+    existing = tmp_path / "existing.md"
+    replacement = tmp_path / "replacement.md"
+    existing.write_text("alpha original registration evidence", encoding="utf-8")
+    replacement.write_text("beta replacement registration evidence", encoding="utf-8")
+
+    filesystem = open_test_filesystem(workspace)
+    existing_ref = filesystem.register_file(
+        storage_uri=existing.as_uri(),
+        external_id="doc-existing",
+        folder_path="/documents",
+        title=existing.name,
+        content_type="text/markdown",
+        content=existing.read_text(encoding="utf-8"),
+        metadata={"year": 2023},
+    )
+    existing_entry = filesystem.store.get_file(existing_ref)
+    text_path = Path(existing_entry.text_artifact_path)
+    raw_path = Path(existing_entry.raw_artifact_path)
+    original_text = text_path.read_bytes()
+    original_raw = raw_path.read_bytes()
+    original_pageindex_doc_id = existing_entry.pageindex_doc_id
+    baseline = registration_logical_state(workspace)
+
+    with pytest.raises(RuntimeError, match="requires PageIndex extraction"):
+        filesystem.register_files(
+            [
+                {
+                    "storage_uri": replacement.as_uri(),
+                    "external_id": "doc-existing",
+                    "folder_path": "/documents/replacement",
+                    "title": replacement.name,
+                    "content_type": "text/markdown",
+                    "content": replacement.read_text(encoding="utf-8"),
+                    "metadata": {"year": 2024},
+                },
+                {
+                    "storage_uri": "https://example.invalid/unresolvable.md",
+                    "external_id": "doc-failing",
+                    "folder_path": "/documents/new",
+                    "title": "unresolvable.md",
+                    "content_type": "text/markdown",
+                    "content": "must not be registered",
+                    "metadata": {"year": 2025},
+                },
+            ]
+        )
+
+    assert registration_logical_state(workspace) == baseline
+    assert text_path.read_bytes() == original_text
+    assert raw_path.read_bytes() == original_raw
+
+    reopened = open_test_filesystem(workspace)
+    reopened_entry = reopened.store.get_file(existing_ref)
+    assert reopened_entry.pageindex_doc_id == original_pageindex_doc_id
+    executor = PIFSCommandExecutor(reopened)
+    locator = "/documents/existing.md"
+    assert json.loads(executor.execute(f"stat {locator}"))["success"] is True
+    cat = json.loads(executor.execute(f"cat {locator} --structure"))
+    assert cat["success"] is True
+    assert cat["data"]["pagination"]["available"] is True
+    grep = json.loads(executor.execute(f"grep alpha {locator}"))
+    assert grep["success"] is True
+    assert grep["data"]["matches"]
+    structure = reopened.pageindex_structure(existing_ref)
+    assert structure["available"] is True
+    assert structure["structure"][0]["title"] == existing.stem
+
+
+def test_register_file_rejects_non_json_metadata_before_side_effects(
+    tmp_path, monkeypatch
+):
+    from pageindex import PageIndexClient
+
+    install_network_fakes(monkeypatch)
+    successful_index = PageIndexClient.index
+    indexed_paths = []
+
+    def record_index(self, file_path, mode="auto"):
+        indexed_paths.append(Path(file_path).name)
+        return successful_index(self, file_path, mode=mode)
+
+    monkeypatch.setattr(PageIndexClient, "index", record_index)
+    workspace = tmp_path / "workspace"
+    filesystem = open_test_filesystem(workspace)
+    source = tmp_path / "notes.md"
+    source.write_text("alpha registration evidence", encoding="utf-8")
+    baseline = registration_logical_state(workspace)
+
+    with pytest.raises(ValueError, match="metadata must be JSON serializable"):
+        filesystem.register_file(
+            storage_uri=source.as_uri(),
+            folder_path="/documents/new",
+            title=source.name,
+            content_type="text/markdown",
+            content=source.read_text(encoding="utf-8"),
+            metadata={"not_json": object()},
+        )
+
+    assert registration_logical_state(workspace) == baseline
+    assert indexed_paths == []
+    reopened = open_test_filesystem(workspace)
+    assert reopened.store.folder_info("/")["path"] == "/"
+    assert reopened.store.file_refs_for_scope() == []
+
+
+def test_register_files_rejects_second_non_json_metadata_and_rolls_back_batch(
+    tmp_path, monkeypatch
+):
+    from pageindex import PageIndexClient
+
+    install_network_fakes(monkeypatch)
+    successful_index = PageIndexClient.index
+    indexed_paths = []
+
+    def record_index(self, file_path, mode="auto"):
+        indexed_paths.append(Path(file_path).name)
+        return successful_index(self, file_path, mode=mode)
+
+    monkeypatch.setattr(PageIndexClient, "index", record_index)
+    workspace = tmp_path / "workspace"
+    filesystem = open_test_filesystem(workspace)
+    first = tmp_path / "first.md"
+    second = tmp_path / "second.md"
+    first.write_text("alpha registration evidence", encoding="utf-8")
+    second.write_text("beta registration evidence", encoding="utf-8")
+    baseline = registration_logical_state(workspace)
+
+    with pytest.raises(ValueError, match="metadata must be JSON serializable"):
+        filesystem.register_files(
+            [
+                {
+                    "storage_uri": first.as_uri(),
+                    "folder_path": "/documents/new",
+                    "title": first.name,
+                    "content_type": "text/markdown",
+                    "content": first.read_text(encoding="utf-8"),
+                    "metadata": {"year": 2024},
+                },
+                {
+                    "storage_uri": second.as_uri(),
+                    "folder_path": "/documents/new",
+                    "title": second.name,
+                    "content_type": "text/markdown",
+                    "content": second.read_text(encoding="utf-8"),
+                    "metadata": {"not_json": object()},
+                },
+            ]
+        )
+
+    assert registration_logical_state(workspace) == baseline
+    assert indexed_paths == [first.name]
     reopened = open_test_filesystem(workspace)
     assert reopened.store.folder_info("/")["path"] == "/"
     assert reopened.store.file_refs_for_scope() == []
