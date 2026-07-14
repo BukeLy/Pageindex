@@ -972,6 +972,84 @@ def test_setmeta_translates_identity_at_the_cli_boundary(
     assert document["metadata"]["year"] == 2024
 
 
+def test_setmeta_by_file_ref_returns_an_actionable_path_without_leaking_identity(
+    tmp_path, monkeypatch, capsys
+):
+    from pageindex.filesystem.cli import main
+
+    install_network_fakes(monkeypatch)
+    write_embedding_config(tmp_path, monkeypatch)
+    source = tmp_path / "notes.md"
+    source.write_text("alpha evidence", encoding="utf-8")
+    workspace = tmp_path / "workspace"
+    assert main(["--workspace", str(workspace), "add", str(source), "/documents"]) == 0
+    capsys.readouterr()
+    with sqlite3.connect(workspace / "filesystem.sqlite") as connection:
+        file_ref = connection.execute("SELECT file_ref FROM files").fetchone()[0]
+
+    assert main(
+        [
+            "--workspace",
+            str(workspace),
+            "setmeta",
+            file_ref,
+            '{"year": 2024}',
+        ]
+    ) == 0
+    output = capsys.readouterr().out
+    document = json.loads(output)
+
+    assert document["path"] == "/documents/notes.md"
+    assert file_ref not in output
+    assert main(["--workspace", str(workspace), "stat", document["path"]]) == 0
+    stat = json.loads(capsys.readouterr().out)["data"]["document"]
+    assert stat["path"] == document["path"]
+
+
+@pytest.mark.parametrize("operation", ["replace", "clear"])
+def test_metadata_scoped_setmeta_returns_the_post_update_actionable_path(
+    operation, tmp_path, monkeypatch, capsys
+):
+    from pageindex.filesystem.cli import main
+
+    install_network_fakes(monkeypatch)
+    write_embedding_config(tmp_path, monkeypatch)
+    source = tmp_path / "notes.md"
+    source.write_text("alpha evidence", encoding="utf-8")
+    workspace = tmp_path / "workspace"
+    assert main(["--workspace", str(workspace), "add", str(source), "/documents"]) == 0
+    capsys.readouterr()
+    assert main(
+        [
+            "--workspace",
+            str(workspace),
+            "setmeta",
+            "/documents/notes.md",
+            '{"year": 2024}',
+        ]
+    ) == 0
+    capsys.readouterr()
+    old_path = "/documents/@year=2024/notes.md"
+    command = ["--workspace", str(workspace), "setmeta"]
+    if operation == "clear":
+        command.extend(["--clear", old_path])
+    else:
+        command.extend([old_path, '{"year": 2025}'])
+
+    assert main(command) == 0
+    document = json.loads(capsys.readouterr().out)
+
+    assert document["path"] == "/documents/notes.md"
+    assert document["path"] != old_path
+    if operation == "clear":
+        assert "year" not in document["metadata"]
+    else:
+        assert document["metadata"]["year"] == 2025
+    assert main(["--workspace", str(workspace), "stat", document["path"]]) == 0
+    stat = json.loads(capsys.readouterr().out)["data"]["document"]
+    assert stat["path"] == document["path"]
+
+
 def test_tree_file_records_use_only_command_identity_names(
     tmp_path, monkeypatch, capsys
 ):
@@ -1172,6 +1250,49 @@ def test_cli_add_rejects_duplicate_target_without_changing_owned_document(
     owned = list((workspace / "artifacts" / "uploads").glob("*/notes.md"))
     assert len(owned) == 1
     assert owned[0].read_text(encoding="utf-8") == "first alpha evidence"
+
+
+def test_physical_browse_preserves_collision_aware_tree_locators(
+    tmp_path, monkeypatch, capsys
+):
+    from pageindex.filesystem.cli import main
+
+    install_network_fakes(monkeypatch)
+    write_embedding_config(tmp_path, monkeypatch)
+    workspace = tmp_path / "workspace"
+    for filename, content in (
+        ("alpha.md", "alpha evidence"),
+        ("beta.md", "beta evidence"),
+    ):
+        source = tmp_path / filename
+        source.write_text(content, encoding="utf-8")
+        assert main(["--workspace", str(workspace), "add", str(source), "/documents"]) == 0
+        capsys.readouterr()
+    with sqlite3.connect(workspace / "filesystem.sqlite") as connection:
+        connection.execute(
+            "UPDATE file_folders SET metadata_json = ?",
+            (json.dumps({"display_name": "same.md"}),),
+        )
+
+    assert main(["--workspace", str(workspace), "tree", "/documents", "-L", "1"]) == 0
+    tree_files = json.loads(capsys.readouterr().out)["data"]["tree"]["files"]
+    tree_paths = {row["path"] for row in tree_files}
+    assert tree_paths == {
+        "/documents/same.md~1",
+        "/documents/same.md~2",
+    }
+
+    assert main(["--workspace", str(workspace), "browse", "/documents", "alpha"]) == 0
+    browse_documents = json.loads(capsys.readouterr().out)["data"]["documents"]
+    browse_paths = [row["path"] for row in browse_documents]
+
+    assert len(browse_documents) == 2
+    assert len(set(browse_paths)) == 2
+    assert set(browse_paths) == tree_paths
+    for path in browse_paths:
+        assert main(["--workspace", str(workspace), "stat", path]) == 0
+        stat = json.loads(capsys.readouterr().out)["data"]["document"]
+        assert stat["path"] == path
 
 
 def test_browse_recursively_returns_one_global_ranked_page_of_ten(

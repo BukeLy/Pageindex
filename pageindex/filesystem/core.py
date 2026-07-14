@@ -699,7 +699,20 @@ class PageIndexFileSystem:
             metadata=replacement,
             metadata_status=dict(info.get("metadata_status") or {}),
         )
-        return self.store.file_info(file_ref)
+        updated = self.store.file_info(file_ref)
+        entry = self.store.get_file(file_ref)
+        folder_paths = [folder["path"] for folder in updated.get("folders", [])]
+        folder_path = self._preferred_folder_path(
+            folder_paths,
+            entry.folder_path,
+            entry.folder_path,
+        )
+        updated["path"] = self._stable_file_locator(
+            file_ref,
+            entry,
+            folder_path=folder_path,
+        )
+        return updated
 
     def pageindex_structure(
         self,
@@ -1470,19 +1483,11 @@ class PageIndexFileSystem:
         ).strip()
         if not title:
             raise RuntimeError(f"browse cannot build a virtual path for {file_ref}: missing title")
-        target = self._join_virtual_file_path(folder_path, title.strip("/"))
-        try:
-            resolved_file_ref = self.store.resolve_file_ref(target)
-        except KeyError as exc:
-            raise RuntimeError(
-                f"browse produced an unresolved virtual path for {file_ref}: {target}"
-            ) from exc
-        if resolved_file_ref != file_ref:
-            raise RuntimeError(
-                "browse produced a non-idempotent virtual path: "
-                f"{target} resolved to {resolved_file_ref}, expected {file_ref}"
-            )
-        return target
+        return self.scope_file_locator(
+            self.resolve_query_scope(folder_path),
+            file_ref,
+            title,
+        )
 
     @staticmethod
     def _scope_file_locator(scope: PIFSQueryScope, leaf: Any) -> str:

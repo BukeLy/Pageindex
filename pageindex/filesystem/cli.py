@@ -384,7 +384,7 @@ def _run_setmeta(argv: list[str], *, workspace: str) -> int:
     filesystem = _filesystem_from_workspace(workspace)
     info = filesystem.set_metadata(args.target, metadata, clear=args.clear)
     document = {
-        "path": args.target if args.target.startswith("/") else info.get("path"),
+        "path": info.get("path"),
         "document_id": info.get("external_id"),
         "title": info.get("title"),
         "status": info.get("pageindex_tree_status"),

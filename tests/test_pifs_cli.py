@@ -239,7 +239,11 @@ def test_cli_setmeta_clear_uses_empty_object(monkeypatch, capsys, tmp_path):
     class FakeSetMetaFileSystem(FakeFileSystem):
         def set_metadata(self, target, metadata, *, clear=False):
             calls.append((self.workspace, target, metadata, clear))
-            return {"file_ref": "file_report", "metadata": metadata}
+            return {
+                "path": "/documents/report.md",
+                "file_ref": "file_report",
+                "metadata": metadata,
+            }
 
     monkeypatch.setattr(cli, "PageIndexFileSystem", FakeSetMetaFileSystem)
 
