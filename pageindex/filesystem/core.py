@@ -24,6 +24,7 @@ from .types import PIFSQueryScope
 
 if TYPE_CHECKING:
     from ..client import PageIndexClient
+    from .semantic_projection import _EmbeddingCacheKey
 
 PROJECTION_INDEX_STATUSES = {
     "not_indexed",
@@ -207,11 +208,11 @@ class PageIndexFileSystem:
                 self._ensure_add_semantic_retrieval_ready()
             except Exception:
                 if catalog_inserted:
-                    self._cleanup_add_catalog_record(file_ref)
-                self._cleanup_add_summary_projection(records)
+                    self._cleanup_catalog_record(file_ref)
+                self._cleanup_summary_projection_records(records)
                 self._cleanup_failed_register_artifacts(records)
-                self._cleanup_add_pageindex_cache(records, preexisting_pageindex_doc_ids)
-                self._cleanup_add_created_folders(add_created_folder_paths)
+                self._cleanup_pageindex_cache(records, preexisting_pageindex_doc_ids)
+                self._cleanup_created_folders(add_created_folder_paths)
                 if final_dir_created:
                     shutil.rmtree(final_dir, ignore_errors=True)
                 raise
@@ -221,27 +222,35 @@ class PageIndexFileSystem:
         return info
 
     def register_files(self, files: list[dict[str, Any]]) -> list[str]:
-        records = [self._prepare_file_record(file) for file in files]
-        preexisting_file_refs = self._existing_file_refs(records)
-        new_records = [
-            record for record in records if record["file_ref"] not in preexisting_file_refs
-        ]
-        created_folder_paths = sorted(
-            {
-                path
-                for record in new_records
-                for path in self._add_created_folder_paths(record["folder_path"])
-            },
-            key=lambda path: (path.count("/"), path),
-        )
-        new_metadata_fields = {
-            name
-            for name in self._custom_metadata_field_names(records)
-            if not self.store.metadata_field_exists(name)
-        }
-        batch_cache_keys: set[Any] = set()
-        preexisting_cache_keys: set[Any] = set()
+        preexisting_pageindex_doc_ids = self._pageindex_cache_doc_ids()
+        records: list[dict[str, Any]] = []
+        new_records: list[dict[str, Any]] = []
+        created_folder_paths: list[str] = []
+        new_metadata_fields: set[str] = set()
+        batch_cache_keys: set[_EmbeddingCacheKey] = set()
+        preexisting_cache_keys: set[_EmbeddingCacheKey] = set()
         try:
+            for file in files:
+                records.append(self._prepare_file_record(file))
+            preexisting_file_refs = self._existing_file_refs(records)
+            new_records = [
+                record
+                for record in records
+                if record["file_ref"] not in preexisting_file_refs
+            ]
+            created_folder_paths = sorted(
+                {
+                    path
+                    for record in new_records
+                    for path in self._add_created_folder_paths(record["folder_path"])
+                },
+                key=lambda path: (path.count("/"), path),
+            )
+            new_metadata_fields = {
+                name
+                for name in self._custom_metadata_field_names(records)
+                if not self.store.metadata_field_exists(name)
+            }
             if records:
                 projection = self._ensure_summary_projection()
                 batch_cache_keys = projection.cache_keys_for_records(new_records)
@@ -264,15 +273,19 @@ class PageIndexFileSystem:
                 except KeyError:
                     continue
         except Exception:
-            self._cleanup_add_summary_projection(new_records)
+            self._cleanup_summary_projection_records(new_records)
             self._cleanup_summary_projection_cache(
                 batch_cache_keys - preexisting_cache_keys
             )
             for record in new_records:
-                self._cleanup_add_catalog_record(str(record["file_ref"]))
-            self._cleanup_add_created_folders(created_folder_paths)
+                self._cleanup_catalog_record(str(record["file_ref"]))
+            self._cleanup_created_folders(created_folder_paths)
             self._cleanup_new_metadata_fields(new_metadata_fields)
             self._cleanup_failed_register_artifacts(records)
+            self._cleanup_pageindex_cache(
+                records,
+                preexisting_pageindex_doc_ids,
+            )
             raise
         return [record["file_ref"] for record in records]
 
@@ -1281,7 +1294,7 @@ class PageIndexFileSystem:
             if record.get("_pifs_owned_raw_artifact") and record.get("raw_artifact_path"):
                 self._unlink_artifact(record["raw_artifact_path"])
 
-    def _cleanup_add_catalog_record(self, file_ref: str) -> None:
+    def _cleanup_catalog_record(self, file_ref: str) -> None:
         try:
             self.store.delete_file(file_ref)
         except Exception:
@@ -1300,7 +1313,10 @@ class PageIndexFileSystem:
             existing.add(file_ref)
         return existing
 
-    def _cleanup_add_summary_projection(self, records: list[dict[str, Any]]) -> None:
+    def _cleanup_summary_projection_records(
+        self,
+        records: list[dict[str, Any]],
+    ) -> None:
         projection = self.summary_projection
         if projection is None:
             return
@@ -1313,7 +1329,10 @@ class PageIndexFileSystem:
             except Exception:
                 continue
 
-    def _cleanup_summary_projection_cache(self, keys: set[Any]) -> None:
+    def _cleanup_summary_projection_cache(
+        self,
+        keys: set[_EmbeddingCacheKey],
+    ) -> None:
         if not keys or self.summary_projection is None:
             return
         try:
@@ -1321,7 +1340,7 @@ class PageIndexFileSystem:
         except Exception:
             return
 
-    def _cleanup_add_created_folders(self, folder_paths: list[str]) -> None:
+    def _cleanup_created_folders(self, folder_paths: list[str]) -> None:
         for folder_path in reversed(folder_paths):
             try:
                 self.store.delete_empty_folder(folder_path)
@@ -1349,7 +1368,7 @@ class PageIndexFileSystem:
             doc_ids.update(str(doc_id) for doc_id in payload)
         return doc_ids
 
-    def _cleanup_add_pageindex_cache(
+    def _cleanup_pageindex_cache(
         self,
         records: list[dict[str, Any]],
         preexisting_doc_ids: set[str],

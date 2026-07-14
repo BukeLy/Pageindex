@@ -27,7 +27,7 @@ from .semantic_index import (
 
 
 SUMMARY_INDEX_NAME = "summary"
-EmbeddingCacheKey = tuple[str, str, int, str]
+_EmbeddingCacheKey = tuple[str, str, int, str]
 
 
 @dataclass(frozen=True)
@@ -153,7 +153,7 @@ class SummaryProjection:
     def cache_keys_for_records(
         self,
         records: list[dict[str, Any]],
-    ) -> set[EmbeddingCacheKey]:
+    ) -> set[_EmbeddingCacheKey]:
         summaries = [
             str((record.get("metadata") or {}).get("summary") or "").strip()
             for record in records
@@ -165,11 +165,11 @@ class SummaryProjection:
 
     def existing_cache_keys(
         self,
-        keys: set[EmbeddingCacheKey],
-    ) -> set[EmbeddingCacheKey]:
+        keys: set[_EmbeddingCacheKey],
+    ) -> set[_EmbeddingCacheKey]:
         return self.embedding_cache.existing_keys(keys)
 
-    def delete_cache_keys(self, keys: set[EmbeddingCacheKey]) -> int:
+    def delete_cache_keys(self, keys: set[_EmbeddingCacheKey]) -> int:
         return self.embedding_cache.delete_keys(keys)
 
     def search(
@@ -323,7 +323,7 @@ class EmbeddingCache:
         texts: list[str],
         *,
         profile: SummaryEmbeddingProfile,
-    ) -> set[EmbeddingCacheKey]:
+    ) -> set[_EmbeddingCacheKey]:
         return {
             (
                 str(profile.base_url),
@@ -336,9 +336,9 @@ class EmbeddingCache:
 
     def existing_keys(
         self,
-        keys: set[EmbeddingCacheKey],
-    ) -> set[EmbeddingCacheKey]:
-        existing: set[EmbeddingCacheKey] = set()
+        keys: set[_EmbeddingCacheKey],
+    ) -> set[_EmbeddingCacheKey]:
+        existing: set[_EmbeddingCacheKey] = set()
         with self.connect(read_only=True) as connection:
             for key in sorted(keys):
                 if connection.execute(
@@ -352,7 +352,7 @@ class EmbeddingCache:
                     existing.add(key)
         return existing
 
-    def delete_keys(self, keys: set[EmbeddingCacheKey]) -> int:
+    def delete_keys(self, keys: set[_EmbeddingCacheKey]) -> int:
         if not keys:
             return 0
         with self.connect() as connection:

@@ -42,7 +42,8 @@ def install_network_fakes(monkeypatch):
             if path.suffix.lower() in {".md", ".markdown"}
             else "pdf alpha evidence"
         )
-        document_id = f"pageindex_{path.stem}"
+        path_digest = hashlib.sha256(str(path.resolve()).encode("utf-8")).hexdigest()
+        document_id = f"pageindex_{path_digest[:16]}"
         document = {
             "id": document_id,
             "type": "pdf" if path.suffix.lower() == ".pdf" else "md",
@@ -62,24 +63,8 @@ def install_network_fakes(monkeypatch):
             "pages": [{"page": 1, "content": text}],
         }
         self.documents[document_id] = document
-        self.workspace.mkdir(parents=True, exist_ok=True)
-        (self.workspace / f"{document_id}.json").write_text(
-            json.dumps(document), encoding="utf-8"
-        )
-        (self.workspace / "_meta.json").write_text(
-            json.dumps(
-                {
-                    document_id: {
-                        "type": document["type"],
-                        "doc_name": path.name,
-                        "doc_description": document["doc_description"],
-                        "path": str(path.resolve()),
-                        "line_count": document["line_count"],
-                    }
-                }
-            ),
-            encoding="utf-8",
-        )
+        if self.workspace:
+            self._save_doc(document_id)
         return document_id
 
     monkeypatch.setattr(openai, "OpenAI", FakeOpenAI)
@@ -272,6 +257,22 @@ def registration_logical_state(workspace):
             }
         else:
             artifacts[artifact_kind] = {}
+
+    pageindex_dir = workspace / "artifacts" / "pageindex_client"
+    meta_path = pageindex_dir / "_meta.json"
+    artifacts["pageindex_client"] = {
+        "meta": json.loads(meta_path.read_text(encoding="utf-8"))
+        if meta_path.is_file()
+        else {},
+        "documents": {
+            path.name: {
+                "json": json.loads(path.read_text(encoding="utf-8")),
+                "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+            }
+            for path in sorted(pageindex_dir.glob("*.json"))
+            if path.name != "_meta.json"
+        },
+    }
 
     return {
         "catalog": catalog,
@@ -1521,6 +1522,59 @@ def test_register_files_rollback_preserves_preexisting_catalog_projection_and_ca
     assert registration_logical_state(workspace) == baseline
     strict_reopen = open_test_filesystem(workspace)
     assert strict_reopen.store.get_file(existing_ref).metadata["year"] == 2023
+    structure = strict_reopen.pageindex_structure(existing_ref)
+    assert structure["available"] is True
+    assert structure["structure"][0]["title"] == existing.stem
+
+
+def test_register_files_rolls_back_partial_pageindex_preparation(
+    tmp_path, monkeypatch
+):
+    from pageindex import PageIndexClient
+
+    install_network_fakes(monkeypatch)
+    successful_index = PageIndexClient.index
+    calls = 0
+
+    def fail_after_second_pageindex_write(self, file_path, mode="auto"):
+        nonlocal calls
+        calls += 1
+        document_id = successful_index(self, file_path, mode=mode)
+        if calls == 2:
+            raise RuntimeError("PageIndex extraction failed for second registration")
+        return document_id
+
+    monkeypatch.setattr(PageIndexClient, "index", fail_after_second_pageindex_write)
+    workspace = tmp_path / "workspace"
+    filesystem = open_test_filesystem(workspace)
+    first = tmp_path / "first.md"
+    second = tmp_path / "second.md"
+    first.write_text("alpha registration evidence", encoding="utf-8")
+    second.write_text("beta registration evidence", encoding="utf-8")
+    baseline = registration_logical_state(workspace)
+
+    with pytest.raises(
+        RuntimeError,
+        match="PageIndex extraction failed for second registration",
+    ):
+        filesystem.register_files(
+            [
+                {
+                    "storage_uri": source.as_uri(),
+                    "folder_path": "/documents/new",
+                    "title": source.name,
+                    "content_type": "text/markdown",
+                    "content": source.read_text(encoding="utf-8"),
+                    "metadata": {"year": 2024},
+                }
+                for source in (first, second)
+            ]
+        )
+
+    assert registration_logical_state(workspace) == baseline
+    reopened = open_test_filesystem(workspace)
+    assert reopened.store.folder_info("/")["path"] == "/"
+    assert reopened.store.file_refs_for_scope() == []
 
 
 def test_register_file_rolls_back_partial_projection_creation_and_reopens(
