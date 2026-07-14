@@ -165,6 +165,23 @@ def insert_projection_document(summary_path, *, file_ref="orphan_projection_ref"
         )
 
 
+def delete_projection_document(summary_path, file_ref):
+    with connect_summary_database(summary_path) as connection:
+        row = connection.execute(
+            "SELECT rowid FROM semantic_index_docs WHERE file_ref = ?",
+            (file_ref,),
+        ).fetchone()
+        assert row is not None
+        connection.execute(
+            "DELETE FROM semantic_index_vec WHERE rowid = ?",
+            (row[0],),
+        )
+        connection.execute(
+            "DELETE FROM semantic_index_docs WHERE rowid = ?",
+            (row[0],),
+        )
+
+
 def catalog_file_count(workspace):
     with sqlite3.connect(Path(workspace) / "filesystem.sqlite") as connection:
         return connection.execute("SELECT COUNT(*) FROM files").fetchone()[0]
@@ -550,6 +567,90 @@ def test_cli_rejects_inconsistent_catalog_projection_relationships_without_mutat
 
     assert status == 1
     assert "migrate_pifs_workspace.py" in capsys.readouterr().err
+    assert workspace_state(workspace) == before
+
+
+@pytest.mark.parametrize(
+    ("catalog_state", "projection_state", "should_fail"),
+    [
+        ("active", "projected", False),
+        ("active", "missing", True),
+        ("deleted", "missing", False),
+        ("deleted", "projected", True),
+    ],
+)
+def test_runtime_requires_complete_projection_for_every_active_catalog_file(
+    catalog_state, projection_state, should_fail, tmp_path, monkeypatch
+):
+    install_network_fakes(monkeypatch)
+    workspace = tmp_path / "workspace"
+    source = tmp_path / "notes.md"
+    source.write_text("alpha consistency evidence", encoding="utf-8")
+    filesystem = open_test_filesystem(workspace)
+    file_ref = filesystem.register_file(
+        storage_uri=source.as_uri(),
+        folder_path="/documents",
+        title=source.name,
+        content_type="text/markdown",
+        content=source.read_text(encoding="utf-8"),
+    )
+    if catalog_state == "deleted":
+        with sqlite3.connect(workspace / "filesystem.sqlite") as connection:
+            connection.execute(
+                "UPDATE files SET deleted_at = '2026-01-02 03:04:05' "
+                "WHERE file_ref = ?",
+                (file_ref,),
+            )
+    if projection_state == "missing":
+        delete_projection_document(
+            workspace / "artifacts" / "projection_indexes" / "summary.sqlite",
+            file_ref,
+        )
+    before = workspace_state(workspace)
+
+    if should_fail:
+        with pytest.raises(RuntimeError, match="migrate_pifs_workspace.py"):
+            open_test_filesystem(workspace)
+    else:
+        open_test_filesystem(workspace)
+
+    assert workspace_state(workspace) == before
+
+
+@pytest.mark.parametrize(("catalog_state", "should_fail"), [("active", True), ("deleted", False)])
+def test_runtime_requires_projection_pair_when_catalog_only_has_active_files(
+    catalog_state, should_fail, tmp_path, monkeypatch
+):
+    install_network_fakes(monkeypatch)
+    workspace = tmp_path / "workspace"
+    source = tmp_path / "notes.md"
+    source.write_text("alpha catalog-only evidence", encoding="utf-8")
+    filesystem = open_test_filesystem(workspace)
+    file_ref = filesystem.register_file(
+        storage_uri=source.as_uri(),
+        folder_path="/documents",
+        title=source.name,
+        content_type="text/markdown",
+        content=source.read_text(encoding="utf-8"),
+    )
+    if catalog_state == "deleted":
+        with sqlite3.connect(workspace / "filesystem.sqlite") as connection:
+            connection.execute(
+                "UPDATE files SET deleted_at = '2026-01-02 03:04:05' "
+                "WHERE file_ref = ?",
+                (file_ref,),
+            )
+    projection_dir = workspace / "artifacts" / "projection_indexes"
+    (projection_dir / "summary.sqlite").unlink()
+    (projection_dir / "embedding_cache.sqlite").unlink()
+    before = workspace_state(workspace)
+
+    if should_fail:
+        with pytest.raises(RuntimeError, match="migrate_pifs_workspace.py"):
+            open_test_filesystem(workspace)
+    else:
+        open_test_filesystem(workspace)
+
     assert workspace_state(workspace) == before
 
 

@@ -82,12 +82,12 @@ class PageIndexFileSystem:
         summary_path, cache_path = projection_database_paths(
             self.summary_projection_index_dir
         )
+        catalog_path = self.workspace / "filesystem.sqlite"
+        catalog_present = catalog_path.exists() or catalog_path.is_symlink()
         summary_present = projection_database_path_present(summary_path)
         cache_present = projection_database_path_present(cache_path)
-        if summary_present or cache_present:
-            SQLiteFileSystemStore.validate_existing_database(
-                self.workspace / "filesystem.sqlite"
-            )
+        if catalog_present or summary_present or cache_present:
+            SQLiteFileSystemStore.validate_existing_database(catalog_path)
         database_pair = projection_database_pair(self.summary_projection_index_dir)
         if database_pair is not None:
             from .semantic_projection import validate_projection_topology
@@ -95,9 +95,13 @@ class PageIndexFileSystem:
 
             validate_projection_topology(self.summary_projection_index_dir)
             validate_workspace_consistency(
-                self.workspace / "filesystem.sqlite",
+                catalog_path,
                 database_pair[0],
             )
+        elif catalog_present:
+            from ._workspace_consistency import validate_catalog_without_projection
+
+            validate_catalog_without_projection(catalog_path)
         self.store = SQLiteFileSystemStore(self.workspace)
         self.metadata = MetadataQueryEngine(self.store)
         self.summary_projection: Any | None = None

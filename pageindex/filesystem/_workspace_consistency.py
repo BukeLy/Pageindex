@@ -70,3 +70,33 @@ def validate_workspace_consistency(
             "Summary Projection file_ref values do not reference active catalog files: "
             f"{shown}"
         )
+    missing = sorted(active_file_refs - projected_file_refs)
+    if missing:
+        shown = ", ".join(missing[:5])
+        raise _inconsistent_workspace_error(
+            "active catalog file_ref values are missing from the Summary Projection: "
+            f"{shown}"
+        )
+
+
+def validate_catalog_without_projection(catalog_path: str | Path) -> None:
+    catalog_path = Path(catalog_path)
+    validate_catalog_root(catalog_path)
+    try:
+        with _readonly_connection(catalog_path) as catalog:
+            active_file_refs = sorted(
+                str(row[0])
+                for row in catalog.execute(
+                    "SELECT file_ref FROM files WHERE deleted_at IS NULL"
+                )
+            )
+    except sqlite3.Error as exc:
+        raise _inconsistent_workspace_error(
+            "active catalog references could not be read"
+        ) from exc
+    if active_file_refs:
+        shown = ", ".join(active_file_refs[:5])
+        raise _inconsistent_workspace_error(
+            "active catalog files require a complete Summary Projection: "
+            f"{shown}"
+        )
